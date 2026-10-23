@@ -2,7 +2,8 @@ import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
 import { speedRatingOnScale } from './speed'
 
-// Combined rank. Score = weighted mean of the raw Proj (0.50), Nett (0.30) and Spd (0.20) figures on the Proj scale (22 Oct 2026, owner's call: raw 50 / 30 / 20 after the z-score comparison below), over the signals
+// 23 Oct 2026 (owner's call, option 4): the Rating is the Proj alone. Spd (was 40%) and Nett are still shown as the SR and TR columns and as rank squares, but add nothing to the Rating.
+// Test behind the earlier blends (kept as record; see CLAUDE.md for the 23 Oct comparison,): Combined rank. Score = weighted mean of the raw Proj (0.50), Nett (0.30) and Spd (0.20) figures on the Proj scale (22 Oct 2026, owner's call: raw 50 / 30 / 20 after the z-score comparison below), over the signals
 // the runner has; the rank orders the scores (ties share the best place). A runner needs at least two of the three. Spd is its rating put on the Nett / Proj scale (`speedRatingOnScale`). The Rating is exactly the weighted average of the
 // figures shown (22 Oct 2026, owner's call): an earlier version shifted Nett and Spd to the field mean of Proj first, which cannot change the order when all three are present (a constant per race)
 // and only made the number harder to check by eye (Happy Smile 83.1 vs 83.9 from its tiles). A runner missing a signal renormalises the weights over the ones it has, so it can sit a point or so off level in a field where the signals' means differ.
@@ -20,9 +21,6 @@ export interface CombinedRank {
   estimated: boolean // a first starter: the rating is its Proj estimate (race level and price), placed against the rated runners
 }
 
-const MIN_SIGNALS = 1
-const W_SPD = 0.4
-const W_PROJ = 0.6 // 23 Oct 2026: Rating = Proj 60 / Spd 40; Nett is no longer counted (kept as the TR column and rank square)
 
 function rankDesc(values: Map<string, number>): Map<string, number> {
   const all = [...values.values()]
@@ -55,15 +53,9 @@ export function computeCombinedRank(
   for (const r of runners) {
     if (scratched.has(r.runId)) continue
     const ranks: CombinedRank['ranks'] = [rn.get(r.runId) ?? null, rs.get(r.runId) ?? null, rp.get(r.runId) ?? null]
-    let num = 0
-    let den = 0
-    let n = 0
-    const sp = speed.get(r.runId)
     const pr = proj.get(r.runId)
-    if (sp != null) { num += W_SPD * sp; den += W_SPD; n++ }
-    if (pr != null) { num += W_PROJ * pr; den += W_PROJ; n++ }
-    if (pr == null || n < MIN_SIGNALS) continue
-    scores.set(r.runId, { rating: num / den, ranks })
+    if (pr == null) continue
+    scores.set(r.runId, { rating: pr, ranks })
   }
   const all = [...scores.values()].map((m) => -m.rating)
   const out = new Map<string, CombinedRank>()

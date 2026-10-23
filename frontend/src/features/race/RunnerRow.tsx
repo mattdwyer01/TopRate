@@ -1,6 +1,6 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
-import { fmtPrice, fmtWpr } from '../../lib/format'
+import { fmtPrice } from '../../lib/format'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { FinishBadge, PriceCell, useRowFacts } from './rowParts'
 import type { CombinedRank } from '../../lib/combinedRank'
@@ -125,27 +125,24 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       >
         {f.scratched ? '' : runner.speedRating == null ? <Missing why="No SR: needs an earlier time-based figure (overseas runs have none)" /> : Math.round(speedRatingOnScale(runner.speedRating))}
       </span>
-      <span className="text-right">
-        {f.scratched ? (
-          <span className="font-mono text-ink-faint">SCR</span>
-        ) : (
-          <span title={`Rating ${fmtWpr(f.proj)}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). WPR projection ${fmtWpr(effective?.projectionWpr ?? null)}${f.atwOff !== 0 ? ` at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}` : ''}${sd != null ? ` ± ${Math.round(sd)}` : ''}${runner.projectionModel === 'light' ? ' (light-history model)' : ''}${runner.projectionModel === 'debut' ? ' (first starter: estimated from the race level and its price, not a form rating)' : ''}`}>
-            <span className={`font-mono text-[12px] text-ink-mute lg:text-[13px] ${runner.projectionModel === 'debut' ? 'italic text-ink-faint' : ''}`}>{f.proj == null ? <Missing why="No WR (no rated form, or a jumps race)" /> : <>{runner.projectionModel === 'debut' ? '~' : ''}{Math.round(f.proj)}</>}</span>
-            {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
-          </span>
-        )}
+      <span
+        className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
+        title={runner.peakWpr != null ? `Peak ${runner.peakWpr.toFixed(1)}: the highest rating this horse has run in the 12 months before this race (runner-page ratings, same scale as WR)` : undefined}
+      >
+        {f.scratched ? '' : runner.peakWpr == null ? <Missing why="No rated run in the 12 months before this race" /> : Math.round(runner.peakWpr)}
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Combined rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}; weighted average of the Proj and Spd figures, 60 / 40, on the Proj scale; Nett is shown but not counted): Spd ${combo.ranks[0] ?? '-'}, Nett ${combo.ranks[1] ?? '-'}, Proj ${combo.ranks[2] ?? '-'}` : undefined}
+        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}): the WR projection at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}${sd != null ? ` ± ${Math.round(sd)}` : ''}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). TR and SR are shown but not counted. Ranks: TR ${combo.ranks[0] ?? '-'}, SR ${combo.ranks[1] ?? '-'}, WR ${combo.ranks[2] ?? '-'}` : undefined}
       >
         {f.scratched ? null : !combo ? (
-          <span className="mr-1.5 text-ink-faint lg:mr-0" title="Needs at least two of TR, SR and WR">&ndash;</span>
+          <span className="mr-1.5 text-ink-faint lg:mr-0" title="No WR (no rated form, or a jumps race)">&ndash;</span>
         ) : (
           <>
             <span className={`inline-block min-w-[18px] text-center text-[13px] font-semibold lg:text-[14px] ${combo.estimated ? 'italic text-ink-faint' : combo.rank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>
               {combo.estimated ? '~' : ''}{combo.rating != null ? combo.rating.toFixed(1) : combo.rank}
             </span>
+            {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
             <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">
               {combo.ranks.map((x, i) => (
                 <span key={i} className="h-[5px] w-[5px] rounded-[1px] lg:h-[6px] lg:w-[6px]" style={{ background: rankShade(x) }} />

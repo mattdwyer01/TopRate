@@ -14,6 +14,7 @@ export type SortKey =
   | 'speedMapAdj'
   | 'comboRank'
   | 'projectedWpr'
+  | 'peakWpr'
   | 'fixedPrice'
   | 'ratedPrice'
   | 'finish'
@@ -35,6 +36,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   speedMapAdj: 'desc',
   comboRank: 'asc',
   projectedWpr: 'desc',
+  peakWpr: 'desc',
   fixedPrice: 'asc',
   ratedPrice: 'asc',
   finish: 'asc',
@@ -72,6 +74,8 @@ function sortValue(
       return effective?.speedMapAdj ?? -Infinity
     case 'projectedWpr':
       return effective?.effectiveProjectedWpr ?? runner.projectedWpr ?? -Infinity
+    case 'peakWpr':
+      return runner.peakWpr ?? -Infinity
     case 'fixedPrice':
       return runner.fixedWinPrice ?? Infinity
     case 'ratedPrice':

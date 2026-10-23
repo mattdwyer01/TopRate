@@ -50,8 +50,8 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'nett', label: 'TR', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside WR, not blended into it." },
   { key: 'speed', label: 'SR', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs one earlier figure; with 1 to 5 figures it is pulled toward the average." },
-  { key: 'projectedWpr', label: 'WR', align: 'right', title: "WPR projection at the weight carried today (the scale of the form table)." },
-  { key: 'comboRank', label: 'Rating', align: 'right', title: "Combined rating: a weighted average of each runner's WR (50%), TR (30%) and SR (20%) figures on the WR scale (small squares under it show each signal's rank, in that column order TR, SR, WR). The table is sorted by it. A runner needs two of the three. It shows where the signals agree; it is not a better winner picker, the market already prices the agreement." },
+  { key: 'peakWpr', label: 'Peak', align: 'right', title: "Highest rating the horse has run in the 12 months before this race (runner-page ratings, the same scale as WR). Blank when it has no rated run in that time." },
+  { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today (WR alone since 23 Oct 2026; TR and SR are shown beside it but not counted). Small squares under it show each signal's rank, in the order TR, SR, WR. The table is sorted by it. A first starter shows an estimate." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
