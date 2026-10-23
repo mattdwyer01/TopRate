@@ -20,10 +20,9 @@ export interface CombinedRank {
   estimated: boolean // a first starter: the rating is its Proj estimate (race level and price), placed against the rated runners
 }
 
-const MIN_SIGNALS = 2
-const W_SPD = 0.2
-const W_NETT = 0.3
-const W_PROJ = 0.5
+const MIN_SIGNALS = 1
+const W_SPD = 0.4
+const W_PROJ = 0.6 // 23 Oct 2026: Rating = Proj 60 / Spd 40; Nett is no longer counted (kept as the TR column and rank square)
 
 function rankDesc(values: Map<string, number>): Map<string, number> {
   const all = [...values.values()]
@@ -60,12 +59,10 @@ export function computeCombinedRank(
     let den = 0
     let n = 0
     const sp = speed.get(r.runId)
-    const ne = nett.get(r.runId)
     const pr = proj.get(r.runId)
     if (sp != null) { num += W_SPD * sp; den += W_SPD; n++ }
-    if (ne != null) { num += W_NETT * ne; den += W_NETT; n++ }
     if (pr != null) { num += W_PROJ * pr; den += W_PROJ; n++ }
-    if (n < MIN_SIGNALS) continue
+    if (pr == null || n < MIN_SIGNALS) continue
     scores.set(r.runId, { rating: num / den, ranks })
   }
   const all = [...scores.values()].map((m) => -m.rating)
