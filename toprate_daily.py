@@ -42,6 +42,7 @@ import time
 import math
 import json
 import gzip
+import glob
 import os
 import re
 import warnings
@@ -750,6 +751,48 @@ def _melbourne_today():
         return datetime.now(ZoneInfo("Australia/Melbourne")).date().isoformat()
     except Exception:
         return (datetime.now(timezone.utc) + timedelta(hours=10)).date().isoformat()
+
+
+_PEAK12_CACHE = {}
+
+
+def _peak12_table():
+    """horse_id -> (sorted run days, ratings): every rated, non-trial run on the runner pages (data/tr_form, ratings as TopRate gives them, the Proj scale). Cached."""
+    if "t" in _PEAK12_CACHE:
+        return _PEAK12_CACHE["t"]
+    tmp = defaultdict(list)
+    for f in sorted(glob.glob(os.path.join("data", "tr_form", "*.json.gz"))):
+        try:
+            with gzip.open(f, "rt") as fh:
+                runs = json.load(fh).get("runs", {})
+        except Exception:
+            continue
+        for r in runs.values():
+            if r.get("isBarrierTrial") or r.get("isJumpout") or r.get("wpr") is None or r.get("horse_id") is None:
+                continue
+            try:
+                tmp[int(r["horse_id"])].append((np.datetime64(str(r["date"])[:10], "D").astype("int64"), float(r["wpr"])))
+            except Exception:
+                continue
+    out = {}
+    for h, lst in tmp.items():
+        lst.sort()
+        out[h] = (np.array([x[0] for x in lst]), np.array([x[1] for x in lst]))
+    _PEAK12_CACHE["t"] = out
+    return out
+
+
+def peak_last_year(horse_id, race_date):
+    """Highest runner-page rating in the 365 days before race_date (the race day itself excluded), or None."""
+    try:
+        d, w = _peak12_table().get(int(float(horse_id)), (None, None))
+        if d is None:
+            return None
+        day = np.datetime64(str(race_date)[:10], "D").astype("int64")
+        m = (d >= day - 365) & (d < day)
+        return round(float(w[m].max()), 1) if m.any() else None
+    except Exception:
+        return None
 
 
 # Payload slimming (14 Oct 2026). toprate_history.json had grown to 77 MB of the 100 MB GitHub limit. Two kinds of dead weight, neither read by the frontend:
@@ -1952,7 +1995,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpjc":  si(row.get("wprp_conf")),    # confidence 0-100
                 "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
                 "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
-                "wpjpk": sf(row.get("wprp_peak")),    # career peak WPR
+                "wpjpk": peak_last_year(row.get("horse_id"), row.get("date")),    # peak runner-page rating in the 365 days before the race (23 Oct 2026; was the career peak)
                 # Blend score (Step 2c2): the PRIMARY ranking as of Aug
                 # 2026 (promoted from wpr_rank/wprp_rank - a held-out
                 # backtest found it beats WPR-alone ranking on both top-1
