@@ -29,6 +29,7 @@ ES_FROM = pd.Timestamp("2025-07-01")
 CUT = pd.Timestamp("2026-01-01")
 P = dict(learning_rate=0.1, num_leaves=63, min_child_samples=200, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, n_jobs=4)
 if os.environ.get('SPD_LR'): P.update(learning_rate=float(os.environ['SPD_LR']))
+CAP_FEW = float(os.environ.get('SPD_CAP_FEW', '2.0'))    # lengths, max size of the context correction for horses with under 3 earlier figures (0 = off)
 HUBER_ALPHA = float(os.environ.get('HUBER', '4'))   # 23 Oct 2026: Huber alpha 4 (lengths), as the Proj context models; HUBER=0 gives mean loss. Learning rate 0.1: Huber at 0.03 needs hours
 if HUBER_ALPHA > 0: P.update(objective='huber', alpha=HUBER_ALPHA)
 K = C.K
@@ -139,6 +140,11 @@ def train():
         e = te.wpr - te[c]
         w = (e - e.groupby(te.race_id).transform("mean"))[big]
         print(f"held out {lab:34s} RMSE {r(e):.3f}  within-race {r(w):.3f}  (n={len(te):,})")
+    few = te.n < C.REL_MIN_RUNS
+    for cap in (1.0, 1.5, 2.0, 3.0, 99.0):
+        pc = te.f + np.clip(te.p_ctx - te.f, -cap, cap)
+        e = (te.wpr - pc)[few]
+        print(f"held out {int(few.sum()):,} runs with under {C.REL_MIN_RUNS} earlier figures, correction capped at {cap}: RMSE {r(e):.3f}  MAE {float(np.nanmean(np.abs(e))):.3f}")
     miss = te.wpr - te.p_rel
     print(f"held out all runs: mean miss {miss.mean():+.2f}, median {miss.median():+.2f}, within 2 lengths {100*(miss.abs()<=2).mean():.1f}%, within 4 {100*(miss.abs()<=4).mean():.1f}%")
     winner_test(te)
@@ -192,6 +198,11 @@ def predict(runners_df, rows, today=None, art=None, hist=None):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         f, corr = C.predict(T, meta=meta, booster=booster, rp=rp, rel_booster=rel, co=co, clip=None)
+    corr = np.asarray(corr, dtype=float)
+    if CAP_FEW > 0:     # 23 Oct 2026: with under REL_MIN_RUNS earlier figures the context step can run far from the formula (Rock Angel, 1 run: +4.1 lengths), so it is capped there
+        nruns = rp.groupby("horse_id").size().reindex(T["horse_id"]).fillna(0).values
+        few = nruns < C.REL_MIN_RUNS
+        corr = np.where(few, np.clip(corr, -CAP_FEW, CAP_FEW), corr)
     out.loc[R.index] = f + corr
     return out
 
