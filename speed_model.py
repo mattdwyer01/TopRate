@@ -141,6 +141,8 @@ def train():
     miss = te.wpr - te.p_rel
     print(f"held out all runs: mean miss {miss.mean():+.2f}, median {miss.median():+.2f}, within 2 lengths {100*(miss.abs()<=2).mean():.1f}%, within 4 {100*(miss.abs()<=4).mean():.1f}%")
     winner_test(te)
+    if os.environ.get('SPD_DUMP'):
+        te[['key', 'date', 'p_rel', 'wpr', 'race_id', 'positionFinish']].to_pickle(os.environ['SPD_DUMP'])
     if os.environ.get('SPD_EVAL_ONLY'):
         return
     live = te[te.date >= pd.Timestamp("2026-09-01")]
