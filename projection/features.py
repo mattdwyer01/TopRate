@@ -99,7 +99,7 @@ def runner_page_runs():
                                  weightCarried=r.get('weightCarried'), barrier=r.get('barrier'), field_size=r.get('starters'), race_class=r.get('class'),
                                  trackGrading=r.get('trackGrading'), jockey=r.get('jockey'), positionFinish=r.get('positionFinish'),
                                  marginFinish=r.get('marginFinish'), priceStarting=r.get('priceStarting'), position800m=r.get('position800m'),
-                                 comments_steward=r.get('commentsSteward')))
+                                 comments_steward=r.get('commentsSteward'), prize=r.get('prizeMoney')))
     t = pd.DataFrame(rows)
     t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce')
     t['date'] = pd.to_datetime(t.date)
