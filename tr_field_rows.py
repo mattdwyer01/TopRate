@@ -579,6 +579,33 @@ def flag_unlisted(runners_df, date_str, dry_run=False, now=None):
             stats["unlisted_scratched"] += 1
             _set(out, i, "scratched", 1)
             _set(out, i, "field_source", DROPPED)
+    # a whole race TopRate no longer lists: an earlier file carried nominations for a race number the declared card does not have (23 Oct 2026: Mackay R8,
+    # six undeclared runners, tab and barrier 0, no start time, on a seven-race card). Only when the latest file's fetch had no failed race, the venue
+    # is in the file and every row of the race is undeclared (barrier 0 or blank), so a declared race is never dropped on a fetch gap.
+    try:
+        no_failed = not json.loads((DIR / f"{date_str}.json").read_text()).get("failed")
+    except Exception:
+        no_failed = False
+    if no_failed:
+        ghost = {}
+        for i in idx:
+            if str(out.at[i, "field_source"]) != SOURCE or str(out.at[i, "scratched"]) in ("1", "1.0"):
+                continue
+            if any(str(out.at[i, c]) in ("1", "1.0") for c in ("resulted", "interim_resulted") if c in out.columns):
+                continue
+            try:
+                n = str(int(float(out.at[i, "race"])))
+            except (TypeError, ValueError):
+                continue
+            v = norm_venue(out.at[i, "venue"])
+            if (v, n) not in covered_races:
+                ghost.setdefault((v, n), []).append(i)
+        for (v, n), lst in ghost.items():
+            if all(pd.to_numeric(out.at[i, "barrier"], errors="coerce") in (0, 0.0) or pd.isna(pd.to_numeric(out.at[i, "barrier"], errors="coerce")) for i in lst):
+                for i in lst:
+                    stats["unlisted_scratched"] += 1
+                    _set(out, i, "scratched", 1)
+                    _set(out, i, "field_source", DROPPED)
     # a listed horse with more than one live row at the venue: keep TopRate's row (or the one in the race TopRate says), scratch the rest
     groups = {}
     for i in idx:
