@@ -8,6 +8,7 @@ import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { CareerStats } from './CareerStats'
+import type { SpreadCentres } from '../../lib/displaySpread'
 import { ConditionsScorecard, HorseHero, SignalsPanel, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
@@ -28,6 +29,7 @@ interface RunnerDetailModalProps {
   onClose: () => void
   position?: { index: number; total: number }
   ranks?: (number | null)[] | null
+  centres?: SpreadCentres // race averages for the display stretch of the WR and SR tiles (lib/displaySpread)
   onPrev: () => void
   onNext: () => void
 }
@@ -78,6 +80,7 @@ export function RunnerDetailModal({
   onClose,
   position,
   ranks = null,
+  centres,
   onPrev,
   onNext,
 }: RunnerDetailModalProps) {
@@ -189,7 +192,7 @@ export function RunnerDetailModal({
           )}
 
           <div className="lg:order-2 lg:col-span-7">
-            <SignalsPanel runner={runner} proj={effectiveWpr} ranks={ranks} />
+            <SignalsPanel runner={runner} proj={effectiveWpr} ranks={ranks} centres={centres} />
           </div>
 
           <div className="lg:order-1 lg:col-span-5">
