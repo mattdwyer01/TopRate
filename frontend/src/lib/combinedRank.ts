@@ -2,7 +2,7 @@ import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
 import { speedRatingOnScale } from './speed'
 
-// 23 Oct 2026 (owner's call, option 4): the Rating is the Proj alone. Spd (was 40%) and Nett are still shown as the SR and TR columns and as rank squares, but add nothing to the Rating.
+// 23 Oct 2026 (owner's call, option 4): the Rating is the Proj alone. Spd (was 40%) and Nett are still shown as the Spd and Base columns and as rank squares, but add nothing to the Rating.
 // Test behind the earlier blends (kept as record; see CLAUDE.md for the 23 Oct comparison,): Combined rank. Score = weighted mean of the raw Proj (0.50), Nett (0.30) and Spd (0.20) figures on the Proj scale (22 Oct 2026, owner's call: raw 50 / 30 / 20 after the z-score comparison below), over the signals
 // the runner has; the rank orders the scores (ties share the best place). A runner needs at least two of the three. Spd is its rating put on the Nett / Proj scale (`speedRatingOnScale`). The Rating is exactly the weighted average of the
 // figures shown (22 Oct 2026, owner's call): an earlier version shifted Nett and Spd to the field mean of Proj first, which cannot change the order when all three are present (a constant per race)
@@ -17,7 +17,7 @@ export interface CombinedRank {
   tied: boolean // another runner shares this rank
   mean: number // lower is better: the negative of the rating
   rating: number | null // the weighted blend of Proj, Nett and Spd on the Proj scale (higher is better)
-  ranks: [number | null, number | null, number | null] // TR (nett), SR (speed), WR (proj)
+  ranks: [number | null, number | null, number | null] // Base (nett), Spd (speed), WR (proj)
   estimated: boolean // a first starter: the rating is its Proj estimate (race level and price), placed against the rated runners
 }
 

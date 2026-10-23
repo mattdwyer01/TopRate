@@ -547,7 +547,7 @@ export function RecentRunsTable({
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="This horse, last 200m">L200</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Race shape early / mid / late">Shape</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium">WR</th>
-              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Time-based speed rating of the run (85 = par)">SR</th>
+              <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Time-based speed rating of the run (85 = par)">Spd</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="WPR change from the run before">Chg</th>
               <th rowSpan={2} className="px-2 py-1 text-right font-medium" title="Days since the run before">Days</th>
             </tr>
