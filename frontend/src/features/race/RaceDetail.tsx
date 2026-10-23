@@ -137,7 +137,7 @@ export function RaceDetail({
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
-  // The track-bias note stays on the WPR projection, which is what the bias adjustment lives in.
+  // The track-bias note ranks on the WPR projection and shows what the draw lean would add (display only, not inside Proj).
   const rankedProjection = useMemo(
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, CORE_GAP_FROM_TOP, 'projection'),
     [race.runners, effectiveByRunId, effectiveScratched],

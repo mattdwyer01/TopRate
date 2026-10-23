@@ -1,12 +1,13 @@
 import type { Race, Runner } from '../types/domain'
 import type { Ranked } from '../features/race/raceFacts'
 
-// Day-of draw lean. Once 3 or more races at a meeting have a clear top 4, projection/run.py reads which way the draw has run (mean barrier of the placegetters against
-// the middle of the field) and adds lean x 15 x (barrier position - 0.5) to Proj for fields of 8+ (measured on 279,592 runners: wide runners rate about 2 points
-// below inside runners on days that have leaned inside, about half a point above on days that have leaned wide). It is logged as `badj` (wprp_contrib.bias) and is
-// INSIDE Proj; this file only shows what it changed, so a runner or a race that moved because of it can be flagged. The SM column's own suitability figure is separate.
+// Day-of draw lean, DISPLAY ONLY (owner's call, 23 Oct 2026: nothing about track bias is inside the Proj calculation). Once 3 or more races at a meeting have a clear top 4,
+// projection/run.py reads which way the draw has run (mean barrier of the placegetters against the middle of the field) and logs lean x 15 x (barrier position - 0.5) for
+// fields of 8+ as `badj` (wprp_contrib.bias): what the lean WOULD add. It is NOT added to Proj. This file shows it, so a runner whose rating the lean would move, or a race
+// where it would change the order, can be flagged. Checked on the out-of-sample Proj: the flag points the right way (helped runners ran 0.4 above the Proj without it, hurt
+// runners 1.0 below). The SM column's own suitability figure is separate.
 
-// A runner is flagged when the draw lean moved its projection by at least this many WPR.
+// A runner is flagged when the draw lean would move its projection by at least this many WPR.
 export const BIAS_FLAG_MIN = 0.3
 
 // The lean needs this many earlier races at the meeting with a result (the projection also needs a clear top 4 and an 8+ field in each).
@@ -25,18 +26,18 @@ export function racesRunBefore(race: Race, all: Race[]): number {
 }
 
 export interface NoBias {
-  // Projection (same scale as Ranked.proj) without the draw lean, and the speed-map figure (unchanged: the suitability figure does not contain the lean).
+  // Projection (same scale as Ranked.proj) WITH the draw lean applied. The Proj itself does not contain it. The speed-map figure is unchanged.
   proj: number
   sm: number | null
 }
 
-/** Each ranked runner's projection with the draw lean taken out, so the race can be re-ranked as it stood before the earlier races ran. */
+/** Each ranked runner's projection with the draw lean applied on top, so the race can be re-ranked as it would stand if the lean were used. */
 export function withoutBias(ranked: Ranked[]): Map<string, NoBias> {
   const suit = ranked.map((x) => (x.runner.adjustmentBreakdown?.suitability != null ? x.runner.adjustmentBreakdown.suitability : null))
   const vals = suit.filter((v): v is number => v != null)
   const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0
   const out = new Map<string, NoBias>()
-  ranked.forEach((x, i) => out.set(x.runner.runId, { proj: x.proj - runnerBias(x.runner), sm: suit[i] != null ? (suit[i] as number) - mean : null }))
+  ranked.forEach((x, i) => out.set(x.runner.runId, { proj: x.proj + runnerBias(x.runner), sm: suit[i] != null ? (suit[i] as number) - mean : null }))
   return out
 }
 
@@ -44,6 +45,7 @@ export interface BiasMover {
   runner: Runner
   bias: number
   rankNow: number
+  // Rank if the lean were applied (the Proj itself does not apply it).
   rankBefore: number
 }
 

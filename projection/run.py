@@ -85,7 +85,10 @@ ASSUME_GOING = True
 # the suitability adjustment with them minus the adjustment with them blanked, i.e. what the earlier races at the meeting changed. Display only, it is already inside adj.
 BIAS_FEATS = ['fa_cum', 'oa_cum', 'fa_last', 'oa_last', 'n_prev', 'i_front', 'i_front2', 'i_out', 'i_out2']
 INTRADAY_BIAS = True
-# Draw lean adjustment (22 Oct 2026, owner's option 1). The mid-meeting bias in the suitability model moved ratings by well under a point and, since Proj became a formula,
+# Draw lean (22 Oct 2026, owner's option 1; DISPLAY ONLY since 23 Oct 2026, owner's call: no track bias goes into the Proj calculation). The lean is still read and logged as `badj`
+# (what it would add, in rating points) so the race page can show it, but it is NOT added to Proj. Checked 23 Oct on the out-of-sample Proj (analysis/trip_map/draw_lean_check.py):
+# it helped (runs it touches: MAE gain +0.0083 / +0.0088 in 2025 / 2026, 3 SE each; fitted strength 16.5 / 17.6 against 15) but changed no winner log-likelihood (-0.0001, SE 0.0010).
+# The mid-meeting bias in the suitability model moved ratings by well under a point and, since Proj became a formula,
 # was not in Proj at all. Measured on 279,592 runners (2022-25, research/draw_lean_rating_test.py): the wide third rates 2.2 below the inner third on days that have
 # leaned inside, 0.6 above on days that have leaned wide; rating residual = k x lean x (barrier fraction - 0.5), k 18.1 fitted 2022-24 and 20.2 on 2025. `lean` = mean over
 # the earlier races of the same meeting of (mean barrier fraction of the top 4 - 0.5), read from TAB's interim placings; needs LEAN_MIN_RACES such races (each 8+ runners,
@@ -385,14 +388,13 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             R.loc[ok, 'sd'] = db['sd']
             R.loc[ok, 'nruns'] = 0
             R.loc[ok, 'routed'] = 'light'
-        # Draw lean: what the earlier races at this meeting say about the draw, in rating points, added to Proj (base p0 stays the form figure) and logged as badj
+        # Draw lean: what the earlier races at this meeting say about the draw, in rating points. LOGGED as badj for display, NOT added to Proj (owner's call, 23 Oct 2026)
         R['badj'] = 0.0
         if DRAW_LEAN and lean_by_race and 'bf' in R.columns:
             lean = R.race_id.astype('int64').map(lambda r: lean_by_race.get(int(r), (np.nan, 0))[0])
             ok_f = pd.to_numeric(R.field_size, errors='coerce') >= LEAN_MIN_FIELD
             d_adj = (LEAN_K * lean * (R.bf - 0.5)).clip(-LEAN_CAP, LEAN_CAP).where(lean.notna() & ok_f & R.proj.notna(), 0.0).fillna(0.0)
             R['badj'] = d_adj.round(2)
-            R['proj'] = R.proj + d_adj
         return R
     R['p0'] = R.p0 + R.cal
     R['sd'] = [sd_main(p) if m == 'main' else (light_info if pr else light_info['np'])['stage_sd'].get(str(int(n)), 11.0) for p, m, n, pr in zip(R.proj, R.routed, R.nruns, R.light_priced)]
