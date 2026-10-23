@@ -11618,3 +11618,6 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-23T04:01:01+00:00,2026-10-23,CANBERRA,3,VIC,Paying,RunningDouble,7/4,98.3,"{""selections"":[7,4],""amount"":98.3}"
 2026-10-23T04:05:34+00:00,2026-10-23,BALLARAT,3,VIC,Abandoned,(abandoned),,,
 2026-10-23T04:05:34+00:00,2026-10-23,BALLARAT,4,VIC,Abandoned,(abandoned),,,
+2026-10-23T04:10:39+00:00,2026-10-23,BALLARAT,5,VIC,Abandoned,(abandoned),,,
+2026-10-23T04:10:39+00:00,2026-10-23,BALLARAT,6,VIC,Abandoned,(abandoned),,,
+2026-10-23T04:10:39+00:00,2026-10-23,BALLARAT,7,VIC,Abandoned,(abandoned),,,
