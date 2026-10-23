@@ -28,7 +28,7 @@ meta = dict(classes=classes, rel_feats=F1)
 print('models fit before 2026: plain', m0.best_iteration_, 'relevance', m1.best_iteration_, flush=True)
 
 KEY = ['date', 'venue', 'race', 'horse']
-cols = KEY + ['horse_id', 'wpr_nett', 'scratched', 'won', 'field_source', 'spd_fig', 'weight_carried', 'barrier', 'jockey', 'distance', 'going', 'race_class', 'track_grading', 'weight_carried']
+cols = KEY + ['horse_id', 'wpr_nett', 'scratched', 'won', 'finish_position', 'field_source', 'spd_fig', 'weight_carried', 'barrier', 'jockey', 'distance', 'going', 'race_class', 'track_grading', 'weight_carried']
 rd = lambda p: pd.read_csv(p, low_memory=False, usecols=lambda c: c in cols)
 leg = pd.concat([rd('archive/toprate/toprate_runners_archive.csv.gz'), rd('archive/toprate/toprate_runners.csv')], ignore_index=True)
 cur = pd.concat([rd('runners_archive.csv.gz'), rd('runners.csv')], ignore_index=True)
@@ -58,6 +58,8 @@ print('rebuilt Spd found for', round(100 * d.spd2.notna().mean(), 1), '% of dash
 d['spd2_real'] = d.spd2.notna()
 d['spd2'] = d.spd2.where(d.spd2.notna(), d.spd_line)
 cov = d.groupby('rk').p_plain.transform(lambda s: s.notna().mean())
+if os.environ.get('DUMP_D'):
+    d.to_pickle(os.environ['DUMP_D']); print('dumped', len(d)); sys.exit(0)
 SPD_COV = float(os.environ.get('SPD_COV', '0'))
 D = d[(cov >= 0.8) & (d.groupby('rk').nett.transform(lambda s: s.notna().mean()) >= 0.8) & (d.groupby('rk').spd2_real.transform('mean') >= SPD_COV)].copy(); D['rid'] = D.rk.astype('category').cat.codes
 for c in ('p_plain', 'p_rel', 'p_relh', 'nett', 'spd', 'spd2'):
