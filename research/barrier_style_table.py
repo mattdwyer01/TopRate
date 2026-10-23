@@ -5,7 +5,7 @@ import numpy as np, pandas as pd
 from scipy.optimize import minimize
 
 TRACK = sys.argv[1] if len(sys.argv) > 1 else 'Flemington'
-want = ['race_id','date','track','distance','horse_id','field_size','barrier','priceStarting','position800m',
+want = ['rail_position','race_id','date','track','distance','horse_id','field_size','barrier','priceStarting','position800m',
         'position600m','positionFinish','wpr','isBarrierTrial','race_class']
 fr = []
 for f in sorted(glob.glob('race_results_20[12]*.csv.gz')):
@@ -40,6 +40,8 @@ def table(x):
     return r[['A2E', 'POT%', 'WinSR%', 'w', 'n']].round(2).unstack('sgrp')
 
 t = d[d.track.astype(str).str.contains(TRACK, case=False)]
+import os
+if os.environ.get('RAIL'): t = t[t.rail_position.astype(str).str.startswith(os.environ['RAIL'])]
 print(f'{TRACK}: {len(t)} runners, {t.race_id.nunique()} races, {t.date.min()} to {t.date.max()}')
 pd.set_option('display.width', 250); pd.set_option('display.max_columns', 30)
 print(table(t)); print('ALL TRACKS'); print(table(d))
