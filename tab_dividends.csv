@@ -11558,3 +11558,15 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,6,VIC,Abandoned,(abandoned),,,
 2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,7,VIC,Abandoned,(abandoned),,,
 2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,8,VIC,Abandoned,(abandoned),,,
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Win,7,14.1,"{""selections"":[7],""amount"":14.1}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Place,7,3.5,"{""selections"":[7],""amount"":3.5}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Place,5,1.4,"{""selections"":[5],""amount"":1.4}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Place,9,1.8,"{""selections"":[9],""amount"":1.8}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Quinella,7/5,25.3,"{""selections"":[7,5],""amount"":25.3}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Exacta,7/5,54.7,"{""selections"":[7,5],""amount"":54.7}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Duet,7/5,5.8,"{""selections"":[7,5],""amount"":5.8}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Duet,7/9,7.8,"{""selections"":[7,9],""amount"":7.8}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Duet,5/9,3.2,"{""selections"":[5,9],""amount"":3.2}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,Trifecta,7/5/9,235.1,"{""selections"":[7,5,9],""amount"":235.1}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,FirstFour,7/5/9/8,941.6,"{""selections"":[7,5,9,8],""amount"":941.6}"
+2026-10-23T03:10:44+00:00,2026-10-23,CANBERRA,2,VIC,Paying,RunningDouble,1/7,55.4,"{""selections"":[1,7],""amount"":55.4}"
