@@ -92,7 +92,7 @@ def fixed_blend(wp, wn, ws, spd='spd2'):
     return np.concatenate(out), np.concatenate(tops)
 def fitw_col(df, c):
     X = df[[c]].values; return minimize(lambda w: -ll(df, X, w).mean(), np.full(1, .2), method='L-BFGS-B').x
-cands = [(.5, .3, .2), (.45, .3, .25), (.4, .3, .3), (.4, .35, .25), (.35, .3, .35), (.5, .25, .25), (.45, .25, .3), (.55, .25, .2), (.6, .25, .15), (.65, .25, .1), (.34, .33, .33)]
+cands = [(1, 0, 0), (.8, 0, .2), (.7, 0, .3), (.6, 0, .4), (.7, .3, 0), (.5, .5, 0), (.5, .3, .2), (.45, .3, .25), (.4, .3, .3), (.4, .35, .25), (.35, .3, .35), (.5, .25, .25), (.45, .25, .3), (.55, .25, .2), (.6, .25, .15), (.65, .25, .1), (.34, .33, .33)]
 for c in cands: rows[f'fixed {int(c[0]*100)}/{int(c[1]*100)}/{int(c[2]*100)} (Spd rebuilt)'] = fixed_blend(*c)
 rows['fixed 50/30/20 (Spd old, as before)'] = fixed_blend(.5, .3, .2, 'spd')
 base = rows['fixed 50/30/20 (Spd rebuilt)'][0]
