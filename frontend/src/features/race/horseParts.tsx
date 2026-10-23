@@ -46,8 +46,8 @@ interface HeroProps {
 // The three ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
 export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null }) {
   const tiles: { label: string; value: number | null; rank: number | null }[] = [
-    { label: 'TR', value: runner.nett ?? null, rank: ranks?.[0] ?? null },
-    { label: 'SR', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[1] ?? null },
+    { label: 'Base', value: runner.nett ?? null, rank: ranks?.[0] ?? null },
+    { label: 'Spd', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[1] ?? null },
     { label: 'WR', value: proj, rank: ranks?.[2] ?? null },
   ]
   return (

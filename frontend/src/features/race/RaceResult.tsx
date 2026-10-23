@@ -126,8 +126,8 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
                 </span>
                 <span className="hidden shrink-0 gap-3 text-center xl:flex">
                   {[
-                    ['TR', fmtInt(r.nett)],
-                    ['SR', r.speedRating != null ? fmtInt(speedRatingOnScale(r.speedRating)) : '–'],
+                    ['Base', fmtInt(r.nett)],
+                    ['Spd', r.speedRating != null ? fmtInt(speedRatingOnScale(r.speedRating)) : '–'],
                     ['WR', fmtInt(proj)],
                   ].map(([label, val]) => (
                     <span key={label} className="w-9">
