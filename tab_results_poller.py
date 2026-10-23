@@ -1074,6 +1074,39 @@ def projection_run_queued(token, repo):
     return r.json().get("total_count", 0) > 0
 
 
+def dispatch_meeting_lean_if_needed(day):
+    """Best-effort: the live GPS lean (meeting_lean.yml, racing.com, VIC and SA) appears 10 to 25 minutes after a race, long after TAB's result, and GitHub's own
+    schedule runs it only now and then. So while a VIC/SA race has resulted today and meeting_lean.json has no entry for it, trigger a pass each cycle (a pass is
+    about 40 s on a hosted runner and commits only when something is new). Never breaks the cycle."""
+    import json, os
+    token, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
+    if not token or not repo:
+        return
+    try:
+        import requests
+        cols = ["date", "venue", "state", "race", "interim_resulted", "resulted"]
+        df = pd.read_csv(td.RUNNERS_CSV if hasattr(td, "RUNNERS_CSV") else "runners.csv", usecols=lambda c: c in cols, low_memory=False)
+        df = df[(df["date"] == day) & df["state"].isin(["VIC", "SA"])]
+        if df.empty:
+            return
+        ran = df[(pd.to_numeric(df.get("interim_resulted"), errors="coerce") == 1) | (pd.to_numeric(df.get("resulted"), errors="coerce") == 1)]
+        want = {(v, int(n)) for v, n in zip(ran["venue"], pd.to_numeric(ran["race"], errors="coerce")) if pd.notna(n)}
+        have = {}
+        if os.path.exists("meeting_lean.json"):
+            have = (json.load(open("meeting_lean.json")).get(day)) or {}
+        missing = [k for k in want if str(k[1]) not in (have.get(k[0]) or {})]
+        if not missing:
+            return
+        h = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+        q = requests.get(f"https://api.github.com/repos/{repo}/actions/workflows/meeting_lean.yml/runs?status=queued&per_page=1", headers=h, timeout=20)
+        if q.ok and q.json().get("total_count", 0) > 0:
+            return
+        r = requests.post(f"https://api.github.com/repos/{repo}/actions/workflows/meeting_lean.yml/dispatches", headers=h, json={"ref": "main"}, timeout=20)
+        print(f"  Meeting lean pass dispatched ({len(missing)} race(s) without GPS yet): HTTP {r.status_code}")
+    except Exception as e:
+        print(f"  Meeting lean dispatch skipped ({type(e).__name__}: {str(e)[:60]})")
+
+
 def run_once(push=True):
     target_date = date.today().isoformat()
     _prune_raw_archive(target_date)
@@ -1083,6 +1116,7 @@ def run_once(push=True):
     results, conditions, prices, terminal_cache, unplaced_races, start_times, dividends = fetch_today_results(
         target_date, terminal_cache=terminal_cache, div_done=tab_dividends.done_keys())
     save_terminal_cache(terminal_cache)
+    dispatch_meeting_lean_if_needed(target_date)
     try:  # Hong Kong fixed prices from Betr (TAB has none for HKG); best-effort, never breaks the cycle
         import betr_prices
         prices = prices + betr_prices.fetch_hk_prices()
