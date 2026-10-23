@@ -11550,3 +11550,11 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-23T02:35:32+00:00,2026-10-23,CANBERRA,1,VIC,Paying,Duet,6/3,2.7,"{""selections"":[6,3],""amount"":2.7}"
 2026-10-23T02:35:32+00:00,2026-10-23,CANBERRA,1,VIC,Paying,Trifecta,1/6/3,93.6,"{""selections"":[1,6,3],""amount"":93.6}"
 2026-10-23T02:35:32+00:00,2026-10-23,CANBERRA,1,VIC,Paying,FirstFour,1/6/3/5,288.7,"{""selections"":[1,6,3,5],""amount"":288.7}"
+2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,1,VIC,Abandoned,(abandoned),,,
+2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,2,VIC,Abandoned,(abandoned),,,
+2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,3,VIC,Abandoned,(abandoned),,,
+2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,4,VIC,Abandoned,(abandoned),,,
+2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,5,VIC,Abandoned,(abandoned),,,
+2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,6,VIC,Abandoned,(abandoned),,,
+2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,7,VIC,Abandoned,(abandoned),,,
+2026-10-23T02:45:38+00:00,2026-10-23,SUNSHINE COAST POLY,8,VIC,Abandoned,(abandoned),,,
