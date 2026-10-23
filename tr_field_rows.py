@@ -649,3 +649,21 @@ def scratch_duplicate_entries(runners_df, date_str):
     if "field_source" in out.columns:
         out.loc[idx, "field_source"] = "duplicate entry"
     return out, int(len(idx))
+
+
+def drop_racing_rows(runners_df, date_str, now=None):
+    """Remove the unresulted rows racing.com built for a date (field_source starting 'racing.com'), once a fresh toprate.au file covers that date.
+    racing.com is no longer a field source (23 Oct 2026): its venue names (bet365 Yarra Valley, Aquis Park Gold Coast Poly) never matched TopRate's
+    and produced whole duplicate meetings. With no usable toprate.au file nothing is removed. Returns (runners_df, number removed)."""
+    import pandas as pd
+    df = runners_df
+    if not len(df) or "date" not in df.columns or "field_source" not in df.columns or not load(date_str, now=now):
+        return df, 0
+    res = pd.Series(False, index=df.index)
+    for c in ("resulted", "interim_resulted"):
+        if c in df.columns:
+            res |= pd.to_numeric(df[c], errors="coerce").fillna(0).eq(1)
+    drop = df["date"].astype(str).str[:10].eq(str(date_str)) & df["field_source"].astype(str).str.startswith("racing.com") & ~res
+    if not drop.any():
+        return df, 0
+    return df[~drop].reset_index(drop=True), int(drop.sum())
