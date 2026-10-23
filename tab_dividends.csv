@@ -11616,3 +11616,5 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-23T04:01:01+00:00,2026-10-23,CANBERRA,3,VIC,Paying,Trifecta,4/9/5,2940.8,"{""selections"":[4,9,5],""amount"":2940.8}"
 2026-10-23T04:01:01+00:00,2026-10-23,CANBERRA,3,VIC,Paying,FirstFour,4/9/5/10,21345.5,"{""selections"":[4,9,5,10],""amount"":21345.5}"
 2026-10-23T04:01:01+00:00,2026-10-23,CANBERRA,3,VIC,Paying,RunningDouble,7/4,98.3,"{""selections"":[7,4],""amount"":98.3}"
+2026-10-23T04:05:34+00:00,2026-10-23,BALLARAT,3,VIC,Abandoned,(abandoned),,,
+2026-10-23T04:05:34+00:00,2026-10-23,BALLARAT,4,VIC,Abandoned,(abandoned),,,
