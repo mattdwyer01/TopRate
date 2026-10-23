@@ -620,3 +620,32 @@ if __name__ == "__main__":
         dup = res[res.date.astype(str).str[:10] == d].duplicated(["venue", "race", "horse"]).sum()
         print(d, json.dumps(s), "| duplicate (venue, race, horse) rows after merge:", int(dup),
               "| rows", len(df), "->", len(res))
+
+
+def scratch_duplicate_entries(runners_df, date_str):
+    """TopRate's calendar can list one card twice (24 Oct 2026 Gold Coast: two sets of eight races with identical times and fields), which gave every
+    horse two live rows in the same race. For a date, keep the first live unresulted row of each (venue, race number, horse) and scratch the rest
+    (field_source 'duplicate entry'). Resulted and already scratched rows are never touched. Returns (runners_df, number scratched)."""
+    import pandas as pd
+    df = runners_df
+    if not len(df) or "date" not in df.columns:
+        return df, 0
+    m = df["date"].astype(str).str[:10].eq(str(date_str))
+    sc = pd.to_numeric(df["scratched"], errors="coerce").fillna(0).eq(1) if "scratched" in df.columns else pd.Series(False, index=df.index)
+    res = pd.Series(False, index=df.index)
+    for c in ("resulted", "interim_resulted"):
+        if c in df.columns:
+            res |= pd.to_numeric(df[c], errors="coerce").fillna(0).eq(1)
+    live = m & ~sc & ~res
+    if not live.any():
+        return df, 0
+    key = df.loc[live, "venue"].astype(str).map(_hn) + "|" + df.loc[live, "race"].astype(str) + "|" + df.loc[live, "horse"].astype(str).map(_hn)
+    dup = key.duplicated(keep="first")
+    idx = dup[dup].index
+    if not len(idx):
+        return df, 0
+    out = df.copy()
+    out.loc[idx, "scratched"] = 1
+    if "field_source" in out.columns:
+        out.loc[idx, "field_source"] = "duplicate entry"
+    return out, int(len(idx))

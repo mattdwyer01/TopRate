@@ -2420,6 +2420,12 @@ def main():
         except Exception as e:
             print(f"  {d}: flag_unlisted failed ({type(e).__name__}: {e}), nominations left as they are")
             fl = {"unlisted_scratched": 0, "duplicate_rows_scratched": 0}
+        try:       # TopRate can list one card twice: keep one live row per (venue, race, horse)
+            runners_df, n_dup = tr_field_rows.scratch_duplicate_entries(runners_df, d)
+            if n_dup:
+                print(f"  {d}: {n_dup} duplicate entries scratched")
+        except Exception as e:
+            print(f"  {d}: duplicate check failed ({type(e).__name__}: {e})")
         try:       # runner pages (stats splits, rating profiles, pedigree): upcoming, unresulted rows only
             runners_df, rp = tr_field_rows.merge_tr_runners(runners_df, d)
         except Exception as e:
