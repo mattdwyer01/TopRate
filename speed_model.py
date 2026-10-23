@@ -7,6 +7,7 @@ speed_rating.compute() uses this when the artifacts in speed_models/ exist and f
 Train: PYTHONPATH=. python speed_model.py --train     (about 30 to 40 minutes; refit as the results grow)
 Check: PYTHONPATH=. python speed_model.py --check"""
 import json
+import os
 import sys
 import warnings
 from pathlib import Path
@@ -26,7 +27,10 @@ FIRST_YEAR = 2019          # figure history read (the relevance features use eve
 TR_FROM = pd.Timestamp("2023-07-01")
 ES_FROM = pd.Timestamp("2025-07-01")
 CUT = pd.Timestamp("2026-01-01")
-P = dict(learning_rate=0.03, num_leaves=63, min_child_samples=200, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, n_jobs=4)
+P = dict(learning_rate=0.1, num_leaves=63, min_child_samples=200, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, n_jobs=4)
+if os.environ.get('SPD_LR'): P.update(learning_rate=float(os.environ['SPD_LR']))
+HUBER_ALPHA = float(os.environ.get('HUBER', '4'))   # 23 Oct 2026: Huber alpha 4 (lengths), as the Proj context models; HUBER=0 gives mean loss. Learning rate 0.1: Huber at 0.03 needs hours
+if HUBER_ALPHA > 0: P.update(objective='huber', alpha=HUBER_ALPHA)
 K = C.K
 
 
@@ -77,6 +81,31 @@ def prepare(rp, co):
     return rp
 
 
+def winner_test(te):
+    """Conditional-logit winner test on complete held-out races (5+ runners, one winner): z-score of the prediction in the race, scale cross-fitted on date halves."""
+    from scipy.optimize import minimize
+    t = te.dropna(subset=["p_rel", "positionFinish"]).copy()
+    t["won"] = (t.positionFinish == 1).astype(int)
+    g = t.groupby("race_id").won
+    t = t[(g.transform("sum") == 1) & (g.transform("size") >= 5)].copy()
+    t["rid"] = t.race_id.astype("category").cat.codes
+    gm = t.groupby("rid").p_rel
+    t["z"] = ((t.p_rel - gm.transform("mean")) / gm.transform("std").replace(0, np.nan)).fillna(0.0)
+
+    def ll(df, b):
+        s_ = b * df.z.values
+        mx = pd.Series(s_).groupby(df.rid.values).transform("max").values
+        return (s_ - (np.log(pd.Series(np.exp(s_ - mx)).groupby(df.rid.values).transform("sum").values) + mx))[df.won.values == 1]
+    from scipy.optimize import minimize as mn
+    dts = sorted(t.date.unique()); half = dts[len(dts) // 2]
+    A, B = t[t.date < half], t[t.date >= half]
+    out, tops = [], []
+    for a_, b_ in ((A, B), (B, A)):
+        b = mn(lambda w: -ll(a_, w[0]).mean(), [0.3], method="L-BFGS-B").x[0]
+        out.append(ll(b_, b)); x = b_.assign(s=b * b_.z); tops.append(x.loc[x.groupby("rid").s.idxmax()].won.values)
+    print(f"winner test: {t.rid.nunique():,} races, winner log-lik {np.concatenate(out).mean():.4f}, top pick {100 * np.concatenate(tops).mean():.1f}%")
+
+
 def train():
     import lightgbm as lgb
     rp = frame()
@@ -110,6 +139,13 @@ def train():
         e = te.wpr - te[c]
         w = (e - e.groupby(te.race_id).transform("mean"))[big]
         print(f"held out {lab:34s} RMSE {r(e):.3f}  within-race {r(w):.3f}  (n={len(te):,})")
+    miss = te.wpr - te.p_rel
+    print(f"held out all runs: mean miss {miss.mean():+.2f}, median {miss.median():+.2f}, within 2 lengths {100*(miss.abs()<=2).mean():.1f}%, within 4 {100*(miss.abs()<=4).mean():.1f}%")
+    winner_test(te)
+    if os.environ.get('SPD_DUMP'):
+        te[['key', 'date', 'p_rel', 'wpr', 'race_id', 'positionFinish']].to_pickle(os.environ['SPD_DUMP'])
+    if os.environ.get('SPD_EVAL_ONLY'):
+        return
     live = te[te.date >= pd.Timestamp("2026-09-01")]
     sd_new, mu_new = float(live.p_rel.std()), float(live.p_rel.mean())
     scale = 1.0
