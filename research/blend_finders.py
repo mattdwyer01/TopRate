@@ -7,6 +7,12 @@ import os
 import numpy as np, pandas as pd
 d = pd.read_pickle(os.environ['BLEND_D'])
 cov = float(os.environ.get('SPD_COV', '0'))
+if os.environ.get('SPD_ALT'):
+    # replace the rebuilt Spd by another variant's out-of-sample predictions (key, date, p_rel); fall back to today's rating line where it has none
+    alt = pd.read_pickle(os.environ['SPD_ALT'])[['key', 'date', 'p_rel']].rename(columns={'p_rel': 'alt'})
+    alt['date'] = pd.to_datetime(alt.date).dt.normalize(); alt = alt.drop_duplicates(['key', 'date'])
+    d = d.drop(columns=[c for c in ('alt',) if c in d.columns]).merge(alt, left_on=['key', 'dkey'], right_on=['key', 'date'], how='left', suffixes=('', '_alt'))
+    d['spd2_real'] = d.alt.notna(); d['spd2'] = d.alt.where(d.alt.notna(), d.spd_line)
 d['fp'] = pd.to_numeric(d.finish_position, errors='coerce')
 g = d.groupby('rk')
 d['pc'] = g.p_rel.transform(lambda s: s.notna().mean()); d['nc'] = g.nett.transform(lambda s: s.notna().mean()); d['sc'] = g.spd2_real.transform('mean')
