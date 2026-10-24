@@ -12115,3 +12115,14 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-24T00:01:31+00:00,2026-10-24,GYMPIE,5,VIC,Abandoned,(abandoned),,,
 2026-10-24T00:01:31+00:00,2026-10-24,GYMPIE,6,VIC,Abandoned,(abandoned),,,
 2026-10-24T00:01:31+00:00,2026-10-24,GYMPIE,7,VIC,Abandoned,(abandoned),,,
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Win,11,14.1,"{""selections"":[11],""amount"":14.1}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Place,11,2.9,"{""selections"":[11],""amount"":2.9}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Place,8,2,"{""selections"":[8],""amount"":2}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Place,12,1.9,"{""selections"":[12],""amount"":1.9}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Quinella,11/8,32.2,"{""selections"":[11,8],""amount"":32.2}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Exacta,11/8,73.7,"{""selections"":[11,8],""amount"":73.7}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Duet,11/8,6.4,"{""selections"":[11,8],""amount"":6.4}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Duet,11/12,8.8,"{""selections"":[11,12],""amount"":8.8}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Duet,8/12,5.3,"{""selections"":[8,12],""amount"":5.3}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,Trifecta,11/8/12,377.2,"{""selections"":[11,8,12],""amount"":377.2}"
+2026-10-24T01:20:43+00:00,2026-10-24,RANDWICK,1,VIC,Paying,FirstFour,11/8/12/13,1186.9,"{""selections"":[11,8,12,13],""amount"":1186.9}"
