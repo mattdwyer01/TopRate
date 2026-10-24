@@ -392,6 +392,16 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             R.loc[ok, 'sd'] = db['sd']
             R.loc[ok, 'nruns'] = 0
             R.loc[ok, 'routed'] = 'light'
+            # A race of first starters (two-year-old maidens: Randwick R1, Eagle Farm R1 on 24 Oct 2026) has no experienced runner to take a level from:
+            # use the typical debut rating of such races (page ratings, 71 debut runs in 36 all-new races 2025-26, mean 66.5, price slope as above, sd 13)
+            fb = db.get('allnew')
+            if fb:
+                ok2 = (~has) & (~ok) & lpx.notna() & (exn_all < 2) & (lpm.notna())
+                R.loc[ok2, 'proj'] = fb['level'] + db['b'] * (lpx[ok2] - lpm[ok2])
+                R.loc[ok2, 'p0'] = R.loc[ok2, 'proj']
+                R.loc[ok2, 'sd'] = fb['sd']
+                R.loc[ok2, 'nruns'] = 0
+                R.loc[ok2, 'routed'] = 'light'
         # Draw lean: what the earlier races at this meeting say about the draw, in rating points. LOGGED as badj for display, NOT added to Proj (owner's call, 23 Oct 2026)
         R['badj'] = 0.0
         if DRAW_LEAN and lean_by_race and 'bf' in R.columns:

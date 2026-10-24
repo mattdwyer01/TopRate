@@ -88,6 +88,11 @@
   "b": -5.5952,
   "sd": 11.26,
   "min_experienced": 3,
-  "basis": "814 debut runs on the runner pages (ATW ratings as given, no results-file rating), rating minus mean formula Proj of the race's 3+-run runners on ln(starting price) minus field mean ln price (results files give the field); held-out from 2026-01-01 in the console output of fit_debut.py"
+  "basis": "814 debut runs on the runner pages (ATW ratings as given, no results-file rating), rating minus mean formula Proj of the race's 3+-run runners on ln(starting price) minus field mean ln price (results files give the field); held-out from 2026-01-01 in the console output of fit_debut.py",
+  "allnew": {
+   "level": 66.5,
+   "sd": 13.0,
+   "basis": "mean page rating of debut runs in races where every runner was a first starter, 2025-26 (71 runs); small sample"
+  }
  }
 }
