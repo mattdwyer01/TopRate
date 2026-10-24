@@ -12865,3 +12865,21 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-24T06:00:08+00:00,2026-10-24,ASCOT,4,VIC,Paying,RunningDouble,1/6,28.1,"{""selections"":[1,6],""amount"":28.1}"
 2026-10-24T06:05:39+00:00,2026-10-24,LAVERTON,1,VIC,Abandoned,(abandoned),,,
 2026-10-24T06:05:39+00:00,2026-10-24,LAVERTON,2,VIC,Abandoned,(abandoned),,,
+2026-10-24T06:11:05+00:00,2026-10-24,LAVERTON,3,VIC,Abandoned,(abandoned),,,
+2026-10-24T06:11:05+00:00,2026-10-24,LAVERTON,4,VIC,Abandoned,(abandoned),,,
+2026-10-24T06:11:05+00:00,2026-10-24,LAVERTON,5,VIC,Abandoned,(abandoned),,,
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,DailyDouble,6/7,30.7,"{""selections"":[6,7],""amount"":30.7}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Quaddie,6/6/3/7,417.5,"{""selections"":[6,6,3,7],""amount"":417.5}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Treble,6/3/7,57.3,"{""selections"":[6,3,7],""amount"":57.3}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Win,7,4.6,"{""selections"":[7],""amount"":4.6}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Place,7,1.8,"{""selections"":[7],""amount"":1.8}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Place,9,1.7,"{""selections"":[9],""amount"":1.7}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Place,10,3.9,"{""selections"":[10],""amount"":3.9}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Quinella,7/9,7.5,"{""selections"":[7,9],""amount"":7.5}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Exacta,7/9,14.1,"{""selections"":[7,9],""amount"":14.1}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Duet,7/9,3.5,"{""selections"":[7,9],""amount"":3.5}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Duet,7/10,7.5,"{""selections"":[7,10],""amount"":7.5}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Duet,9/10,8,"{""selections"":[9,10],""amount"":8}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,Trifecta,7/9/10,137.2,"{""selections"":[7,9,10],""amount"":137.2}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,FirstFour,7/9/10/2,456.9,"{""selections"":[7,9,10,2],""amount"":456.9}"
+2026-10-24T06:11:05+00:00,2026-10-24,ST ARNAUD,7,VIC,Paying,RunningDouble,3/7,15.3,"{""selections"":[3,7],""amount"":15.3}"
