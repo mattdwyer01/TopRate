@@ -12863,3 +12863,5 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-24T06:00:08+00:00,2026-10-24,ASCOT,4,VIC,Paying,Trifecta,6/4/1,50.3,"{""selections"":[6,4,1],""amount"":50.3}"
 2026-10-24T06:00:08+00:00,2026-10-24,ASCOT,4,VIC,Paying,FirstFour,6/4/1/2,106.6,"{""selections"":[6,4,1,2],""amount"":106.6}"
 2026-10-24T06:00:08+00:00,2026-10-24,ASCOT,4,VIC,Paying,RunningDouble,1/6,28.1,"{""selections"":[1,6],""amount"":28.1}"
+2026-10-24T06:05:39+00:00,2026-10-24,LAVERTON,1,VIC,Abandoned,(abandoned),,,
+2026-10-24T06:05:39+00:00,2026-10-24,LAVERTON,2,VIC,Abandoned,(abandoned),,,
