@@ -21,30 +21,28 @@ interface TripMapProps {
 }
 
 const LEADER_ZONE_L = 1.5 // runners this close to the front are the likely leaders
-// A horse drawn outside another cannot settle inside it unless it is clearly ahead (it has crossed in front). Closer than this and the
-// lane order has to follow the barrier order.
-const CROSS_AHEAD_L = 1.5
-const LANE_SEP_M = 0.4
+// Horses side by side keep their barrier order more often than not (Queensland GPS, 432k pairs at 800m from home: 78% in order when level,
+// 66 to 70% otherwise), so this is a nudge for horses level with each other, not a hard rule: others can drop in behind or cross in front.
+const LEVEL_L = 1.0 // horses within this many lengths of each other lengthwise count as level
+const LANE_SEP_M = 0.2
+const NUDGE = 0.5 // share of an out-of-order gap closed, over a few passes
 
-/** Lanes (metres from the rail) with the barrier order enforced between horses that are not clear of each other lengthwise. */
+/** Lanes (metres from the rail) nudged toward barrier order between horses that are level with each other. */
 export function enforceBarrierOrder<T extends { barrier: number; gx: number; lane: number }>(rows: T[]): T[] {
   const out = rows.map((r) => ({ ...r }))
-  for (let pass = 0; pass < 60; pass++) {
-    let moved = false
+  for (let pass = 0; pass < 3; pass++) {
     for (const a of out) {
       for (const b of out) {
         if (a.barrier >= b.barrier) continue // a is drawn inside b
-        if (a.gx - b.gx >= CROSS_AHEAD_L) continue // b is well ahead of a, so it may have crossed in front
-        const need = a.lane + LANE_SEP_M - b.lane // b (drawn outside) must sit at least LANE_SEP_M wider than a
+        if (Math.abs(a.gx - b.gx) > LEVEL_L) continue // not level: b may have crossed in front or dropped in behind
+        const need = a.lane + LANE_SEP_M - b.lane // b (drawn outside) should sit at least LANE_SEP_M wider than a
         if (need <= 0.001) continue
-        moved = true
-        const room = a.lane // a cannot go inside the rail
-        const takeA = Math.min(need / 2, room)
+        const move = need * NUDGE
+        const takeA = Math.min(move / 2, a.lane) // a cannot go inside the rail
         a.lane -= takeA
-        b.lane += need - takeA
+        b.lane += move - takeA
       }
     }
-    if (!moved) break
   }
   return out
 }
@@ -210,7 +208,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
           <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm bg-blue-bg" />likely leaders (within {LEADER_ZONE_L}L of the front)</span>
         </div>
       )}
-      <div className="mt-1 text-[11px] text-ink-faint">A horse drawn wider cannot settle inside one drawn inside it unless it is {CROSS_AHEAD_L}L or more ahead (crossed in front).</div>
+      <div className="mt-1 text-[11px] text-ink-faint">Horses level with each other are nudged to keep barrier order. Others can cross in front or drop in behind.</div>
       <div ref={wrapRef} className="relative mt-2 overflow-x-auto">
         <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected trip map: distance behind the leader against width from the rail">
           <rect x={m.l} y={m.t} width={iw} height={ih} fill="var(--color-bg)" />
