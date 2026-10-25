@@ -21,6 +21,33 @@ interface TripMapProps {
 }
 
 const LEADER_ZONE_L = 1.5 // runners this close to the front are the likely leaders
+// A horse drawn outside another cannot settle inside it unless it is clearly ahead (it has crossed in front). Closer than this and the
+// lane order has to follow the barrier order.
+const CROSS_AHEAD_L = 1.5
+const LANE_SEP_M = 0.4
+
+/** Lanes (metres from the rail) with the barrier order enforced between horses that are not clear of each other lengthwise. */
+export function enforceBarrierOrder<T extends { barrier: number; gx: number; lane: number }>(rows: T[]): T[] {
+  const out = rows.map((r) => ({ ...r }))
+  for (let pass = 0; pass < 60; pass++) {
+    let moved = false
+    for (const a of out) {
+      for (const b of out) {
+        if (a.barrier >= b.barrier) continue // a is drawn inside b
+        if (a.gx - b.gx >= CROSS_AHEAD_L) continue // b is well ahead of a, so it may have crossed in front
+        const need = a.lane + LANE_SEP_M - b.lane // b (drawn outside) must sit at least LANE_SEP_M wider than a
+        if (need <= 0.001) continue
+        moved = true
+        const room = a.lane // a cannot go inside the rail
+        const takeA = Math.min(need / 2, room)
+        a.lane -= takeA
+        b.lane += need - takeA
+      }
+    }
+    if (!moved) break
+  }
+  return out
+}
 
 const LEN_M = 2.4 // one length in metres
 const CHIP_H = 22
@@ -75,7 +102,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
     const m = narrow ? { l: 34, r: 10, t: 22, b: 34 } : { l: 44, r: 20, t: 30, b: 44 }
     const iw = width - m.l - m.r
     const minGap = runners.length ? Math.min(...runners.map((r) => r.gap as number)) : 0
-    const rows = runners.map((r) => ({ ...r, gx: (r.gap as number) - minGap }))
+    const rows = enforceBarrierOrder(runners.map((r) => ({ ...r, gx: (r.gap as number) - minGap })))
     const maxG = Math.max(8, Math.ceil((Math.max(0, ...rows.map((r) => r.gx)) + 1.2) / 2) * 2)
     const maxL = Math.max(3, Math.ceil(Math.max(0, ...rows.map((r) => r.lane)) + 0.8)) // cut off just past the widest runner
     const GM = -1.2
@@ -183,6 +210,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
           <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm bg-blue-bg" />likely leaders (within {LEADER_ZONE_L}L of the front)</span>
         </div>
       )}
+      <div className="mt-1 text-[11px] text-ink-faint">A horse drawn wider cannot settle inside one drawn inside it unless it is {CROSS_AHEAD_L}L or more ahead (crossed in front).</div>
       <div ref={wrapRef} className="relative mt-2 overflow-x-auto">
         <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected trip map: distance behind the leader against width from the rail">
           <rect x={m.l} y={m.t} width={iw} height={ih} fill="var(--color-bg)" />
