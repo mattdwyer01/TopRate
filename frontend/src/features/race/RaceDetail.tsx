@@ -123,6 +123,19 @@ export function RaceDetail({
   // Only this race's runners count against the (global) scratched set.
   const comboByRunId = useMemo(() => computeCombinedRank(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
   // the combined Rating of the top rated runner (first starters' estimates do not set the top), for the runner page's "off the top" line
+  // contenders for the Trip map: runners inside the inner gap line of the top combined Rating (first starters' estimates are left out)
+  const tripContenders = useMemo(() => {
+    const out: Record<string, { rank: number; tier: 'core' | 'inner' }> = {}
+    let top: number | null = null
+    for (const [id, c] of comboByRunId) if (!c.estimated && c.rating != null && !effectiveScratched.has(id) && (top == null || c.rating > top)) top = c.rating
+    if (top == null) return out
+    for (const [id, c] of comboByRunId) {
+      if (c.estimated || c.rating == null || effectiveScratched.has(id)) continue
+      const gap = top - c.rating
+      if (gap <= INNER_GAP_FROM_TOP) out[id] = { rank: c.rank, tier: gap <= CORE_GAP_FROM_TOP ? 'core' : 'inner' }
+    }
+    return out
+  }, [comboByRunId, effectiveScratched])
   const comboFieldTop = useMemo(() => {
     let top: number | null = null
     for (const c of comboByRunId.values()) if (!c.estimated && c.rating != null && (top == null || c.rating > top)) top = c.rating
@@ -311,7 +324,7 @@ export function RaceDetail({
             </div>
           )}
           {shapeView === 'trip' && tripRace && tripMap ? (
-            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} compact={wide} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
+            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} compact={wide} contenders={tripContenders} innerGap={INNER_GAP_FROM_TOP} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
           ) : (
             <SpeedMapGrid race={race} runners={activeRunners} narrow={wide} />
           )}
