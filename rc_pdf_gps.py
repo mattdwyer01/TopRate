@@ -114,11 +114,43 @@ def parse_runner_page(page) -> dict | None:
                 points=sorted(set(out), reverse=True), grid=gv)
 
 
+def parse_old_page(page) -> dict | None:
+    """Older report layout (Apr to Jul 2026): one table per runner page with a column for every section. It has no TAB number, so the caller
+    matches the horse name and finish place to the runner."""
+    words = page.extract_words()
+    txt = " ".join(w["text"] for w in words)
+    m = re.search(r"Horse/Jockey Name (.+?)/", page.extract_text() or "")
+    if not m:
+        return None
+    rank = re.search(r"Finish Rank (\d+)", txt)
+    race = re.search(r"Race (\d+):", txt)
+    hdr = [w for w in words if re.fullmatch(r"Overall|L\d{3,4}", w["text"]) and w["top"] < 260]
+    if len(hdr) < 3:
+        return None
+    htop = min(w["top"] for w in hdr)
+    hdr = [w for w in hdr if abs(w["top"] - htop) < 3]
+    # the Rail row: starts with the label 'Avg. Dist. to Rail [m]'
+    lab = next((w for w in words if w["text"] == "Rail" and w["x0"] < 200 and w["top"] > htop), None)
+    if lab is None:
+        return None
+    vals = [w for w in words if abs(w["top"] - lab["top"]) < 3 and w["x0"] > lab["x1"] + 5 and re.fullmatch(r"-?\d+(?:\.\d)?", w["text"])]
+    pts = []
+    for v in vals:
+        h = min(hdr, key=lambda w: abs(_centre(w) - _centre(v)))
+        if abs(_centre(h) - _centre(v)) > 25 or h["text"] == "Overall":
+            continue
+        pts.append((int(h["text"][1:]), float(v["text"])))
+    if not pts:
+        return None
+    return dict(tab_no=None, horse=m.group(1).strip(), finish=int(rank.group(1)) if rank else None, race=int(race.group(1)) if race else None,
+                points=sorted(set(pts), reverse=True))
+
+
 def parse_pdf(src, meet_code: str, race_no: int) -> pd.DataFrame:
     rows = []
     with pdfplumber.open(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src) as pdf:
         for page in pdf.pages:
-            r = parse_runner_page(page)
+            r = parse_runner_page(page) or parse_old_page(page)
             if not r:
                 continue
             if r["race"] is not None and r["race"] != int(race_no):
@@ -181,6 +213,33 @@ def download(since: str, until: str | None = None, workers: int = 8) -> None:
     print(f"{len(m)} races listed: {c['got']} downloaded, {c['have']} already here, {c['none']} with no PDF, {c['error']} fetch errors")
 
 
+def _norm(x) -> str:
+    return re.sub(r"[^A-Z0-9]", "", str(x).upper())
+
+
+def resolve_tabs(df: pd.DataFrame) -> pd.DataFrame:
+    """The older layout has no TAB number: take it from racing.com's runner list (same meeting and race) by horse name, else finish place."""
+    if df.empty or df.tab_no.notna().all():
+        return df
+    fs = sorted(glob.glob(str(GPS_DIR / "rc_gps_runs_*.parquet")))
+    r = pd.concat([pd.read_parquet(f, columns=["meet_code", "race_no", "horse", "tab_no", "finish"]) for f in fs])
+    r["meet_code"] = r.meet_code.astype(str)
+    r["hn"] = r.horse.map(_norm)
+    by_name = {(m, int(n), h): int(t) for m, n, h, t in zip(r.meet_code, r.race_no, r.hn, r.tab_no) if pd.notna(t)}
+    by_fin = {(m, int(n), int(f)): int(t) for m, n, f, t in zip(r.meet_code, r.race_no, r.finish, r.tab_no) if pd.notna(t) and pd.notna(f) and f > 0}
+    out = df.copy()
+    miss = out.tab_no.isna()
+    got = [by_name.get((m, int(n), _norm(h))) or (by_fin.get((m, int(n), int(f))) if pd.notna(f) else None)
+           for m, n, h, f in zip(out.meet_code[miss], out.race_no[miss], out.horse[miss], out.finish[miss])]
+    out.loc[miss, "tab_no"] = pd.Series(got, index=out.index[miss], dtype="float")
+    n_bad = int(out.tab_no.isna().sum())
+    if n_bad:
+        print(f"{n_bad} rows without a TAB number were dropped")
+    out = out[out.tab_no.notna()].copy()
+    out["tab_no"] = out.tab_no.astype(int)
+    return out
+
+
 def _parse_file(f: Path):
     mc, rn = f.stem.split("_")
     try:
@@ -206,7 +265,7 @@ def parse_all(out: Path = OUT_DIR, workers: int = 4) -> None:
                 problems.append(f"{name}: {'; '.join(msgs)}")
             if not df.empty:
                 parts.append(df)
-    allr = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+    allr = resolve_tabs(pd.concat(parts, ignore_index=True)) if parts else pd.DataFrame()
     allr.to_parquet(out / "rc_pdf_rail.parquet", index=False)
     print(f"parsed {len(parts)} races, {len(allr):,} rows; {len(problems)} with problems")
     if problems:
@@ -268,7 +327,7 @@ if __name__ == "__main__":
         merge(Path(a.new))
     elif a.file:
         mc, rn = Path(a.file).stem.split("_")
-        df = parse_pdf(a.file, mc, int(rn))
+        df = resolve_tabs(parse_pdf(a.file, mc, int(rn)))
         print(df.to_string(index=False))
         print("checks:", check(df) or "ok")
     else:
