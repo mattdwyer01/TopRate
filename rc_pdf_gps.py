@@ -152,46 +152,60 @@ def _meetings(since: str, until: str | None) -> pd.DataFrame:
     return r.drop_duplicates(["meet_code", "race_no"])[["meet_code", "race_no", "d"]].sort_values(["d", "meet_code", "race_no"])
 
 
-def download(since: str, until: str | None = None, delay: float = 0.15) -> None:
+def _fetch(args):
+    sess, code, race = args
+    f = WORK / f"{code}_{race:02d}.pdf"
+    if f.exists() and f.stat().st_size > 5000:
+        return "have"
+    try:
+        resp = sess.get(f"{BASE}/{code}_{race:02d}.pdf", timeout=40)
+    except requests.RequestException:
+        return "error"
+    if resp.ok and resp.content[:4] == b"%PDF" and len(resp.content) > 5000:
+        f.write_bytes(resp.content)
+        return "got"
+    return "none"
+
+
+def download(since: str, until: str | None = None, workers: int = 8) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
     WORK.mkdir(parents=True, exist_ok=True)
     m = _meetings(since, until)
     s = requests.Session()
     s.headers["User-Agent"] = "Mozilla/5.0 TopRate research"
-    got = skipped = missing = 0
-    for r in m.itertuples():
-        f = WORK / f"{r.meet_code}_{int(r.race_no):02d}.pdf"
-        if f.exists() and f.stat().st_size > 5000:
-            skipped += 1
-            continue
-        try:
-            resp = s.get(f"{BASE}/{r.meet_code}_{int(r.race_no):02d}.pdf", timeout=40)
-        except requests.RequestException as e:
-            print("fetch error", r.meet_code, r.race_no, e)
-            continue
-        if resp.ok and resp.content[:4] == b"%PDF" and len(resp.content) > 5000:
-            f.write_bytes(resp.content)
-            got += 1
-        else:
-            missing += 1
-        time.sleep(delay)
-    print(f"{len(m)} races listed: {got} downloaded, {skipped} already here, {missing} with no PDF")
+    jobs = [(s, str(r.meet_code), int(r.race_no)) for r in m.itertuples()]
+    with ThreadPoolExecutor(workers) as ex:
+        res = list(ex.map(_fetch, jobs))
+    c = {k: res.count(k) for k in ("got", "have", "none", "error")}
+    print(f"{len(m)} races listed: {c['got']} downloaded, {c['have']} already here, {c['none']} with no PDF, {c['error']} fetch errors")
 
 
-def parse_all(out: Path = OUT_DIR) -> None:
+def _parse_file(f: Path):
+    mc, rn = f.stem.split("_")
+    try:
+        df = parse_pdf(str(f), mc, int(rn))
+        return f.name, df, None
+    except Exception as e:  # noqa: BLE001
+        return f.name, None, repr(e)
+
+
+def parse_all(out: Path = OUT_DIR, workers: int = 4) -> None:
+    from concurrent.futures import ProcessPoolExecutor
+
     out.mkdir(parents=True, exist_ok=True)
     parts, problems = [], []
-    for f in sorted(WORK.glob("*.pdf")):
-        mc, rn = f.stem.split("_")
-        try:
-            df = parse_pdf(str(f), mc, int(rn))
-        except Exception as e:  # noqa: BLE001
-            problems.append(f"{f.name}: {e!r}")
-            continue
-        msgs = check(df)
-        if msgs:
-            problems.append(f"{f.name}: {'; '.join(msgs)}")
-        if not df.empty:
-            parts.append(df)
+    files = sorted(WORK.glob("*.pdf"))
+    with ProcessPoolExecutor(workers) as ex:
+        for name, df, err in ex.map(_parse_file, files, chunksize=4):
+            if err:
+                problems.append(f"{name}: {err}")
+                continue
+            msgs = check(df)
+            if msgs:
+                problems.append(f"{name}: {'; '.join(msgs)}")
+            if not df.empty:
+                parts.append(df)
     allr = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
     allr.to_parquet(out / "rc_pdf_rail.parquet", index=False)
     print(f"parsed {len(parts)} races, {len(allr):,} rows; {len(problems)} with problems")
