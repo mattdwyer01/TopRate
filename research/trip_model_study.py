@@ -208,6 +208,25 @@ def main():
         if len(z) > 3000:
             print(f'{trk:20s}', round(within_corr(z, z.base_settle, 'settle')[0], 3), '->', round(within_corr(z, z.rich_settle, 'settle')[0], 3), len(z))
 
+    print('\n=== by track x distance cell (settle, held out 2025-07 on, fields of 8+) ===')
+    rows = []
+    for cell, z in t8.groupby('cell', observed=True):
+        if len(z) >= 300:
+            cb = within_corr(z, z.base_settle, 'settle')[0]
+            cr = within_corr(z, z.rich_settle, 'settle')[0]
+            rows.append((str(cell), len(z), cb, cr))
+    cdf = pd.DataFrame(rows, columns=['cell', 'n', 'base', 'rich'])
+    cdf['gain'] = cdf.rich - cdf.base
+    print(f'cells with 300+ test runs: {len(cdf)}; rich better in {(cdf.gain > 0).sum()}, worse in {(cdf.gain < 0).sum()}; '
+          f'median corr base {cdf.base.median():.3f} rich {cdf.rich.median():.3f}; mean gain {cdf.gain.mean():+.3f}')
+    print('weakest cells for the rich model:'); print(cdf.sort_values('rich').head(12).round(3).to_string(index=False))
+    print('strongest cells:'); print(cdf.sort_values('rich').tail(8).round(3).to_string(index=False))
+    print('biggest gains:'); print(cdf.sort_values('gain').tail(8).round(3).to_string(index=False))
+    print('biggest losses:'); print(cdf.sort_values('gain').head(8).round(3).to_string(index=False))
+    cdf.to_csv(os.environ.get('TRIP_CELLS', '/tmp/trip_cells.csv'), index=False)
+    if os.environ.get('TRIP_CELLS_ONLY'):
+        return
+
     # ---- winner tests
     te = te[te.positionFinish.notna()].copy()
     te['win'] = (te.positionFinish == 1).astype(int)
