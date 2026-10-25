@@ -50,3 +50,6 @@ projection/cache/
 projection/cache_tr/
 betsignal/models/state.pkl
 betsignal/backtest_preds.pkl
+
+# scratch downloads and parsed files from atc_gps.py / rc_pdf_gps.py
+work/
