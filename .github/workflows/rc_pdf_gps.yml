@@ -1,0 +1,92 @@
+name: Racing Victoria GPS PDFs (distance from rail by section)
+
+# Per-section distance from the rail for every VIC and SA runner, read from the Triple S PDF reports Racing Victoria publishes for each race
+# ({meeting id}_{race}.pdf on a public CloudFront address, no login, real files from 28 Apr 2026). racing.com's own GPS feed keeps one average
+# per runner; these PDFs carry the whole race. Parser, downloader and merge: rc_pdf_gps.py. Output: data/gps/rc_pdf_rail_{year}.parquet.
+#
+# Daily after gps_daily.yml (which lists the meetings in rc_gps_runs): re-reads the last 10 days; duplicates are merged away.
+# Manual run with `since` (and optionally `until`) is the backfill: since 2026-04-28 is about 1,400 races, roughly 2 hours of parsing.
+
+on:
+  schedule:
+    - cron: "0 21 * * *"      # 07:00 AEST / 08:00 AEDT, after gps_daily.yml (20:00 UTC) and atc_gps.yml (20:30 UTC)
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Start date YYYY-MM-DD (blank = last 10 days)"
+        default: ""
+      until:
+        description: "End date YYYY-MM-DD (blank = today)"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gps-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PDF_SINCE: ${{ github.event.inputs.since }}
+      PDF_UNTIL: ${{ github.event.inputs.until }}
+    steps:
+      - name: Check out rc_pdf_gps.py and data/gps
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout: |
+            rc_pdf_gps.py
+            data/gps/
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Python packages
+        run: pip install pandas pyarrow requests pdfplumber
+
+      - name: Download and parse
+        run: |
+          SINCE="${PDF_SINCE:-$(date -u -d '10 days ago' +%F)}"
+          ARGS=(--since "$SINCE")
+          [ -n "$PDF_UNTIL" ] && ARGS+=(--until "$PDF_UNTIL")
+          python rc_pdf_gps.py download "${ARGS[@]}"
+          python rc_pdf_gps.py parse 2>&1 | grep -v FontBBox
+          if [ -f work/rc_pdf_new/rc_pdf_problems.txt ]; then echo "::warning::some PDFs did not parse, see the log"; head -50 work/rc_pdf_new/rc_pdf_problems.txt; fi
+
+      - name: Merge into data/gps
+        run: python rc_pdf_gps.py merge
+
+      - name: Keep the parsed files (a failed push must not lose a long run)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc-pdf-rail-parquet
+          path: data/gps/rc_pdf_rail_*.parquet
+          retention-days: 7
+
+      - name: Commit and push
+        run: |
+          git config user.name "rc-pdf-gps bot"
+          git config user.email "rc-pdf-gps-bot@users.noreply.github.com"
+          FILES="data/gps/rc_pdf_rail_*.parquet"
+          git add $FILES
+          git diff --cached --quiet && { echo "rc pdf rail: no change"; exit 0; }
+          git commit -q -m "Racing Victoria GPS PDFs: distance from rail $(TZ=Australia/Melbourne date +%F\ %H:%M)"
+          for i in 1 2 3 4 5 6; do
+            git push -q origin HEAD:main && exit 0
+            KEEP="${RUNNER_TEMP:-/tmp}/rcpdf_keep"; rm -rf "$KEEP"; mkdir -p "$KEEP"; cp data/gps/rc_pdf_rail_*.parquet "$KEEP"/
+            git fetch -q --depth=1 origin main
+            git checkout -q -f -B rcpdf-push FETCH_HEAD
+            cp "$KEEP"/*.parquet data/gps/
+            git add $FILES
+            git diff --cached --quiet && exit 0
+            git commit -q -m "Racing Victoria GPS PDFs: distance from rail $(TZ=Australia/Melbourne date +%F\ %H:%M)"
+            sleep $((i * 5))
+          done
+          exit 1
