@@ -207,7 +207,21 @@ def tr_actual_by_name():
     """TopRate's plain-scale rating per (lowercased horse name, date string), for the Review 'actual' of runs projected on TopRate's scale."""
     tr_lookup()
     s = _TR_CACHE['names']
-    return {(n, pd.Timestamp(d).strftime('%Y-%m-%d')): float(v) for (n, d), v in s.items()}
+    out = {(n, pd.Timestamp(d).strftime('%Y-%m-%d')): float(v) for (n, d), v in s.items()}
+    # Post-race race-page ratings (data/tr_results, whole field, plain wpr) fill the runs whose runner page has not been fetched again yet
+    import glob, gzip, json, os
+    for f in sorted(glob.glob(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'tr_results', '*.json.gz'))):
+        try:
+            j = json.load(gzip.open(f))
+            races = j['races'] if isinstance(j['races'], list) else list(j['races'].values())
+            day = j['date'][:10]
+            for race in races:
+                for u in race.get('runners') or []:
+                    if u.get('wpr') is not None and u.get('horse'):
+                        out.setdefault((str(u['horse']).strip().lower(), day), float(u['wpr']))
+        except Exception as e:
+            print(f"  tr_results {os.path.basename(f)} unreadable: {e}")
+    return out
 
 
 def toprate_overlay(df):

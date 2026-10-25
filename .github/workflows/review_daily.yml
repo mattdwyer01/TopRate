@@ -65,6 +65,8 @@ jobs:
           [ -z "$D" ] && D=$(TZ=Australia/Melbourne date -d '5 days ago' +%F)
           echo "date=$D" >> "$GITHUB_OUTPUT"
           echo "review date $D"
+      - name: Fetch the last 5 days of post-race ratings (dashboard actuals), refetching Preliminary ones
+        run: python toprate_result_fetch.py --days 5 --refetch || echo "recent fetch failed, continuing"
       - name: Fetch post-race results and review each date (oldest first)
         run: |
           flag=""; [ "${{ inputs.refetch || 'true' }}" = "true" ] && flag="--refetch"
