@@ -13746,3 +13746,15 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-25T05:59:06+00:00,2026-10-25,PORT LINCOLN,6,VIC,Paying,RunningDouble,6/2,155.9,"{""selections"":[6,2],""amount"":155.9}"
 2026-10-25T05:59:06+00:00,2026-10-25,COONABARABRAN,7,VIC,Abandoned,(abandoned),,,
 2026-10-25T05:59:06+00:00,2026-10-25,COONABARABRAN,8,VIC,Abandoned,(abandoned),,,
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Win,12,6.6,"{""selections"":[12],""amount"":6.6}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Place,12,2.3,"{""selections"":[12],""amount"":2.3}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Place,10,1.6,"{""selections"":[10],""amount"":1.6}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Place,7,1.4,"{""selections"":[7],""amount"":1.4}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Quinella,12/10,16.7,"{""selections"":[12,10],""amount"":16.7}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Exacta,12/10,39.7,"{""selections"":[12,10],""amount"":39.7}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Duet,12/10,6.4,"{""selections"":[12,10],""amount"":6.4}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Duet,12/7,4.8,"{""selections"":[12,7],""amount"":4.8}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Duet,10/7,2.8,"{""selections"":[10,7],""amount"":2.8}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,Trifecta,12/10/7,91.7,"{""selections"":[12,10,7],""amount"":91.7}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,FirstFour,12/10/7/9,781.9,"{""selections"":[12,10,7,9],""amount"":781.9}"
+2026-10-25T06:08:32+00:00,2026-10-25,NORTHAM,3,VIC,Paying,RunningDouble,5/12,29.7,"{""selections"":[5,12],""amount"":29.7}"
