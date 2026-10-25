@@ -249,22 +249,41 @@ def _parse_file(f: Path):
         return f.name, None, repr(e)
 
 
+CACHE = ROOT / "work" / "rc_pdf_parsed"
+
+
 def parse_all(out: Path = OUT_DIR, workers: int = 4) -> None:
+    """Parses every downloaded PDF. Each result is cached in work/rc_pdf_parsed/ as it arrives, so a run that is cut short (a restarted
+    runner or session) carries on where it stopped; delete that folder to re-parse everything."""
     from concurrent.futures import ProcessPoolExecutor
 
     out.mkdir(parents=True, exist_ok=True)
-    parts, problems = [], []
+    CACHE.mkdir(parents=True, exist_ok=True)
+    problems = []
     files = sorted(WORK.glob("*.pdf"))
+    todo = [f for f in files if not (CACHE / f"{f.stem}.parquet").exists()]
+    print(f"{len(files)} PDFs, {len(files) - len(todo)} already parsed, {len(todo)} to do", flush=True)
+    done = 0
     with ProcessPoolExecutor(workers) as ex:
-        for name, df, err in ex.map(_parse_file, files, chunksize=4):
+        for name, df, err in ex.map(_parse_file, todo, chunksize=2):
             if err:
                 problems.append(f"{name}: {err}")
-                continue
-            msgs = check(df)
-            if msgs:
-                problems.append(f"{name}: {'; '.join(msgs)}")
-            if not df.empty:
-                parts.append(df)
+            else:
+                (df if df is not None else pd.DataFrame()).to_parquet(CACHE / f"{Path(name).stem}.parquet", index=False)
+            done += 1
+            if done % 100 == 0:
+                print(f"  {done}/{len(todo)}", flush=True)
+    parts = []
+    for f in files:
+        c = CACHE / f"{f.stem}.parquet"
+        if not c.exists():
+            continue
+        df = pd.read_parquet(c)
+        msgs = check(df)
+        if msgs:
+            problems.append(f"{f.name}: {'; '.join(msgs)}")
+        if not df.empty:
+            parts.append(df)
     allr = resolve_tabs(pd.concat(parts, ignore_index=True)) if parts else pd.DataFrame()
     allr.to_parquet(out / "rc_pdf_rail.parquet", index=False)
     print(f"parsed {len(parts)} races, {len(allr):,} rows; {len(problems)} with problems")
