@@ -34,9 +34,9 @@ R['m_n'] = gm.cumcount()
 d = d.merge(R[['key', 'm_lead', 'm_fence', 'm_fade', 'm_L_par', 'm_n']], on='key', how='left')
 d.loc[d.m_n < 2, ['m_lead', 'm_fence', 'm_fade', 'm_L_par']] = np.nan
 # runner style relative to field, interactions
-d['style'] = d.r_h_E if 'r_h_E' in d.columns else d.h_E - d.groupby('key').h_E.transform('mean')
-d['x_fade'] = d.m_fade * d.style
-d['x_lead'] = d.m_lead * -d.style
+d['runstyle'] = d.r_h_E if 'r_h_E' in d.columns else d.h_E - d.groupby('key').h_E.transform('mean')
+d['x_fade'] = d.m_fade * d.runstyle
+d['x_lead'] = d.m_lead * -d.runstyle
 d['x_fence'] = d.m_fence * (d.barfrac - 0.5)
 M = ['m_lead', 'm_fence', 'm_fade', 'm_L_par', 'x_fade', 'x_lead', 'x_fence']
 print('earlier-race meeting leans: mean (sd) lead %.2f (%.2f), fence %.2f (%.2f), fade %.2f (%.2f)' % tuple(v for c in ('lead', 'fence', 'fade') for v in (R[c].mean(), R[c].std())))
