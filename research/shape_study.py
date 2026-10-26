@@ -36,7 +36,7 @@ os.makedirs(ARGS.out, exist_ok=True)
 # ------------------------------------------------------------------ load
 COLS = ['race_id', 'meeting_id', 'date', 'horse_id', 'horse', 'barrier', 'distance', 'going', 'rail_position', 'trackGrading', 'venue', 'track', 'jockey', 'trainer',
         'weightCarried', 'race_class', 'horse_age', 'horse_sex', 'blinkers_on', 'gear_changes', 'is_letup', 'is_spell', 'isBarrierTrial', 'is_jumpout', 'position800m', 'margin800m',
-        'sect_i_early', 'sect_ld_early', 'sect_i_to600', 'sect_i_l600', 'sect_i_l400', 'raceShapeEarly', 'positionFinish', 'marginFinish', 'priceStarting', 'wpr']
+        'sect_i_early', 'sect_ld_early', 'comments_steward', 'comments_video', 'sect_i_to600', 'sect_i_l600', 'sect_i_l400', 'raceShapeEarly', 'positionFinish', 'marginFinish', 'priceStarting', 'wpr']
 yrs = range(2022 if DEBUG else 2016, 2027)
 S = pd.concat([pd.read_csv(os.path.join(ROOT, f'race_results_{y}.csv.gz'), usecols=lambda c: c in COLS, low_memory=False) for y in yrs], ignore_index=True)
 S = S[~S.isBarrierTrial.astype(bool) & ~S.is_jumpout.fillna(False).astype(bool)].copy()
@@ -281,6 +281,36 @@ S['cross_in'] = np.concatenate(cr_in); S['cross_out'] = np.concatenate(cr_out); 
 S['cross_in_frac'] = S.cross_in / (S.nr - 1).clip(lower=1)
 log('X13 features done')
 
+# ------------------------------------------------------------------ X14 start quality from the comments of the PAST runs (post-race text, used as the horse's earlier history only)
+ctxt = (S.comments_steward.fillna('') + ' | ' + S.comments_video.fillna('')).str.lower()
+START = {
+    'st_slow': r'slow(ly)? (to )?(begin|away|out)|slowly away|missed the start|began awkwardly|dwelt|jumped (late|awkward)|awkward(ly)? (start|away)|fumbled|a bit slow out|bit slow',
+    'st_fwd': r'quickly went forward|went forward|crossed to lead|crossed to the lead|soon went forward|bustled|ridden forward|pushed forward|straight to the lead|led from',
+    'st_well': r'jumped (well|fine|cleanly)|began well|away well|good start',
+    'st_back': r'eased back|restrained|settled (at )?the rear|last early|dropped back|stepped back|shuffled back|not (bustled|hurried)',
+}
+for k_, p_ in START.items():
+    S[k_] = ctxt.str.contains(p_, regex=True).astype(float).where(ctxt.str.len() > 5)
+gX = S.groupby('horse_id')
+for k_ in START:
+    cs_ = gX[k_].cumsum() - S[k_].fillna(0)
+    cn_ = gX[k_].transform(lambda s: s.notna().cumsum()) - S[k_].notna().astype(float)
+    S['h_' + k_] = (cs_ + 0.15 * 4) / (cn_ + 4)
+    S['l3_' + k_] = gX[k_].transform(lambda s: s.shift(1).rolling(3, min_periods=1).mean())
+S['st_net'] = S.h_st_fwd + S.h_st_well - S.h_st_slow - S.h_st_back
+S['r_st_net'] = S.st_net - S.groupby('race_id').st_net.transform('mean')
+S['r_h_st_slow'] = S.h_st_slow - S.groupby('race_id').h_st_slow.transform('mean')
+# gear types beyond blinkers (first time this gear, from the gear-change text)
+gt = S.gear_changes.astype(str).str.lower()
+for k_, p_ in (('g_ear', r'ear (plug|muff)|earplug'), ('g_tongue', r'tongue'), ('g_cheek', r'cheek'), ('g_winker', r'winker'), ('g_pacifier', r'pacifier')):
+    S[k_] = gt.str.contains(p_, regex=True).astype(float)
+# trainer x jockey pair early tendency
+S['tkjk'] = S.tk.astype(str) + '|' + S.jk.astype(str)
+S['tkjk_e'] = asof_rate(S, 'tkjk', 'e0', prior=0.5, k=15)
+S['tkjk_res'] = asof_rate(S, 'tkjk', 'res0', prior=0.0, k=15)
+S['up_n'] = S.groupby('horse_id').firstup.cumsum() if 'firstup' in S.columns else np.nan
+log('X14 features done')
+
 # ------------------------------------------------------------------ V3 latent effects: ridge on horse / jockey / trainer / track-barrier, refit by half-year block on earlier data only
 LAT_EDGES = list(pd.date_range('2018-01-01', '2027-01-01', freq='6MS'))
 S['lat_horse'] = np.nan; S['lat_jk'] = np.nan; S['lat_tk'] = np.nan; S['lat_tb'] = np.nan; S['lat_pred'] = np.nan
@@ -376,6 +406,7 @@ X4 = [c for c in S.columns if c.startswith(('hist_', 'lat_n', 'lat_rank', 'lat_g
 X9 = ['gps_z_m3', 'gps_z_l1', 'gps_n', 'r_gps_z_m3']
 X10 = ['to600_m4', 'l600_m4', 'r_to600_m4', 'k_to600_m4']
 X11 = ['tkv_res', 'jkv_res', 'tkd_res', 'jk_dband_res']
+X14 = ['h_st_slow', 'h_st_fwd', 'h_st_well', 'h_st_back', 'l3_st_slow', 'l3_st_fwd', 'l3_st_well', 'l3_st_back', 'st_net', 'r_st_net', 'r_h_st_slow', 'g_ear', 'g_tongue', 'g_cheek', 'g_winker', 'g_pacifier', 'tkjk_e', 'tkjk_res']
 X13 = ['e_ewm1', 'e_ewm2', 'pair_e', 'pair_dev', 'jk_e_chg', 'e_sd4', 'e_trend', 'wt_rank', 'wt_rel', 'age_sex', 'cross_in', 'cross_out', 'cross_in_g', 'ahead_n', 'cross_in_frac']
 
 
@@ -387,7 +418,7 @@ def U(*lists):
 
 
 FS = {'V0': U(BASE), 'V1': U(BASE, X1), 'V2': U(BASE, X1, X2), 'V3': U(BASE, X1, X2, X3), 'V4': U(BASE, X1, X2, X3, X4), 'V9': U(BASE, X1, X2, X3, X4, X9),
-      'V10': U(BASE, X1, X2, X3, X4, X10), 'V11': U(BASE, X1, X2, X3, X4, X11), 'V12': U(BASE, X1, X2, X3, X4, X9, X10, X11), 'V13': U(BASE, X1, X2, X3, X4, X9, X10, X11, X13), 'V13a': U(BASE, X1, X2, X3, X4, X13)}
+      'V10': U(BASE, X1, X2, X3, X4, X10), 'V11': U(BASE, X1, X2, X3, X4, X11), 'V12': U(BASE, X1, X2, X3, X4, X9, X10, X11), 'V13': U(BASE, X1, X2, X3, X4, X9, X10, X11, X13), 'V13a': U(BASE, X1, X2, X3, X4, X13), 'V15': U(BASE, X1, X2, X3, X4, X9, X10, X11, X13, X14), 'V15a': U(BASE, X1, X2, X3, X4, X14)}
 
 # ------------------------------------------------------------------ learners and metrics
 TEST_EDGES = list(pd.date_range('2025-01-01', '2027-01-01', freq='6MS'))
@@ -590,6 +621,10 @@ if __name__ == '__main__':
             run_variant('V12', ['reg_e', 'rank', 'reg_g', 'lead'], FS['V12'])
         elif v == 'V13':
             run_variant('V13', ['reg_e', 'rank', 'lead'], FS['V13'])
+        elif v == 'V15':
+            run_variant('V15', ['reg_e', 'rank', 'lead'], FS['V15'])
+        elif v == 'V15a':
+            run_variant('V15a', ['reg_e'], FS['V15a'])
         elif v == 'V14':
             run_variant('V14', ['pair'], FS['V13'])
         elif v == 'NOISE':
