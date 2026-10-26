@@ -36,7 +36,7 @@ os.makedirs(ARGS.out, exist_ok=True)
 # ------------------------------------------------------------------ load
 COLS = ['race_id', 'meeting_id', 'date', 'horse_id', 'horse', 'barrier', 'distance', 'going', 'rail_position', 'trackGrading', 'venue', 'track', 'jockey', 'trainer',
         'weightCarried', 'race_class', 'horse_age', 'horse_sex', 'blinkers_on', 'gear_changes', 'is_letup', 'is_spell', 'isBarrierTrial', 'is_jumpout', 'position800m', 'margin800m',
-        'sect_i_early', 'sect_ld_early', 'comments_steward', 'comments_video', 'sect_i_to600', 'sect_i_l600', 'sect_i_l400', 'raceShapeEarly', 'positionFinish', 'marginFinish', 'priceStarting', 'wpr']
+        'sect_i_early', 'sect_ld_early', 'comments_steward', 'comments_video', 'sire_id', 'sire_of_dam', 'sect_i_to600', 'sect_i_l600', 'sect_i_l400', 'raceShapeEarly', 'positionFinish', 'marginFinish', 'priceStarting', 'wpr']
 yrs = range(2022 if DEBUG else 2016, 2027)
 S = pd.concat([pd.read_csv(os.path.join(ROOT, f'race_results_{y}.csv.gz'), usecols=lambda c: c in COLS, low_memory=False) for y in yrs], ignore_index=True)
 S = S[~S.isBarrierTrial.astype(bool) & ~S.is_jumpout.fillna(False).astype(bool)].copy()
@@ -266,18 +266,20 @@ S['e_trend'] = L['e0'][:, 0] - np.nanmean(L['e0'][:, 1:4], 1)
 S['wt_rank'] = S.groupby('race_id').weightCarried.rank(pct=True)
 S['wt_rel'] = S.weightCarried - S.groupby('race_id').weightCarried.transform('mean')
 S['age_sex'] = S.age * 10 + S.sex.fillna(0)
-cr_in, cr_out, cr_in_g, ahead_n = [], [], [], []
+cross = {k: np.full(len(S), np.nan) for k in ('cross_in', 'cross_out', 'cross_in_g', 'ahead_n')}
 for rid, grp in S[['race_id', 'barrier', 'e_ewm2', 'g_m4']].groupby('race_id', sort=False):
+    if len(grp) < 2:
+        continue
+    ix_ = grp.index.values
     b, e, gg = grp.barrier.values, grp.e_ewm2.values, grp.g_m4.values
-    if len(b) < 2:
-        cr_in.append(np.full(len(b), np.nan)); cr_out.append(np.full(len(b), np.nan)); cr_in_g.append(np.full(len(b), np.nan)); ahead_n.append(np.full(len(b), np.nan)); continue
     inside = b[None, :] < b[:, None]
     faster = e[None, :] < e[:, None]
-    cr_in.append((inside & faster).sum(1).astype(float))
-    cr_out.append((~inside & faster).sum(1).astype(float) - (faster & (b[None, :] == b[:, None])).sum(1))
-    cr_in_g.append((inside & (gg[None, :] < gg[:, None])).sum(1).astype(float))
-    ahead_n.append(faster.sum(1).astype(float))
-S['cross_in'] = np.concatenate(cr_in); S['cross_out'] = np.concatenate(cr_out); S['cross_in_g'] = np.concatenate(cr_in_g); S['ahead_n'] = np.concatenate(ahead_n)
+    cross['cross_in'][ix_] = (inside & faster).sum(1)
+    cross['cross_out'][ix_] = (~inside & faster).sum(1) - (faster & (b[None, :] == b[:, None])).sum(1)
+    cross['cross_in_g'][ix_] = (inside & (gg[None, :] < gg[:, None])).sum(1)
+    cross['ahead_n'][ix_] = faster.sum(1)
+for k_, v_ in cross.items():
+    S[k_] = v_
 S['cross_in_frac'] = S.cross_in / (S.nr - 1).clip(lower=1)
 log('X13 features done')
 
@@ -310,6 +312,75 @@ S['tkjk_e'] = asof_rate(S, 'tkjk', 'e0', prior=0.5, k=15)
 S['tkjk_res'] = asof_rate(S, 'tkjk', 'res0', prior=0.0, k=15)
 S['up_n'] = S.groupby('horse_id').firstup.cumsum() if 'firstup' in S.columns else np.nan
 log('X14 features done')
+
+# ------------------------------------------------------------------ X15 pedigree (sire and dam-sire early tendency), X16 style mixture, X17 comment embeddings, X18 weather
+S['sire_k'] = S.sire_id.astype(str)
+S['sod_k'] = S.sire_of_dam.astype(str).str.lower()
+S['sire_dband'] = S.sire_k + '|' + (S.distance / 400).round().astype(str)
+S['sire_e'] = asof_rate(S, 'sire_k', 'e0', prior=0.5, k=60)
+S['sire_res'] = asof_rate(S, 'sire_k', 'res0', prior=0.0, k=60)
+S['sire_lead'] = asof_rate(S, 'sire_k', 'lead', prior=0.1, k=60)
+S['sire_d_e'] = asof_rate(S, 'sire_dband', 'e0', prior=0.5, k=40)
+S['sod_e'] = asof_rate(S, 'sod_k', 'e0', prior=0.5, k=60)
+S['sod_res'] = asof_rate(S, 'sod_k', 'res0', prior=0.0, k=60)
+S['r_sire_res'] = S.sire_res - S.groupby('race_id').sire_res.transform('mean')
+S['ped_res'] = S.sire_res + S.sod_res
+log('X15 pedigree done')
+E0 = L['e0']
+bins = [(E0 < 0.2), (E0 >= 0.2) & (E0 < 0.45), (E0 >= 0.45) & (E0 < 0.7), (E0 >= 0.7)]
+wrec = np.array([0.3, 0.2, 0.15, 0.12, 0.1, 0.06, 0.04, 0.03])[None, :]
+okm = np.isfinite(E0)
+den = np.maximum((okm * wrec).sum(1), 1e-9)
+shares = []
+for nm_, b_ in zip(('sh_lead', 'sh_pace', 'sh_mid', 'sh_back'), bins):
+    S[nm_] = np.where(okm.sum(1) > 0, (b_ * wrec * okm).sum(1) / den, np.nan)
+    shares.append(S[nm_].values)
+sh = np.column_stack(shares)
+S['sh_ent'] = -np.nansum(np.where(sh > 0, sh * np.log(np.maximum(sh, 1e-9)), 0), 1)
+S.loc[okm.sum(1) == 0, 'sh_ent'] = np.nan
+gR2 = S.groupby('race_id')
+S['n_lead_exp'] = gR2.sh_lead.transform('sum') - S.sh_lead.fillna(0)
+S['n_pace_exp'] = gR2.sh_pace.transform('sum') - S.sh_pace.fillna(0)
+S['lead_share_me'] = S.sh_lead / (gR2.sh_lead.transform('sum') + 0.3)
+S['lead_alone'] = S.sh_lead * np.exp(-S.n_lead_exp)
+log('X16 style mixture done')
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import TruncatedSVD
+ctxt2 = (S.comments_video.fillna('') + ' ' + S.comments_steward.fillna(''))
+rs_ = np.random.default_rng(0)
+samp_ = ctxt2.sample(250_000, random_state=0)
+tf_ = TfidfVectorizer(max_features=20000, min_df=20, sublinear_tf=True, ngram_range=(1, 2), dtype=np.float32).fit(samp_)
+svd_ = TruncatedSVD(24, random_state=0).fit(tf_.transform(samp_))
+EMB = np.vstack([svd_.transform(tf_.transform(ctxt2.iloc[i:i + 100_000])) for i in range(0, len(S), 100_000)]).astype(np.float32)
+hv = S.horse_id.values
+acc = np.zeros_like(EMB); cnt = np.zeros(len(S))
+for k_ in (1, 2, 3):
+    sh_ = np.full_like(EMB, np.nan); sh_[k_:] = EMB[:-k_]
+    same = np.r_[np.zeros(k_, bool), hv[k_:] == hv[:-k_]]
+    sh_[~same] = np.nan
+    ok_ = ~np.isnan(sh_[:, 0])
+    acc[ok_] += sh_[ok_]; cnt += ok_
+EM = np.where(cnt[:, None] > 0, acc / np.maximum(cnt[:, None], 1), np.nan)
+for j_ in range(24):
+    S[f'em_{j_}'] = EM[:, j_]
+log('X17 comment embeddings done')
+wxs = []
+for f_ in glob.glob(os.path.join(ROOT, 'data', 'weather', 'daily_*.parquet')):
+    w_ = pd.read_parquet(f_); w_['vk2'] = os.path.basename(f_)[6:-8].replace('_', '')
+    wxs.append(w_)
+if wxs:
+    W = pd.concat(wxs, ignore_index=True)
+    W['date'] = pd.to_datetime(W.time)
+    W = W.sort_values(['vk2', 'date'])
+    W['wx_rain0'] = W.precipitation_sum
+    W['wx_rain3'] = W.groupby('vk2').precipitation_sum.transform(lambda s: s.shift(1).rolling(3, min_periods=1).sum())
+    W['wx_wind'] = W.wind_speed_10m_max; W['wx_gust'] = W.wind_gusts_10m_max; W['wx_temp'] = W.temperature_2m_max
+    W['wx_dsin'] = np.sin(np.deg2rad(W.wind_direction_10m_dominant)); W['wx_dcos'] = np.cos(np.deg2rad(W.wind_direction_10m_dominant))
+    S = S.merge(W[['vk2', 'date', 'wx_rain0', 'wx_rain3', 'wx_wind', 'wx_gust', 'wx_temp', 'wx_dsin', 'wx_dcos']], left_on=['vk', 'date'], right_on=['vk2', 'date'], how='left').drop(columns='vk2')
+    log('X18 weather joined for', int(S.wx_wind.notna().sum()), 'runs')
+else:
+    for c_ in ('wx_rain0', 'wx_rain3', 'wx_wind', 'wx_gust', 'wx_temp', 'wx_dsin', 'wx_dcos'):
+        S[c_] = np.nan
 
 # ------------------------------------------------------------------ V3 latent effects: ridge on horse / jockey / trainer / track-barrier, refit by half-year block on earlier data only
 LAT_EDGES = list(pd.date_range('2018-01-01', '2027-01-01', freq='6MS'))
@@ -407,6 +478,10 @@ X9 = ['gps_z_m3', 'gps_z_l1', 'gps_n', 'r_gps_z_m3']
 X10 = ['to600_m4', 'l600_m4', 'r_to600_m4', 'k_to600_m4']
 X11 = ['tkv_res', 'jkv_res', 'tkd_res', 'jk_dband_res']
 X14 = ['h_st_slow', 'h_st_fwd', 'h_st_well', 'h_st_back', 'l3_st_slow', 'l3_st_fwd', 'l3_st_well', 'l3_st_back', 'st_net', 'r_st_net', 'r_h_st_slow', 'g_ear', 'g_tongue', 'g_cheek', 'g_winker', 'g_pacifier', 'tkjk_e', 'tkjk_res']
+X15 = ['sire_e', 'sire_res', 'sire_lead', 'sire_d_e', 'sod_e', 'sod_res', 'r_sire_res', 'ped_res']
+X16 = ['sh_lead', 'sh_pace', 'sh_mid', 'sh_back', 'sh_ent', 'n_lead_exp', 'n_pace_exp', 'lead_share_me', 'lead_alone']
+X17 = [f'em_{j}' for j in range(24)]
+X18 = ['wx_rain0', 'wx_rain3', 'wx_wind', 'wx_gust', 'wx_temp', 'wx_dsin', 'wx_dcos']
 X13 = ['e_ewm1', 'e_ewm2', 'pair_e', 'pair_dev', 'jk_e_chg', 'e_sd4', 'e_trend', 'wt_rank', 'wt_rel', 'age_sex', 'cross_in', 'cross_out', 'cross_in_g', 'ahead_n', 'cross_in_frac']
 
 
@@ -418,7 +493,9 @@ def U(*lists):
 
 
 FS = {'V0': U(BASE), 'V1': U(BASE, X1), 'V2': U(BASE, X1, X2), 'V3': U(BASE, X1, X2, X3), 'V4': U(BASE, X1, X2, X3, X4), 'V9': U(BASE, X1, X2, X3, X4, X9),
-      'V10': U(BASE, X1, X2, X3, X4, X10), 'V11': U(BASE, X1, X2, X3, X4, X11), 'V12': U(BASE, X1, X2, X3, X4, X9, X10, X11), 'V13': U(BASE, X1, X2, X3, X4, X9, X10, X11, X13), 'V13a': U(BASE, X1, X2, X3, X4, X13), 'V15': U(BASE, X1, X2, X3, X4, X9, X10, X11, X13, X14), 'V15a': U(BASE, X1, X2, X3, X4, X14)}
+      'V10': U(BASE, X1, X2, X3, X4, X10), 'V11': U(BASE, X1, X2, X3, X4, X11), 'V12': U(BASE, X1, X2, X3, X4, X9, X10, X11), 'V13': U(BASE, X1, X2, X3, X4, X9, X10, X11, X13), 'V13a': U(BASE, X1, X2, X3, X4, X13), 'V15': U(BASE, X1, X2, X3, X4, X9, X10, X11, X13, X14), 'V15a': U(BASE, X1, X2, X3, X4, X14),
+      'V16a': U(BASE, X1, X2, X3, X4, X13, X14, X15), 'V16b': U(BASE, X1, X2, X3, X4, X13, X14, X16), 'V16c': U(BASE, X1, X2, X3, X4, X13, X14, X17), 'V16d': U(BASE, X1, X2, X3, X4, X13, X14, X18),
+      'V16': U(BASE, X1, X2, X3, X4, X9, X10, X11, X13, X14, X15, X16, X17, X18)}
 
 # ------------------------------------------------------------------ learners and metrics
 TEST_EDGES = list(pd.date_range('2025-01-01', '2027-01-01', freq='6MS'))
@@ -500,6 +577,71 @@ def pair_fit_predict(feats, trn, blk, p):
     return out.reindex(blk.index).values
 
 
+def set_fit_predict(feats, trn, blk, p):
+    """Set transformer over the runners of a race: every runner attends to every other runner in the field (no hand-made field features needed)."""
+    import torch, torch.nn as nn
+    torch.manual_seed(0); np.random.seed(0)
+    torch.set_num_threads(os.cpu_count() or 2)
+    cols = [c for c in feats if trn[c].notna().any()]
+    mu = trn[cols].mean(); sd = trn[cols].std().replace(0, 1).fillna(1)
+    def prep(df):
+        X = ((df[cols] - mu) / sd).clip(-5, 5)
+        M = X.isna().astype(np.float32).values
+        return np.hstack([X.fillna(0).values.astype(np.float32), M[:, :min(40, M.shape[1])]]), df.race_id.values
+    def batches(df, X, rid, y=None, bs=128, shuffle=False):
+        order = pd.Series(np.arange(len(df))).groupby(rid).apply(list)
+        keys = list(order.index)
+        if shuffle:
+            np.random.shuffle(keys)
+        for i in range(0, len(keys), bs):
+            ks = keys[i:i + bs]
+            n = max(len(order[k]) for k in ks)
+            d = X.shape[1]
+            xb = np.zeros((len(ks), n, d), np.float32); mb = np.ones((len(ks), n), bool); yb = np.zeros((len(ks), n), np.float32); yk = np.zeros((len(ks), n), bool); ix = np.full((len(ks), n), -1)
+            for j, k in enumerate(ks):
+                r = order[k]; xb[j, :len(r)] = X[r]; mb[j, :len(r)] = False; ix[j, :len(r)] = r
+                if y is not None:
+                    yy = y[r]; yb[j, :len(r)] = np.nan_to_num(yy); yk[j, :len(r)] = ~np.isnan(yy)
+            yield torch.from_numpy(xb), torch.from_numpy(mb), torch.from_numpy(yb), torch.from_numpy(yk), ix
+    t = trn[trn.e0.notna()]
+    keep = t.race_id.drop_duplicates()
+    if len(keep) > 70_000:
+        keep = keep.sample(70_000, random_state=1)
+    t = t[t.race_id.isin(keep)].sort_values(['race_id', 'horse_id']).reset_index(drop=True)
+    Xt, rt = prep(t); yt = t.e0.values.astype(np.float32)
+    dm = Xt.shape[1]
+    class Net(nn.Module):
+        def __init__(s):
+            super().__init__()
+            s.inp = nn.Sequential(nn.Linear(dm, 128), nn.GELU(), nn.Linear(128, 96))
+            s.enc = nn.TransformerEncoder(nn.TransformerEncoderLayer(96, 4, 192, 0.1, batch_first=True, norm_first=True), 2)
+            s.out = nn.Linear(96, 1)
+        def forward(s, x, m):
+            h = s.enc(s.inp(x), src_key_padding_mask=m)
+            return s.out(h).squeeze(-1)
+    net = Net(); opt = torch.optim.AdamW(net.parameters(), lr=1e-3, weight_decay=1e-4)
+    epochs = 1 if DEBUG else 4
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=2e-3, total_steps=epochs * (len(keep) // 128 + 2))
+    for ep in range(epochs):
+        net.train(); tot = 0; nb = 0
+        for xb, mb, yb, yk, _ in batches(t, Xt, rt, yt, shuffle=True):
+            pr = net(xb, mb)
+            w = (yk & ~mb).float()
+            loss = (((pr - yb) ** 2) * w).sum() / w.sum().clamp(min=1)
+            opt.zero_grad(); loss.backward(); nn.utils.clip_grad_norm_(net.parameters(), 1.0); opt.step(); sched.step()
+            tot += loss.item(); nb += 1
+        log(f'    set epoch {ep + 1}/{epochs} loss {tot / max(nb, 1):.5f}')
+    net.eval()
+    b = blk.sort_values(['race_id', 'horse_id']); Xb, rb = prep(b)
+    out = np.full(len(b), np.nan)
+    with torch.no_grad():
+        for xb, mb, _, _, ix in batches(b, Xb, rb, None, bs=256):
+            pr = net(xb, mb).numpy()
+            ok = ix >= 0
+            out[ix[ok]] = pr[ok]
+    return pd.Series(out, index=b.index).reindex(blk.index).values
+
+
 def fit_predict(kind, feats, trn, blk, seed=None):
     p = dict(P0) if seed is None else dict(P0, seed=seed)
     if kind == 'reg_e':
@@ -516,6 +658,8 @@ def fit_predict(kind, feats, trn, blk, seed=None):
         return -m.predict(blk[feats])          # larger = further back, like e0
     if kind == 'pair':
         return pair_fit_predict(feats, trn, blk, p)
+    if kind == 'set':
+        return set_fit_predict(feats, trn, blk, p)
     if kind == 'lead':
         t = trn.sort_values(['race_id', 'horse_id'])
         m = lgb.train(dict(p, objective=softmax_lead_obj(t), metric='None'), lgb.Dataset(t[feats], t.lead.values), NR)
@@ -621,8 +765,14 @@ if __name__ == '__main__':
             run_variant('V12', ['reg_e', 'rank', 'reg_g', 'lead'], FS['V12'])
         elif v == 'V13':
             run_variant('V13', ['reg_e', 'rank', 'lead'], FS['V13'])
+        elif v == 'V17':
+            run_variant('V17', ['set'], FS['V15'])
         elif v == 'V15':
             run_variant('V15', ['reg_e', 'rank', 'lead'], FS['V15'])
+        elif v in ('V16a', 'V16b', 'V16c', 'V16d'):
+            run_variant(v, ['reg_e'], FS[v])
+        elif v == 'V16':
+            run_variant('V16', ['reg_e', 'rank', 'lead'], FS['V16'])
         elif v == 'V15a':
             run_variant('V15a', ['reg_e'], FS['V15a'])
         elif v == 'V14':

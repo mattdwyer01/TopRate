@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variants: ["V13", "V14"]
+        variants: ["V13", "V15", "V16a", "V16b", "V16c", "V17"]
     env:
       PYTHONPATH: .:projection:research
     steps:
@@ -29,7 +29,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - run: pip install -r projection/requirements.txt scipy scikit-learn && pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Shape study
         run: python -W ignore -u research/shape_study.py --variants "${{ matrix.variants }}" --seeds 3 --out /tmp/shape_out
       - uses: actions/upload-artifact@v4
