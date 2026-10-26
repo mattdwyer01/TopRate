@@ -40,22 +40,25 @@ interface HeroProps {
   market: number | null
   fixedMove: PriceMove | null
   hasOverride: boolean
+  // Heading above the figure (Direct rating when the Direct model is the main rating).
+  label?: string
 }
 
 // The runner's rating (the race's ranking figure at today's weight), where it ranks, the market against the rated price, and the basics.
 // The three ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
-export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null }) {
-  const tiles: { label: string; value: number | null; rank: number | null }[] = [
+export function SignalsPanel({ runner, proj, ranks, direct = null }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null; direct?: { rating: number; rank: number | null } | null }) {
+  const tiles: { label: string; value: number | null; rank: number | null; main?: boolean }[] = [
+    ...(direct ? [{ label: 'Direct', value: direct.rating, rank: direct.rank, main: true }] : []),
     { label: 'Base', value: runner.nett ?? null, rank: ranks?.[0] ?? null },
     { label: 'Spd', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[1] ?? null },
-    { label: 'WR', value: proj, rank: ranks?.[2] ?? null },
+    { label: 'WR', value: proj, rank: ranks?.[2] ?? null, main: !direct },
   ]
   return (
-    <section className="grid grid-cols-3 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">
+    <section className={`grid ${direct ? 'grid-cols-4' : 'grid-cols-3'} overflow-hidden rounded-lg border border-line bg-panel`} aria-label="Ratings">
       {tiles.map((t) => (
-        <div key={t.label} className={`flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 ${t.label === 'WR' ? 'bg-emerald-bg' : ''}`}>
+        <div key={t.label} className={`flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 ${t.main ? 'bg-emerald-bg' : ''}`}>
           <span className="text-[11px] font-semibold text-ink-mute">{t.label}</span>
-          <span className="font-mono text-xl font-medium leading-tight text-ink">{t.value != null ? t.value.toFixed(1) : <span className="text-ink-faint">&ndash;</span>}</span>
+          <span className={`font-mono text-xl leading-tight text-ink ${t.main ? 'font-bold' : 'font-medium'}`}>{t.value != null ? t.value.toFixed(1) : <span className="text-ink-faint">&ndash;</span>}</span>
           {t.rank != null ? (
             <span className={`w-fit rounded-md px-1.5 text-[11px] font-bold ${t.rank === 1 ? 'bg-emerald text-white' : t.rank <= 3 ? 'bg-emerald-bg text-emerald-deep' : 'bg-bg text-ink-mute'}`}>#{t.rank}</span>
           ) : (
@@ -67,7 +70,7 @@ export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: nu
   )
 }
 
-export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fair, market, fixedMove, hasOverride, compact }: HeroProps) {
+export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fieldTop, fair, market, fixedMove, hasOverride, compact, label = 'Rating' }: HeroProps) {
   const gap = proj != null && fieldTop != null ? fieldTop - proj : null
   const verdict =
     rank != null && !scratched
@@ -80,7 +83,7 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Rating</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{label}</span>
             {hasOverride && <span className="rounded-full bg-amber-bg px-2 py-0.5 text-[11px] font-semibold text-amber">manually adjusted</span>}
           </div>
           {scratched ? (
@@ -91,7 +94,7 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
           {verdict && <p className="mt-1 text-xs text-ink-soft">{verdict}</p>}
         </div>
         <div className="flex-none text-right">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Market / model</div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Market / {label === 'Rating' ? 'model' : 'direct'}</div>
           <div className={`font-mono font-semibold leading-tight text-ink ${compact ? 'text-lg' : 'text-xl'}`}>
             {fmtPrice(market)} <span className="text-base font-normal text-ink-faint">/ {fair != null && !scratched ? fmtPrice(fair) : '-'}</span>
           </div>
