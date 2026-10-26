@@ -25,7 +25,7 @@ jobs:
           python-version: "3.11"
       - run: pip install -r projection/requirements.txt scipy scikit-learn
       - name: Context features
-        run: python research/direct_ctx_features.py 2>&1 | grep -v -E "RuntimeWarning|nanvar|nanmean|df\['" 
+        run: python -W ignore research/direct_ctx_features.py
       - name: Direct model v3
         run: python research/direct_finish_v3.py
       - uses: actions/upload-artifact@v4
