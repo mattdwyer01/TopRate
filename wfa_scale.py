@@ -4,10 +4,9 @@ TopRate's runner-page rating of a past run = the plain results rating + 0.8 x (W
 struck for (after any apprentice claim) and W_std is this scale's weight for that race (research/atw_offset_exact.py: 5yo and older match exactly, mares and
 fillies 2 kg lower per AR 169). So a plain rating can be put on the ATW scale of any race from its date, distance, the horse's racing age and sex, and the weight.
 
-TRANSCRIBED BY HAND from a screenshot of AR 168 supplied by the owner (not from a machine-readable source): cells marked in UNSURE were hard to read, and the
-3yo and 4yo values measured in October 2026 sit 0.1 to 1.25 kg above the October column (see research/wfa_check.py), so use the 5yo+ rows with confidence
-and re-check the 3yo and 4yo rows against the rules before relying on them. The 2yo rows (January to July only) and the 4yo and 3yo rows are as read.
-Not included: AR 170 (allowances for northern hemisphere horses foaled 1 January to 31 July) and races other than flat.
+Source: AR 168 as printed in the Australian Rules of Racing (1 August 2026), text extracted from the owner's PDF (an earlier screenshot transcription had several
+3yo and 4yo cells wrong). AR 169: fillies and mares 2 kg lower in set-weight and set-weight-and-penalties races other than races restricted to fillies and mares.
+Not included: AR 170 (allowances for northern hemisphere horses, see NH_ALLOWANCE below if added), jumps races.
 
 Racing age: a horse's age counts from 1 August (foaled in the 12 months from 1 August 2022 it is a 3yo from 1 August 2025 to 31 July 2026), see racing_age().
 """
@@ -26,21 +25,20 @@ SCALE = {
         '4': [58.5] * 12, '5': [58.5] * 12},
     1: {'2': [_NONE] * 5 + [44, 45, 46, 47, 48, 49, 50],
         '3': [50.5, 51, 52, 53, 54, 54.5, 55.5, 56, 56.5, 57, 57.5, 58],
-        '4': [58.5, 58.5, 58.5, 58.5] + [59] * 8, '5': [59] * 12},
+        '4': [58.5, 58.5, 58.5] + [59] * 9, '5': [59] * 12},
     2: {'2': [_NONE] * 5 + [43.5, 44.5, 45.5, 46.5, 47.5, 48.5, 49.5],
         '3': [50, 50.5, 51, 52, 53, 54, 55, 56, 56.5, 57, 57.5, 58],
-        '4': [58.5, 58.5, 58.5, 58.5] + [59] * 8, '5': [59] * 12},
+        '4': [58.5, 58.5, 58.5] + [59] * 9, '5': [59] * 12},
     3: {'2': [_NONE] * 5 + [42.5, 43.5, 44.5, 45.5, 46.5, 47.5, 48.5],
-        '3': [49, 49.5, 50, 51, 52, 53, 54, 55, 55.5, 56.5, 57, 57.5],
+        '3': [49, 49.5, 50, 51, 52, 53, 54, 54.5, 55.5, 56.5, 57, 57.5],
         '4': [58, 58, 58, 58.5, 58.5, 58.5] + [59] * 6, '5': [59] * 12},
     4: {'2': [_NONE] * 12,
         '3': [48.5, 49, 49.5, 50.5, 51, 52, 53, 54, 54.5, 55.5, 56, 57],
-        '4': [57.5, 57.5, 57.5, 57.5, 58, 58, 58.5, 58.5, 58.5, 59, 59, 59], '5': [59] * 12},
+        '4': [57.5, 57.5, 57.5, 58, 58, 58, 58.5, 58.5, 58.5, 59, 59, 59], '5': [59] * 12},
     5: {'2': [_NONE] * 12,
         '3': [48, 48.5, 49, 50, 50.5, 51.5, 52.5, 53.5, 54, 55, 55.5, 56],
-        '4': [57.5, 57.5, 57.5, 57.5, 58, 58, 58, 58.5, 58.5, 59, 59, 59], '5': [59.5] * 12},
+        '4': [57.5, 57.5, 57.5, 58, 58, 58, 58.5, 58.5, 58.5, 59, 59, 59], '5': [59.5] * 12},
 }
-UNSURE = ['3yo rows in every block (read from a small screenshot)', '4yo rows over 1200m (where 58.5 turns to 59 and the 58 / 57.5 steps)']
 FILLY_MARE_ALLOWANCE_KG = 2.0     # AR 169: fillies and mares in set-weight and set-weight-and-penalties races
 ATW_PER_KG = 0.8
 
@@ -60,15 +58,28 @@ def block_index(distance):
     return len(BLOCKS) - 1
 
 
-def std_weight(age, sex, date, distance):
-    """Standard weight (kg) for the race, or None (a 2yo in a month the scale does not cover, an age under 2). age = racing age; sex 'M' or 'F' (mare or filly) get 2 kg off."""
+def _month_weight(age, sex, month_first, distance):
+    row = SCALE[block_index(distance)]['5' if age >= 5 else str(int(age))]
+    return row[(month_first.month - 8) % 12]
+
+
+def std_weight(age, sex, date, distance, interpolate=True):
+    """Standard weight (kg) for the race, or None (a 2yo in a month the scale does not cover, an age under 2). age = racing age; sex 'M' or 'F' (mare or filly) get 2 kg off.
+    interpolate: TopRate's offset follows the scale linearly through the month (each monthly figure taken at the 1st, moving to the next month's figure by the 1st of the next;
+    this fits the October 2026 offsets 88% within 0.15 points against 67% for the plain monthly step, see research/wfa_check.py)."""
     if age is None or age < 2:
         return None
     d = date if isinstance(date, dt.date) else dt.date.fromisoformat(str(date)[:10])
-    row = SCALE[block_index(distance)]['5' if age >= 5 else str(int(age))]
-    w = row[(d.month - 8) % 12]
+    d0 = d.replace(day=1)
+    w = _month_weight(age, sex, d0, distance)
     if w is None:
         return None
+    if interpolate:
+        d1 = (d0 + dt.timedelta(days=32)).replace(day=1)
+        w1 = _month_weight(age, sex, d1, distance)
+        if w1 is not None:
+            dim = (d1 - d0).days
+            w = w + (w1 - w) * (d.day - 1) / dim
     return w - (FILLY_MARE_ALLOWANCE_KG if str(sex).upper()[:1] in ('M', 'F') else 0.0)
 
 
