@@ -1,0 +1,40 @@
+name: Oracle gap: traffic, interactions, capacity (research)
+
+# Manual research run (26 Oct 2026): research/oracle_more.py. Reuses the shape predictions exported by direct_v5.yml run 40294703438 (artifact shape-oof, kept 90 days).
+# Start it by changing research/oracle_more.trigger and pushing.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/trip-model-study]
+    paths: [research/oracle_more.trigger]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+      SHAPE_OOF: /tmp/shape_out/shape_oof.parquet
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn && pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - uses: actions/download-artifact@v4
+        with:
+          name: shape-oof
+          path: /tmp/shape_out
+          run-id: 40294703438
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Context features
+        run: python -W ignore research/direct_ctx_features.py
+      - name: Oracle gap: traffic, interactions, capacity
+        run: python -W ignore -u research/oracle_more.py
