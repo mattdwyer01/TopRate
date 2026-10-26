@@ -41,6 +41,8 @@ interface RaceDetailProps {
 }
 
 const MAX_COMPARE = 6
+// Points of Direct rating per unit of ln win chance: 1 / 0.20 (the Rated $ sharpness), so the conversion is the exact inverse of the price softmax.
+const DIRECT_RATING_K = 5
 
 // Column headers (lgOnly ones drop out below lg), in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
 const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean; phoneOnly?: boolean; label2?: string }[] = [
@@ -52,7 +54,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'nett', label: 'Base', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside Peak and Spd, not blended into the Rating." },
   { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs one earlier figure; with 1 to 5 figures it is pulled toward the average." },
   { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today (WR alone since 23 Oct 2026; Base and Spd are shown beside it but not counted). The three small squares under it show the runner's rank in the field on Peak, Base and Spd, in that order. The table is sorted by it. A first starter shows an estimate." },
-  { key: 'direct', label: 'Direct', align: 'right', lgOnly: true, title: "Direct model: win chance from a model trained to predict the finishing order directly (not through a rating), using the same form, class, jockey and trainer inputs. Shown on its own, not blended into the Rating. Not a value claim: against the closing price it adds about +0.005 nats a race." },
+  { key: 'direct', label: 'Direct', align: 'right', lgOnly: true, title: "Direct model rating: a model trained to predict the finishing order directly (not through a rating) from form, class, jockey and trainer, turned into a rating on the Proj scale (field mean of Proj + 5 points per unit of ln win chance). Shown on its own, not blended into the Rating. Not a value claim: against the closing price it adds about +0.005 nats a race." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -186,13 +188,24 @@ export function RaceDetail({
   }
 
   const showBias = racesRunBefore(race, allRaces) >= MIN_BIAS_RACES
-  // Rank of each runner on the direct model's win chance inside this race (1 = best, ties share the best place), scratched runners left out.
-  const directRankByRunId = useMemo(() => {
+  // Direct model on the Proj scale: field mean of the WR figure plus DIRECT_RATING_K points per unit of ln(win chance) above the field's mean ln chance
+  // (5 = 1 / priceBeta 0.20, the exact inverse of the Rated $ softmax). Win chances are renormalised over the runners still in. Rank 1 = best, ties share the best place.
+  const { directRankByRunId, directRatingByRunId } = useMemo(() => {
     const live = race.runners.filter((r) => !effectiveScratched.has(r.runId) && r.directProb != null)
-    const m = new Map<string, number>()
-    for (const r of live) m.set(r.runId, 1 + live.filter((o) => (o.directProb as number) > (r.directProb as number)).length)
-    return m
-  }, [race.runners, effectiveScratched])
+    const rank = new Map<string, number>()
+    const rating = new Map<string, number>()
+    if (live.length === 0) return { directRankByRunId: rank, directRatingByRunId: rating }
+    const tot = live.reduce((s, r) => s + (r.directProb as number), 0)
+    const lp = new Map(live.map((r) => [r.runId, Math.log((r.directProb as number) / tot)] as const))
+    const meanLp = [...lp.values()].reduce((s, v) => s + v, 0) / lp.size
+    const figs = live.map((r) => effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr).filter((v): v is number => v != null)
+    const level = figs.length ? figs.reduce((s, v) => s + v, 0) / figs.length : null
+    for (const r of live) {
+      rank.set(r.runId, 1 + live.filter((o) => (o.directProb as number) > (r.directProb as number)).length)
+      if (level != null) rating.set(r.runId, level + DIRECT_RATING_K * ((lp.get(r.runId) as number) - meanLp))
+    }
+    return { directRankByRunId: rank, directRatingByRunId: rating }
+  }, [race.runners, effectiveScratched, effectiveByRunId])
   function rowProps(runner: Race['runners'][number]) {
     return {
       runner,
@@ -201,6 +214,7 @@ export function RaceDetail({
       effective: effectiveByRunId[runner.runId],
       combo: comboByRunId.get(runner.runId),
       directRank: directRankByRunId.get(runner.runId),
+      directRating: directRatingByRunId.get(runner.runId),
       showFp: hasAnyResult,
       showPrice: hasAnyPrice,
       showBias,

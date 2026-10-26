@@ -19,6 +19,8 @@ interface RunnerRowProps {
   combo?: CombinedRank
   // Rank on the direct model's win chance inside the race (desktop Direct column).
   directRank?: number
+  // Direct model on the Proj scale (field mean Proj + 5 x ln chance vs the field's mean).
+  directRating?: number
   // Lowest and highest Proj in the field, for the bar under the Proj figure (desktop).
   onClick: () => void
 }
@@ -58,7 +60,7 @@ function Missing({ why }: { why: string }) {
   )
 }
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, directRank, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, directRank, directRating, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   return (
@@ -155,14 +157,14 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className={`text-right font-mono leading-tight ${LG_ONLY}`}
-        title={runner.directProb != null ? `Direct model: ${(runner.directProb * 100).toFixed(1)}% to win (fair price ${fmtPrice(1 / runner.directProb)}), rank ${directRank ?? '-'} in this field. A model trained on the finishing order directly; shown on its own, not blended into the Rating.` : undefined}
+        title={runner.directProb != null ? `Direct ${directRating != null ? directRating.toFixed(1) : '-'} (rank ${directRank ?? '-'}): ${(runner.directProb * 100).toFixed(1)}% to win, fair price ${fmtPrice(1 / runner.directProb)}. A model trained on the finishing order directly, shown as a rating on the Proj scale (field mean Proj + 5 points per unit of ln win chance). Shown on its own, not blended into the Rating.` : undefined}
       >
         {f.scratched ? null : runner.directProb == null ? (
           <Missing why="No direct score for this runner (the model needs the whole field and a rated form history)" />
         ) : (
           <>
-            <span className={`text-[13px] font-semibold ${directRank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>{(runner.directProb * 100).toFixed(runner.directProb < 0.1 ? 1 : 0)}%</span>
-            <span className="block text-[10px] font-normal text-ink-faint">{fmtPrice(1 / runner.directProb)}</span>
+            <span className={`text-[13px] font-semibold ${directRank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>{directRating != null ? directRating.toFixed(1) : '-'}</span>
+            <span className="block text-[10px] font-normal text-ink-faint">{(runner.directProb * 100).toFixed(runner.directProb < 0.1 ? 1 : 0)}%</span>
           </>
         )}
       </span>
