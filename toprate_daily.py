@@ -782,6 +782,22 @@ def _peak12_table():
     return out
 
 
+_DIRECT_CACHE = {}
+
+
+def direct_chance(race_id, tab, race_date):
+    """Direct model win chance for a runner (data/direct_scores/<date>.json, written by direct_score.py), or None."""
+    try:
+        d = str(race_date)[:10]
+        if d not in _DIRECT_CACHE:
+            f = Path("data/direct_scores") / f"{d}.json"
+            _DIRECT_CACHE[d] = json.load(open(f, encoding="utf-8")).get("races", {}) if f.exists() else {}
+        v = _DIRECT_CACHE[d].get(str(int(float(race_id))), {}).get(str(int(float(tab))))
+        return None if v is None else round(float(v), 4)
+    except Exception:
+        return None
+
+
 def peak_last_year(horse_id, race_date):
     """Highest runner-page rating in the 365 days before race_date (the race day itself excluded), or None."""
     try:
@@ -1996,6 +2012,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
                 "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
                 "wpjpk": peak_last_year(row.get("horse_id"), row.get("date")),    # peak runner-page rating in the 365 days before the race (23 Oct 2026; was the career peak)
+                "dm":   direct_chance(row.get("race_id"), row.get("tab_number"), row.get("date")),    # direct finishing-position model win chance (direct_score.py), None until scored
                 # Blend score (Step 2c2): the PRIMARY ranking as of Aug
                 # 2026 (promoted from wpr_rank/wprp_rank - a held-out
                 # backtest found it beats WPR-alone ranking on both top-1
