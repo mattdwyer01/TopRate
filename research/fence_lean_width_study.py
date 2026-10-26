@@ -124,6 +124,28 @@ def main():
         se = np.sqrt(np.diag(cov))
         print(f'{k:8s} n={len(z):5d}  barrier lean coef {beta[1]:+.2f} (t {beta[1] / se[1]:+.1f})   {k} lean coef {beta[2]:+.2f} (t {beta[2] / se[2]:+.1f})')
 
+    # ---- 5. same joint regression with the standard error from resampling whole MEETINGS (runners in a race share one lean, so the t-values above are too big)
+    print('\n=== 5. joint regression, meeting-resampled (200 draws): coefficient and 90% range')
+    rng = np.random.default_rng(0)
+    for k in ('w_final', 'w800', 'w_mid'):
+        Lb = L[['meet_code', 'race_no', 'prev_barrier', 'prev_' + k, 'nprev']]
+        z = d.merge(Lb, on=['meet_code', 'race_no'])
+        z = z[z.nprev >= 3].dropna(subset=['y', 'bf', 'prev_barrier', 'prev_' + k]).copy()
+        z['xb'] = z.bf * z.prev_barrier
+        z['xw'] = z.bf * z['prev_' + k]
+        groups = {m: g for m, g in z.groupby('meet_code')}
+        ms = list(groups)
+        out = []
+        for _ in range(200):
+            pick = rng.choice(len(ms), len(ms), replace=True)
+            g = pd.concat([groups[ms[i]] for i in pick])
+            X = np.column_stack([np.ones(len(g)), g.xb.values, g.xw.values])
+            b, *_ = np.linalg.lstsq(X, g.y.values, rcond=None)
+            out.append(b[1:])
+        out = np.array(out)
+        lo, hi = np.percentile(out, [5, 95], axis=0)
+        print(f'{k:8s} meetings {len(ms):3d}  barrier lean {out[:, 0].mean():+.1f} [{lo[0]:+.1f}, {hi[0]:+.1f}]   {k} lean {out[:, 1].mean():+.1f} [{lo[1]:+.1f}, {hi[1]:+.1f}]')
+
 
 if __name__ == '__main__':
     main()
