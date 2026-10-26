@@ -45,23 +45,24 @@ for c in num:
     rel['k_' + c] = gk[c].rank(pct=True)
 d = pd.concat([d, pd.DataFrame(rel)], axis=1)
 Rc = list(rel)
-P = dict(learning_rate=0.03, num_leaves=31, min_child_samples=150, subsample=0.8, subsample_freq=1, colsample_bytree=0.5, reg_lambda=10, verbose=-1, n_estimators=3000)
-tr = d[(d.date < '2024-07-01') & d.h_E.notna()]
-va = d[(d.date >= '2024-07-01') & (d.date < '2025-01-01') & d.h_E.notna()]
-te = d[(d.date >= '2025-01-01') & d.h_E.notna()]
-print(f'fit {len(tr):,} val {len(va):,} test {len(te):,}')
+if __name__ == '__main__':
+    P = dict(learning_rate=0.03, num_leaves=31, min_child_samples=150, subsample=0.8, subsample_freq=1, colsample_bytree=0.5, reg_lambda=10, verbose=-1, n_estimators=3000)
+    tr = d[(d.date < '2024-07-01') & d.h_E.notna()]
+    va = d[(d.date >= '2024-07-01') & (d.date < '2025-01-01') & d.h_E.notna()]
+    te = d[(d.date >= '2025-01-01') & d.h_E.notna()]
+    print(f'fit {len(tr):,} val {len(va):,} test {len(te):,}')
 
 
-def run(cols, c):
-    m = lgb.LGBMRegressor(**P).fit(tr[cols], tr[f'd_{c}'], eval_set=[(va[cols], va[f'd_{c}'])], callbacks=[lgb.early_stopping(100, verbose=False)])
-    pr = m.predict(te[cols]); y = te[f'd_{c}']
-    return 1 - ((y - pr) ** 2).sum() / ((y - y.mean()) ** 2).sum(), m
-sets = [('A  study-1 inputs, tuned', allc), ('B  + relative to field', allc + Rc), ('C  + long history, fade, tempo', allc + Hc), ('D  everything', allc + Hc + Rc)]
-print(f'{"inputs":34s} {"R2 last400":>10s} {"R2 total":>9s}')
-last = None
-for nm, cols in sets:
-    a, m = run(cols, 'L'); b, _ = run(cols, 'T')
-    print(f'{nm:34s} {a:10.4f} {b:9.4f}', flush=True)
-    last = (m, cols)
-imp = pd.Series(last[0].booster_.feature_importance('gain'), index=last[1]).sort_values(ascending=False)
-print('\ntop inputs (D, last 400m):'); print((100 * imp / imp.sum()).head(15).round(1).to_string())
+    def run(cols, c):
+        m = lgb.LGBMRegressor(**P).fit(tr[cols], tr[f'd_{c}'], eval_set=[(va[cols], va[f'd_{c}'])], callbacks=[lgb.early_stopping(100, verbose=False)])
+        pr = m.predict(te[cols]); y = te[f'd_{c}']
+        return 1 - ((y - pr) ** 2).sum() / ((y - y.mean()) ** 2).sum(), m
+    sets = [('A  study-1 inputs, tuned', allc), ('B  + relative to field', allc + Rc), ('C  + long history, fade, tempo', allc + Hc), ('D  everything', allc + Hc + Rc)]
+    print(f'{"inputs":34s} {"R2 last400":>10s} {"R2 total":>9s}')
+    last = None
+    for nm, cols in sets:
+        a, m = run(cols, 'L'); b, _ = run(cols, 'T')
+        print(f'{nm:34s} {a:10.4f} {b:9.4f}', flush=True)
+        last = (m, cols)
+    imp = pd.Series(last[0].booster_.feature_importance('gain'), index=last[1]).sort_values(ascending=False)
+    print('\ntop inputs (D, last 400m):'); print((100 * imp / imp.sum()).head(15).round(1).to_string())
