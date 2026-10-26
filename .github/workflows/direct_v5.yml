@@ -1,0 +1,55 @@
+name: Direct model v5 with improved shape predictions (research)
+
+# Manual research run (26 Oct 2026). Job 1 exports out-of-fold shape predictions (research/shape_study.py EXPORT), job 2 trains the direct model
+# with them (research/direct_shape_v5.py). Results are in the job log. Start by changing research/direct_v5.trigger and pushing.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/trip-model-study]
+    paths: [research/direct_v5.trigger]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    env:
+      PYTHONPATH: .:projection:research
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - run: python -W ignore -u research/shape_study.py --variants EXPORT --out /tmp/shape_out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shape-oof
+          path: /tmp/shape_out/shape_oof.parquet
+  train:
+    needs: export
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - uses: actions/download-artifact@v4
+        with:
+          name: shape-oof
+          path: /tmp/shape_out
+      - name: Context features
+        run: python -W ignore research/direct_ctx_features.py
+      - name: Direct model v5
+        run: python -W ignore -u research/direct_shape_v5.py

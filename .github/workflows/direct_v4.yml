@@ -1,0 +1,33 @@
+name: Direct model v4 shape and conditions (research)
+
+# Manual research run (26 Oct 2026): research/direct_shape_v4.py. Builds the Proj context features, then stage-1 predicted settle, field pace pressure, conditions,
+# meeting lean and horse sensitivities, and trains the direct model with each family alone and cumulatively. Results are in the job log; nothing is committed.
+# Start it by changing research/direct_v4.trigger and pushing (a branch workflow cannot be dispatched).
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/trip-model-study]
+    paths: [research/direct_v4.trigger]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - name: Context features
+        run: python -W ignore research/direct_ctx_features.py
+      - name: Direct model v4
+        run: python -W ignore -u research/direct_shape_v4.py

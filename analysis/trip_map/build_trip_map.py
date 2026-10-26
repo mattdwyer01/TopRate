@@ -151,7 +151,8 @@ def vicsa_runs(res):
     j = add_result_features(j)
     j = j[j.extra.between(-5, 60) & j.lane.notna()]
     j['state'] = 'VICSA'
-    return j[['race_id', 'horse_id', 'date', 'track', 'state', 'distance', 'barrier', 'barfrac', 'fs', 'rail_m', 'going_s', 'extra', 'lane', 'early', 'settle', 'gap800']]
+    return j[['race_id', 'horse_id', 'date', 'track', 'state', 'distance', 'barrier', 'barfrac', 'fs', 'rail_m', 'going_s', 'extra', 'lane', 'early', 'settle', 'gap800',
+              'meet_code', 'race_no', 'tab_no']]   # the three keys join the racing.com PDF rail readings (rc_pdf_gps.py)
 
 
 # ---------------------------------------------------------------- QLD GPS runs (200m sections: width at 800m from home)

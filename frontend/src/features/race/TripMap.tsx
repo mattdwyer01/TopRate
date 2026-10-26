@@ -16,6 +16,35 @@ interface TripMapProps {
   runners: Runner[] // for TAB number and silks (matched on runId)
   smByRunId?: Record<string, number | null> // speed-map suitability vs the field (SM), shown as a dot on each chip
   compact?: boolean // silks and numbers only and always fit the box (a narrow column), whatever its width
+  contenders?: Record<string, { rank: number; tier: 'core' | 'inner' }> // runners within the inner gap line of the top Rating, by runId; rank = Rating rank
+  innerGap?: number // the gap line the contenders sit inside, for the wording
+}
+
+const LEADER_ZONE_L = 1.5 // runners this close to the front are the likely leaders
+// Horses side by side keep their barrier order more often than not (Queensland GPS, 432k pairs at 800m from home: 78% in order when level,
+// 66 to 70% otherwise), so this is a nudge for horses level with each other, not a hard rule: others can drop in behind or cross in front.
+const LEVEL_L = 1.0 // horses within this many lengths of each other lengthwise count as level
+const LANE_SEP_M = 0.2
+const NUDGE = 0.5 // share of an out-of-order gap closed, over a few passes
+
+/** Lanes (metres from the rail) nudged toward barrier order between horses that are level with each other. */
+export function enforceBarrierOrder<T extends { barrier: number; gx: number; lane: number }>(rows: T[]): T[] {
+  const out = rows.map((r) => ({ ...r }))
+  for (let pass = 0; pass < 3; pass++) {
+    for (const a of out) {
+      for (const b of out) {
+        if (a.barrier >= b.barrier) continue // a is drawn inside b
+        if (Math.abs(a.gx - b.gx) > LEVEL_L) continue // not level: b may have crossed in front or dropped in behind
+        const need = a.lane + LANE_SEP_M - b.lane // b (drawn outside) should sit at least LANE_SEP_M wider than a
+        if (need <= 0.001) continue
+        const move = need * NUDGE
+        const takeA = Math.min(move / 2, a.lane) // a cannot go inside the rail
+        a.lane -= takeA
+        b.lane += move - takeA
+      }
+    }
+  }
+  return out
 }
 
 const LEN_M = 2.4 // one length in metres
@@ -32,7 +61,7 @@ interface Placed extends TripRunner {
   py: number
 }
 
-export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compact = false }: TripMapProps) {
+export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compact = false, contenders = {}, innerGap = 4 }: TripMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(900)
   const [hover, setHover] = useState<string | null>(null)
@@ -71,7 +100,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
     const m = narrow ? { l: 34, r: 10, t: 22, b: 34 } : { l: 44, r: 20, t: 30, b: 44 }
     const iw = width - m.l - m.r
     const minGap = runners.length ? Math.min(...runners.map((r) => r.gap as number)) : 0
-    const rows = runners.map((r) => ({ ...r, gx: (r.gap as number) - minGap }))
+    const rows = enforceBarrierOrder(runners.map((r) => ({ ...r, gx: (r.gap as number) - minGap })))
     const maxG = Math.max(8, Math.ceil((Math.max(0, ...rows.map((r) => r.gx)) + 1.2) / 2) * 2)
     const maxL = Math.max(3, Math.ceil(Math.max(0, ...rows.map((r) => r.lane)) + 0.8)) // cut off just past the widest runner
     const GM = -1.2
@@ -147,14 +176,39 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
   const stepL = maxL > 8 ? 2 : 1
   for (let l = 0; l <= maxL; l += stepL) gridL.push(l)
   const noGps = trip.laneKind === 'est'
-  const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'average width from rail over the whole run'
+  const cont = items.filter((r) => contenders[r.rid])
+  const hasCont = cont.length >= 2
+  const best = hasCont ? cont.reduce((a, b) => (b.gx < a.gx ? b : a)) : null
+  const topRated = hasCont ? cont.reduce((a, b) => (contenders[b.rid].rank < contenders[a.rid].rank ? b : a)) : null
+  const leaders = items.filter((r) => r.gx <= LEADER_ZONE_L)
+  const numOf = (r: Placed) => byRid.get(r.rid)?.tabNumber ?? r.barrier
+  let summary: string | null = null
+  if (best && topRated) {
+    if (best.rid === topRated.rid) {
+      summary = `Top rated ${numOf(topRated)} ${topRated.name} is the best placed of the ${cont.length} contenders.`
+    } else {
+      const back = topRated.gx - best.gx
+      const wide = topRated.lane - best.lane
+      summary = `Top rated ${numOf(topRated)} ${topRated.name} is forecast ${back.toFixed(1)}L behind the best placed contender (${numOf(best)} ${best.name})${Math.abs(wide) >= 1 ? ` and ${Math.abs(wide).toFixed(1)}m ${wide > 0 ? 'wider' : 'closer to the rail'}` : ''}.`
+    }
+  }
+  const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'width from rail in the final 200m (racing.com GPS), not at 800m'
 
   return (
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Trip map</span>
-        <span className="text-xs text-ink-faint">{narrow ? (noGps ? 'Width at 800m (estimated)' : trip.laneKind === '800m' ? 'Width at 800m from home' : 'Average width, whole run') : `Projected running line · ${laneLabel}`}</span>
+        <span className="text-xs text-ink-faint">{narrow ? (noGps ? 'Width at 800m (estimated)' : trip.laneKind === '800m' ? 'Width at 800m from home' : 'Width in the final 200m') : `Projected running line · ${laneLabel}`}</span>
       </div>
+      {summary && <div className="mt-1 text-xs text-ink-soft">{summary} Forecast error is about {trip.err.gap.toFixed(1)}L, so small gaps are not reliable.</div>}
+      {hasCont && (
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-emerald-deep text-center text-[8px] font-bold leading-3 text-white">1</span>Rating rank (contenders within {innerGap} of the top)</span>
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-4 border-t-2 border-dashed border-emerald" />ground to the best placed contender</span>
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm bg-blue-bg" />likely leaders (within {LEADER_ZONE_L}L of the front)</span>
+        </div>
+      )}
+      <div className="mt-1 text-[11px] text-ink-faint">Horses level with each other are nudged to keep barrier order. Others can cross in front or drop in behind.</div>
       <div ref={wrapRef} className="relative mt-2 overflow-x-auto">
         <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected trip map: distance behind the leader against width from the rail">
           <rect x={m.l} y={m.t} width={iw} height={ih} fill="var(--color-bg)" />
@@ -174,7 +228,27 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
               </text>
             </g>
           ))}
+          <rect x={X(LEADER_ZONE_L)} y={m.t} width={m.l + iw - X(LEADER_ZONE_L)} height={ih} fill="var(--color-blue-bg)" opacity={0.7} />
+          <text x={m.l + iw - 4} y={m.t + ih - 5} textAnchor="end" fontSize={10} fill="var(--color-blue-deep)">
+            {leaders.length} likely {leaders.length === 1 ? 'leader' : 'leaders'}
+          </text>
           <line x1={m.l} x2={m.l + iw} y1={Y(0)} y2={Y(0)} stroke="var(--color-ink)" strokeWidth={3} />
+          {best && (
+            <line x1={X(best.gx)} x2={X(best.gx)} y1={m.t} y2={m.t + ih} stroke="var(--color-emerald)" strokeWidth={1.5} strokeDasharray="5 4" />
+          )}
+          {best &&
+            cont
+              .filter((r) => r.rid !== best.rid && r.gx - best.gx >= 1.5)
+              .map((r) => (
+                <g key={`gt${r.rid}`}>
+                  <line x1={r.px + hw} x2={X(best.gx)} y1={r.py} y2={r.py} stroke="var(--color-emerald)" strokeWidth={1.5} strokeDasharray="3 3" />
+                  {topRated && r.rid === topRated.rid && (
+                    <text x={r.px} y={r.py - hh - 5} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
+                      +{(r.gx - best.gx).toFixed(1)}L
+                    </text>
+                  )}
+                </g>
+              ))}
           <text x={m.l + 4} y={m.t - 10} fontSize={10} fill="var(--color-ink-mute)">
             INSIDE RAIL
           </text>
@@ -200,22 +274,31 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             const x = r.px - hw
             const y = r.py - hh
             const tx = x + SILK + 8
+            const c = contenders[r.rid]
             return (
-              <g key={r.rid} onMouseEnter={() => setHover(r.rid)} onMouseLeave={() => setHover(null)} onClick={() => setHover(on ? null : r.rid)} style={{ cursor: 'pointer' }}>
+              <g key={r.rid} onMouseEnter={() => setHover(r.rid)} onMouseLeave={() => setHover(null)} onClick={() => setHover(on ? null : r.rid)} style={{ cursor: 'pointer' }} opacity={hasCont && !c && !on ? 0.5 : 1}>
                 <rect
                   x={x}
                   y={y}
                   width={2 * hw}
                   height={CHIP_H}
                   rx={5}
-                  fill="var(--color-panel)"
-                  stroke={on ? 'var(--color-amber)' : 'var(--color-ink-faint)'}
-                  strokeWidth={on ? 2 : 1}
+                  fill={c?.tier === 'core' ? 'var(--color-emerald-tint)' : 'var(--color-panel)'}
+                  stroke={on ? 'var(--color-amber)' : c ? 'var(--color-emerald)' : 'var(--color-ink-faint)'}
+                  strokeWidth={on || c ? 2 : 1}
                 />
                 {r.silk && <image href={r.silk} x={x + 3} y={y + (CHIP_H - SILK) / 2} width={SILK} height={SILK} preserveAspectRatio="xMidYMid meet" />}
                 <text x={tx} y={r.py + 4} fontSize={11} fontWeight={700} fill="var(--color-ink)">
                   {r.num}
                 </text>
+                {c && (
+                  <g>
+                    <circle cx={x} cy={y} r={7} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={1.5} />
+                    <text x={x} y={y + 3} textAnchor="middle" fontSize={9} fontWeight={700} fill="#fff">
+                      {c.rank}
+                    </text>
+                  </g>
+                )}
                 {(() => {
                   const sm = smByRunId[r.rid]
                   if (sm == null || Math.abs(sm) < SPEED_MAP_TINT_THRESHOLD) return null
@@ -241,6 +324,12 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             <div>
               Barrier {hov.barrier} · projected {hov.gx.toFixed(1)}L behind the leader, {hov.lane.toFixed(1)}m off the rail
             </div>
+            {contenders[hov.rid] && best && (
+              <div>
+                Rating rank {contenders[hov.rid].rank} (contender)
+                {hov.rid === best.rid ? ', best placed of the contenders' : `, ${(hov.gx - best.gx).toFixed(1)}L behind the best placed contender`}
+              </div>
+            )}
             {smByRunId[hov.rid] != null && (
               <div>
                 Speed map (SM) {smByRunId[hov.rid]! >= 0 ? '+' : ''}

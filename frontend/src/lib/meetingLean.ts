@@ -6,11 +6,16 @@ import { useEffect, useState } from 'react'
 export const MIN_LEAN_RACES = 3
 export const LEAD_LEAN_MIN = 0.45
 export const FENCE_LEAN_MIN = 0.35
+// What the fence lean is worth (26 Oct 2026, research/fence_lean_width_study.py, 931 VIC/SA races in 109 meetings): a run's rating vs its last 3 moves by
+// FENCE_K x (barrier fraction from the middle, -0.5 rail to +0.5 widest) x (earlier races' mean fence lean). Fitted -12.6 (90% range -17.5 to -7.6) on the
+// final-section width this file uses; 12 is used. So the rail draw gains and the widest draw loses FENCE_K x 0.5 x lean points. Reading aid only.
+export const FENCE_K = 12
+export const FENCE_SHOWN_MIN = 0.1 // under this the lean is too small to say anything
 
 interface RaceLean { lead: number | null; fence: number | null; draw: number | null; n: number; t: string }
 type LeanFile = Record<string, Record<string, Record<string, RaceLean>>>
 
-export interface MeetingLean { races: number; lead: number | null; fence: number | null; leadStrong: boolean; fenceStrong: boolean }
+export interface MeetingLean { races: number; lead: number | null; fence: number | null; leadStrong: boolean; fenceStrong: boolean; fenceShown: boolean; railPoints: number | null }
 
 const mean = (xs: (number | null)[]): number | null => {
   const v = xs.filter((x): x is number => x != null)
@@ -25,7 +30,15 @@ export function meetingLean(file: LeanFile | null, date: string, venue: string, 
   if (earlier.length < MIN_LEAN_RACES) return null
   const lead = mean(earlier.map((r) => r.lead))
   const fence = mean(earlier.map((r) => r.fence))
-  return { races: earlier.length, lead, fence, leadStrong: lead != null && lead >= LEAD_LEAN_MIN, fenceStrong: fence != null && fence >= FENCE_LEAN_MIN }
+  return {
+    races: earlier.length,
+    lead,
+    fence,
+    leadStrong: lead != null && lead >= LEAD_LEAN_MIN,
+    fenceStrong: fence != null && fence >= FENCE_LEAN_MIN,
+    fenceShown: fence != null && Math.abs(fence) >= FENCE_SHOWN_MIN,
+    railPoints: fence != null ? FENCE_K * 0.5 * fence : null,
+  }
 }
 
 let cache: { at: number; p: Promise<LeanFile | null> } | null = null

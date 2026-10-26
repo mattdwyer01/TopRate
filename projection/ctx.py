@@ -158,7 +158,8 @@ def page_frame():
     rp = rp.sort_values(['horse_id', 'date']).reset_index(drop=True)
     g = rp.groupby('horse_id')
     for k in range(1, K + 1):
-        rp[f'r{k}'] = g.wpr.shift(k)
+        # converted history (research/conv_history.py per_row): the plain rating of the earlier run plus THIS row's own shift c_t (the page is struck for this race)
+        rp[f'r{k}'] = g.wpr_plain.shift(k) + rp.c_t if 'c_t' in rp.columns else g.wpr.shift(k)
     rp['n'] = g.cumcount().astype(float)
     rp['d_last'] = (rp.date - g.date.shift(1)).dt.days.astype(float)
     rp['l_dist'], rp['l_going'], rp['l_wt'], rp['l_mgn'] = g.distance.shift(1), g.going_n.shift(1), g.weightCarried.shift(1), g.marginFinish.shift(1)
@@ -269,7 +270,7 @@ def rel_features(T, rp):
     eight ratings (distance, going, track, jockey, class, days, recency kernels, as the gap to f), and the horse's own earlier misses under the same conditions."""
     byh = {}
     for h, x in rp.groupby('horse_id'):
-        byh[h] = dict(d=x.date.values.astype('datetime64[D]').astype('int64'), w=x.wpr.values, dist=x.distance.values, gn=x.going_n.values, wt=x.weightCarried.values,
+        byh[h] = dict(d=x.date.values.astype('datetime64[D]').astype('int64'), w=(x.wpr_plain if 'c_t' in x.columns else x.wpr).values, dist=x.distance.values, gn=x.going_n.values, wt=x.weightCarried.values,
                       vn=x.vn.values, jk=x.jockey.values.astype(object), cl=x.cls.values.astype(object), mg=x.marginFinish.values,
                       pf=(x.positionFinish / x.field_size).values, res=x.resid.values)
     n = len(T)
@@ -280,6 +281,7 @@ def rel_features(T, rp):
     dist, gn, wt = T.distance.values.astype(float), T.going_n.values.astype(float), T.weightCarried.values.astype(float)
     vn, jk, cl, f = T.vn.values, T.jockey.astype(object).values, T.cls.astype(object).values, T.f.values.astype(float)
     tg = going_group(gn)
+    shift = T['c_t'].values.astype(float) if 'c_t' in T.columns else np.zeros(n)   # per-row converted-history shift (0 for real page runs)
     for i in range(n):
         h = hid[i]
         a = None if np.isnan(h) else byh.get(h)
@@ -290,7 +292,7 @@ def rel_features(T, rp):
             continue
         L = min(K, j)
         sl = slice(j - L, j)
-        R = a['w'][sl][::-1]
+        R = a['w'][sl][::-1] + shift[i]
         dd = dist[i] - a['dist'][sl][::-1]
         gd = gn[i] - a['gn'][sl][::-1]
         wd = wt[i] - a['wt'][sl][::-1]
@@ -305,7 +307,7 @@ def rel_features(T, rp):
             for nm, v in (('dd', dd[k]), ('gd', gd[k]), ('trk', trk[k]), ('jk', sj[k]), ('cl', sc[k]), ('wd', wd[k]), ('dg', dg[k]), ('mg', mg[k]), ('pf', pf[k]), ('dev', R[k] - rmean)):
                 out[i, col[f'{nm}{k1}']] = v
         # career: every earlier run
-        w_all = a['w'][:j]
+        w_all = a['w'][:j] + shift[i]
         out[i, col['c_mean']] = w_all.mean()
         out[i, col['c_max']] = w_all.max()
         out[i, col['c_sd']] = w_all.std(ddof=1) if j > 1 else np.nan

@@ -1,0 +1,57 @@
+name: "Direct model scores (research)"
+
+# Scores the direct finishing-position model (direct_score.py) on the daily complete-field log and commits data/direct_scores/<date>.json
+# (race_id -> {tab: win chance}). Nothing reads the scores yet: the payload and dashboard are untouched.
+# Start by hand (dispatch with from and days) or by changing research/direct_score.trigger on this branch.
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "First date to score (YYYY-MM-DD, default today UTC)"
+        required: false
+      days:
+        description: "Number of days"
+        required: false
+        default: "4"
+  push:
+    branches: [claude/trip-model-study]
+    paths: [research/direct_score.trigger]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: direct-score
+  cancel-in-progress: false
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn pyarrow
+      - name: Score
+        run: |
+          FROM="${{ github.event.inputs.from }}"
+          DAYS="${{ github.event.inputs.days }}"
+          [ -z "$FROM" ] && FROM=$(date -u +%Y-%m-%d)
+          [ -z "$DAYS" ] && DAYS=16
+          python direct_score.py score --from "$FROM" --days "$DAYS"
+      - name: Commit scores
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/direct_scores
+          git diff --cached --quiet && { echo "no change"; exit 0; }
+          git commit -m "Direct model scores $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3 4 5; do
+            git push && exit 0
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" || true
+          done
+          exit 1

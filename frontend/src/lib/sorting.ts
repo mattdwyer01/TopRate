@@ -15,6 +15,7 @@ export type SortKey =
   | 'comboRank'
   | 'projectedWpr'
   | 'peakWpr'
+  | 'direct'
   | 'fixedPrice'
   | 'ratedPrice'
   | 'finish'
@@ -37,6 +38,7 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   comboRank: 'asc',
   projectedWpr: 'desc',
   peakWpr: 'desc',
+  direct: 'desc',
   fixedPrice: 'asc',
   ratedPrice: 'asc',
   finish: 'asc',
@@ -76,6 +78,8 @@ function sortValue(
       return effective?.effectiveProjectedWpr ?? runner.projectedWpr ?? -Infinity
     case 'peakWpr':
       return runner.peakWpr ?? -Infinity
+    case 'direct':
+      return runner.directProb ?? -Infinity
     case 'fixedPrice':
       return runner.fixedWinPrice ?? Infinity
     case 'ratedPrice':
