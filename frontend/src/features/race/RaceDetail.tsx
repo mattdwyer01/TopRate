@@ -251,15 +251,15 @@ export function RaceDetail({
       <MeetingLeanNote race={race} />
 
       {hasAnyResult && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-stretch">
-          <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} onSelectRunner={setSelectedRunId} />
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-stretch">
+          <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} directRating={directRatingByRunId} directRank={directRankByRunId} onSelectRunner={setSelectedRunId} />
           <div className="hidden xl:block"><ReplayCard venue={race.venue} date={race.date} raceNumber={race.raceNumber} /></div>
         </div>
       )}
 
       {/* From xl: runners (left) beside a sticky column with the pace strip and ladder (right); the Result panel stays full width above; the race shape stays full width underneath because the
           speed map and trip map need the room. Below xl one column: result, runners, shape, ladder. */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-start">
         <div className="flex min-w-0 flex-col gap-4 xl:order-1">
         <section className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
