@@ -42,6 +42,9 @@ jobs:
           for f in /tmp/vid/*.mp4; do b=$(basename $f .mp4); python -u research/sky_replay_detect.py $f /tmp/det/$b.json 0.25 720; done
       - name: Evaluate
         run: python -W ignore -u research/sky_replay_eval.py /tmp/det /tmp/vid /tmp/silks /tmp/det/eval.json
+      - name: Summary
+        if: always()
+        run: python research/sky_replay_summary.py /tmp/det/eval.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
