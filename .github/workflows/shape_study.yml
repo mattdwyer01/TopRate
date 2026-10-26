@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variants: ["V13", "V15", "V16a", "V16b", "V16c", "V17"]
+        variants: ["V16d", "V16"]
     env:
       PYTHONPATH: .:projection:research
     steps:
