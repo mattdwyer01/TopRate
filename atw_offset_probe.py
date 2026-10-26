@@ -40,7 +40,8 @@ def sample(d, start, end, per_month, seed):
     s = s[~s.race_class.astype(str).str.contains('Hurdle|Steeple', case=False)]
     s = s[(s.run_id < 7_000_000_000_000) & (s.date.str[:7] >= start) & (s.date.str[:7] <= end)]
     s = s.assign(mo=s.date.str[:7])
-    return s.groupby('mo', group_keys=False).apply(lambda x: x.sample(min(per_month, len(x)), random_state=seed)).reset_index(drop=True)
+    parts = [x.sample(min(per_month, len(x)), random_state=seed) for _, x in s.groupby('mo')]
+    return pd.concat(parts).reset_index(drop=True)
 
 
 def main():
