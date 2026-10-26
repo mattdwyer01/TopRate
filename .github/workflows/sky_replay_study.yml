@@ -1,0 +1,49 @@
+name: Sky replay video feasibility study (research)
+
+# Research run (26 Oct 2026): research/sky_replay_*.py. Downloads Sky replay videos for three VIC/SA meetings with GPS, runs a COCO detector
+# at 0.25 fps, then scores coverage and silk-matched running order against GPS. Results are in each job's log and the sky-* artifacts; nothing is committed.
+# Start it by changing research/sky_replay.trigger and pushing.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/sky-replay-video-study]
+    paths: [research/sky_replay.trigger]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {date: "20261024", code: "FLER", venue: "Flemington", races: 9}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", races: 9}
+          - {date: "20261017", code: "CAUR", venue: "Caulfield", races: 2}
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas pyarrow scipy opencv-python-headless numpy && pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - name: Fetch videos and silks
+        run: python research/sky_replay_fetch.py ${{ matrix.date }} ${{ matrix.code }} ${{ matrix.venue }} ${{ matrix.races }} /tmp/vid /tmp/silks
+      - name: Detect
+        run: |
+          mkdir -p /tmp/det
+          for f in /tmp/vid/*.mp4; do b=$(basename $f .mp4); python -u research/sky_replay_detect.py $f /tmp/det/$b.json 0.25 720; done
+      - name: Evaluate
+        run: python -W ignore -u research/sky_replay_eval.py /tmp/det /tmp/vid /tmp/silks /tmp/det/eval.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sky-${{ matrix.code }}
+          path: /tmp/det
+          if-no-files-found: ignore
