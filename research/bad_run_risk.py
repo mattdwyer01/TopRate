@@ -91,6 +91,7 @@ def build():
     g = pg.groupby('horse_id')
     # A
     lags = pd.concat([g.resid.shift(k) for k in range(1, 9)], axis=1)
+    lags.columns = range(8)
     pg['a_p1'] = lags[0]
     pg['a_m4'] = lags.iloc[:, :4].mean(axis=1)
     pg['a_sd4'] = lags.iloc[:, :4].std(axis=1)
