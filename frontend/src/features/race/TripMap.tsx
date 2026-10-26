@@ -192,13 +192,13 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
       summary = `Top rated ${numOf(topRated)} ${topRated.name} is forecast ${back.toFixed(1)}L behind the best placed contender (${numOf(best)} ${best.name})${Math.abs(wide) >= 1 ? ` and ${Math.abs(wide).toFixed(1)}m ${wide > 0 ? 'wider' : 'closer to the rail'}` : ''}.`
     }
   }
-  const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'average width from rail over the whole run'
+  const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'width from rail in the final 200m (racing.com GPS), not at 800m'
 
   return (
     <div className="rounded-lg border border-line bg-panel p-3 shadow-[var(--shadow-1)]">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-ink">Trip map</span>
-        <span className="text-xs text-ink-faint">{narrow ? (noGps ? 'Width at 800m (estimated)' : trip.laneKind === '800m' ? 'Width at 800m from home' : 'Average width, whole run') : `Projected running line · ${laneLabel}`}</span>
+        <span className="text-xs text-ink-faint">{narrow ? (noGps ? 'Width at 800m (estimated)' : trip.laneKind === '800m' ? 'Width at 800m from home' : 'Width in the final 200m') : `Projected running line · ${laneLabel}`}</span>
       </div>
       {summary && <div className="mt-1 text-xs text-ink-soft">{summary} Forecast error is about {trip.err.gap.toFixed(1)}L, so small gaps are not reliable.</div>}
       {hasCont && (
