@@ -5,6 +5,9 @@ name: Direct model v3 (research)
 # the cloud session (its sandbox restarts between turns). Results are in the job log and the direct-v3 artifact; nothing is committed.
 on:
   workflow_dispatch:
+  push:
+    branches: [claude/trip-model-study]
+    paths: [research/direct_v3.trigger]
 
 permissions:
   contents: read
