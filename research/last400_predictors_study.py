@@ -135,6 +135,9 @@ def main():
         'F11 going and track history': ['gs', 'gs_chg', 'grd', 'wet', 'x_hvenue', 'x_hgoing', 'x_hband', 'xn_hband'],
         'F12 field closing profile': ['f_L_hist', 'f_L_rel'],
     }
+    for c in {x for v in fam.values() for x in v}:
+        if c in d.columns and d[c].dtype == object:
+            d[c] = pd.to_numeric(d[c].replace({True: 1, False: 0, 'True': 1, 'False': 0}), errors='coerce')
     tr = d[(d.date < '2025-01-01') & d.h_E.notna()]
     te = d[(d.date >= '2025-01-01') & d.h_E.notna()]
     print(f'fit before 2025: {len(tr):,} runs; scored 2025 on: {len(te):,} runs in {te.key.nunique():,} races\n')
