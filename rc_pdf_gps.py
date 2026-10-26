@@ -170,7 +170,7 @@ def check(df: pd.DataFrame) -> list[str]:
     d = df.groupby("tab_no").size()
     if d.min() < 3:
         msgs.append(f"a runner has {d.min()} labelled points")
-    if df.duplicated(["tab_no", "from_m"]).any():
+    if df.tab_no.notna().all() and df.duplicated(["tab_no", "from_m"]).any():
         msgs.append("duplicate tab/section")
     return msgs
 
