@@ -1,0 +1,91 @@
+name: Sky replay video study v3, YOLO detector vs Faster R-CNN (research)
+
+# Research run (26 Oct 2026): research/sky_replay_track.py. One job per race: download the replay, detect at 2 fps, link detections into tracks
+# within each shot, carry silk / saddlecloth-number identity along each track, score against GPS. A final job aggregates.
+# Start it by changing research/sky_replay_v3.trigger and pushing.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/sky-replay-video-study]
+    paths: [research/sky_replay_v3.trigger]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {date: "20261024", code: "FLER", venue: "Flemington", race: 1}
+          - {date: "20261024", code: "FLER", venue: "Flemington", race: 2}
+          - {date: "20261024", code: "FLER", venue: "Flemington", race: 3}
+          - {date: "20261024", code: "FLER", venue: "Flemington", race: 4}
+          - {date: "20261024", code: "FLER", venue: "Flemington", race: 5}
+          - {date: "20261024", code: "FLER", venue: "Flemington", race: 6}
+          - {date: "20261024", code: "FLER", venue: "Flemington", race: 7}
+          - {date: "20261024", code: "FLER", venue: "Flemington", race: 8}
+          - {date: "20261024", code: "FLER", venue: "Flemington", race: 9}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", race: 1}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", race: 2}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", race: 3}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", race: 4}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", race: 5}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", race: 6}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", race: 7}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", race: 8}
+          - {date: "20261024", code: "MOPR", venue: "Morphettville", race: 9}
+          - {date: "20261017", code: "CAUR", venue: "Caulfield", race: 1}
+          - {date: "20261017", code: "CAUR", venue: "Caulfield", race: 2}
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr ffmpeg
+      - run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && pip install pytesseract pandas pyarrow scipy opencv-python-headless numpy ultralytics
+      - name: Fetch video and silks
+        run: python research/sky_replay_fetch.py ${{ matrix.date }} ${{ matrix.code }} ${{ matrix.venue }} ${{ matrix.race }}-${{ matrix.race }} /tmp/vid /tmp/silks
+      - name: Detect at 2 fps (both detectors)
+        run: |
+          mkdir -p /tmp/det
+          for f in /tmp/vid/*.mp4; do b=$(basename $f .mp4); python -u research/sky_replay_detect.py $f /tmp/det/det_frcnn_$b.json 2 720 frcnn; python -u research/sky_replay_detect.py $f /tmp/det/det_yolo_$b.json 2 720 yolo; cp /tmp/det/det_yolo_$b.json /tmp/det/$b.json; done
+      - name: Track and score with the YOLO detections
+        run: |
+          for f in /tmp/vid/*.mp4; do b=$(basename $f .mp4); python -W ignore -u research/sky_replay_track.py /tmp/det/$b.json $f /tmp/silks /tmp/det/track_$b.json; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: skyv3-${{ matrix.code }}${{ matrix.race }}
+          path: |
+            /tmp/det/track_*.json
+            /tmp/det/det_frcnn_*.json
+            /tmp/det/det_yolo_*.json
+          if-no-files-found: ignore
+
+  aggregate:
+    needs: run
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install numpy pandas
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: skyv3-*
+          path: /tmp/res
+      - run: |
+          python research/sky_replay_detstats.py /tmp/res
+          python research/sky_replay_summary2.py /tmp/res
