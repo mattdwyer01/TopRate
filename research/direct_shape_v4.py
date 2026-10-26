@@ -188,6 +188,8 @@ RT['pred_tp'] = np.nan
 for a, b in zip(edges[:-1], edges[1:]):
     trn = RT[(RT.date < a) & RT.tp.notna() & RT.pg_top3.notna()]
     blk = (RT.date >= a) & (RT.date < b)
+    if len(trn) < 500:
+        continue
     m = lgb.train(dict(P1, num_leaves=31, min_data_in_leaf=50), lgb.Dataset(trn[TPF], trn.tp, categorical_feature=['vcode']), 80 if DEBUG else 200)
     RT.loc[blk, 'pred_tp'] = m.predict(RT.loc[blk, TPF])
 ok = RT.tp.notna() & RT.pred_tp.notna() & (RT.date >= '2022-01-01')
