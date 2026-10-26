@@ -463,6 +463,27 @@ def run_variant(vname, kinds, feats, tag=None):
     return results
 
 
+def export_oof():
+    """Out-of-fold shape predictions for every half-year block from 2021 on (V12 features), for direct_shape_v5."""
+    edges = list(pd.date_range('2021-01-01', '2026-07-01', freq='6MS')) + [pd.Timestamp('2027-01-01')]
+    feats = FS['V12']
+    out = pd.DataFrame(index=S.index, columns=['pe', 'pg', 'pl'], dtype=float)
+    for a, b in zip(edges[:-1], edges[1:]):
+        trn = S[(S.date < a) & S.e0.notna() & S.g0.notna()]
+        if len(trn) > TRAIN_CAP:
+            trn = trn[trn.race_id.isin(trn.race_id.drop_duplicates().sample(frac=TRAIN_CAP / len(trn), random_state=1))]
+        blk = S[(S.date >= a) & (S.date < b)]
+        if len(blk) == 0:
+            continue
+        for k, c in (('reg_e', 'pe'), ('reg_g', 'pg'), ('lead', 'pl')):
+            out.loc[blk.index, c] = fit_predict(k, feats, trn, blk)
+        log('export block', a.date(), len(trn), 'train rows', len(blk), 'predicted')
+    res = S[['race_id', 'horse_id']].join(out)
+    res = res[res.pe.notna() | res.pg.notna()]
+    res.to_parquet(os.path.join(ARGS.out, 'shape_oof.parquet'))
+    log('exported', len(res))
+
+
 if __name__ == '__main__':
     base_kinds = ['reg_e']
     for v in ARGS.variants.split(','):
@@ -484,4 +505,6 @@ if __name__ == '__main__':
                 P0['seed'] = sd
                 run_variant('V0', base_kinds, FS['V0'], tag=f'V0_seed{sd}')
                 P0['seed'] = 0
+        elif v == 'EXPORT':
+            export_oof()
     log('done')
