@@ -250,6 +250,37 @@ S['gps_n'] = np.isfinite(lagmat('gps_z', 8)).sum(1).astype(float)
 S['r_gps_z_m3'] = S.gps_z_m3 - S.groupby('race_id').gps_z_m3.transform('mean')
 log('GPS joined: runs with a GPS early-speed z', int(S.gps_z.notna().sum()))
 
+# ------------------------------------------------------------------ X13 new ideas: more recency weightings, horse x jockey early tendency, jockey change, who I must cross (history based), weight rank
+w2 = np.array([0.5, 0.25, 0.12, 0.07, 0.03, 0.02, 0.005, 0.005])[None, :]
+w1 = np.array([0.7, 0.2, 0.06, 0.02, 0.01, 0.005, 0.003, 0.002])[None, :]
+okE = np.isfinite(L['e0'])
+for nm_, ww in (('e_ewm1', w1), ('e_ewm2', w2)):
+    S[nm_] = np.nansum(np.where(okE, L['e0'], 0) * ww, 1) / np.maximum((okE * ww).sum(1), 1e-9)
+    S.loc[okE.sum(1) == 0, nm_] = np.nan
+S['pair_e'] = asof_rate(S, 'pair', 'e0', prior=0.0, k=2)
+S['pair_dev'] = S.pair_e - S.e_m4
+S['jk_e_prev'] = S.groupby('horse_id').jk_e.shift(1)
+S['jk_e_chg'] = S.jk_e - S.jk_e_prev
+S['e_sd4'] = np.nanstd(L['e0'][:, :4], 1)
+S['e_trend'] = L['e0'][:, 0] - np.nanmean(L['e0'][:, 1:4], 1)
+S['wt_rank'] = S.groupby('race_id').weightCarried.rank(pct=True)
+S['wt_rel'] = S.weightCarried - S.groupby('race_id').weightCarried.transform('mean')
+S['age_sex'] = S.age * 10 + S.sex.fillna(0)
+cr_in, cr_out, cr_in_g, ahead_n = [], [], [], []
+for rid, grp in S[['race_id', 'barrier', 'e_ewm2', 'g_m4']].groupby('race_id', sort=False):
+    b, e, gg = grp.barrier.values, grp.e_ewm2.values, grp.g_m4.values
+    if len(b) < 2:
+        cr_in.append(np.full(len(b), np.nan)); cr_out.append(np.full(len(b), np.nan)); cr_in_g.append(np.full(len(b), np.nan)); ahead_n.append(np.full(len(b), np.nan)); continue
+    inside = b[None, :] < b[:, None]
+    faster = e[None, :] < e[:, None]
+    cr_in.append((inside & faster).sum(1).astype(float))
+    cr_out.append((~inside & faster).sum(1).astype(float) - (faster & (b[None, :] == b[:, None])).sum(1))
+    cr_in_g.append((inside & (gg[None, :] < gg[:, None])).sum(1).astype(float))
+    ahead_n.append(faster.sum(1).astype(float))
+S['cross_in'] = np.concatenate(cr_in); S['cross_out'] = np.concatenate(cr_out); S['cross_in_g'] = np.concatenate(cr_in_g); S['ahead_n'] = np.concatenate(ahead_n)
+S['cross_in_frac'] = S.cross_in / (S.nr - 1).clip(lower=1)
+log('X13 features done')
+
 # ------------------------------------------------------------------ V3 latent effects: ridge on horse / jockey / trainer / track-barrier, refit by half-year block on earlier data only
 LAT_EDGES = list(pd.date_range('2018-01-01', '2027-01-01', freq='6MS'))
 S['lat_horse'] = np.nan; S['lat_jk'] = np.nan; S['lat_tk'] = np.nan; S['lat_tb'] = np.nan; S['lat_pred'] = np.nan
@@ -345,6 +376,7 @@ X4 = [c for c in S.columns if c.startswith(('hist_', 'lat_n', 'lat_rank', 'lat_g
 X9 = ['gps_z_m3', 'gps_z_l1', 'gps_n', 'r_gps_z_m3']
 X10 = ['to600_m4', 'l600_m4', 'r_to600_m4', 'k_to600_m4']
 X11 = ['tkv_res', 'jkv_res', 'tkd_res', 'jk_dband_res']
+X13 = ['e_ewm1', 'e_ewm2', 'pair_e', 'pair_dev', 'jk_e_chg', 'e_sd4', 'e_trend', 'wt_rank', 'wt_rel', 'age_sex', 'cross_in', 'cross_out', 'cross_in_g', 'ahead_n', 'cross_in_frac']
 
 
 def U(*lists):
@@ -355,7 +387,7 @@ def U(*lists):
 
 
 FS = {'V0': U(BASE), 'V1': U(BASE, X1), 'V2': U(BASE, X1, X2), 'V3': U(BASE, X1, X2, X3), 'V4': U(BASE, X1, X2, X3, X4), 'V9': U(BASE, X1, X2, X3, X4, X9),
-      'V10': U(BASE, X1, X2, X3, X4, X10), 'V11': U(BASE, X1, X2, X3, X4, X11), 'V12': U(BASE, X1, X2, X3, X4, X9, X10, X11)}
+      'V10': U(BASE, X1, X2, X3, X4, X10), 'V11': U(BASE, X1, X2, X3, X4, X11), 'V12': U(BASE, X1, X2, X3, X4, X9, X10, X11), 'V13': U(BASE, X1, X2, X3, X4, X9, X10, X11, X13), 'V13a': U(BASE, X1, X2, X3, X4, X13)}
 
 # ------------------------------------------------------------------ learners and metrics
 TEST_EDGES = list(pd.date_range('2025-01-01', '2027-01-01', freq='6MS'))
@@ -383,6 +415,60 @@ def softmax_lead_obj(df):
     return fobj
 
 
+
+PAIR_BASE = ['e_m4', 'e_ewm2', 'e_l1', 'g_m4', 'es_m4', 'res_ewm', 'barrier', 'barfrac', 'lat_pred', 'jk_e', 'tk_e', 'dk_e', 'pair_e', 'lead_r4', 'e_dist', 'wt_rel', 'days', 'n_runs']
+PAIR_CTX = ['nr', 'dnum_', 'rail_m', 'vcode', 'gs_']
+
+
+def _pairs(df, sample, rng):
+    """ordered pairs (i, j) of runners in the same race: all pairs when sample is None, else about `sample` partners per runner."""
+    X = df.assign(dnum_=df.distance, gs_=df.gs)
+    cols = [c for c in PAIR_BASE if c in X.columns]
+    ctx = [c for c in PAIR_CTX if c in X.columns]
+    A = X[cols].values.astype(np.float32)
+    ctxv = X[ctx].values.astype(np.float32)
+    rid = X.race_id.values
+    starts = np.r_[0, np.flatnonzero(rid[1:] != rid[:-1]) + 1]
+    ends = np.r_[starts[1:], len(rid)]
+    ii, jj = [], []
+    for a, b in zip(starts, ends):
+        n = b - a
+        if n < 2:
+            continue
+        idx = np.arange(a, b)
+        i_, j_ = np.meshgrid(idx, idx, indexing='ij')
+        m = i_ != j_
+        i_, j_ = i_[m], j_[m]
+        if sample is not None and len(i_) > sample * n:
+            k = rng.choice(len(i_), sample * n, replace=False)
+            i_, j_ = i_[k], j_[k]
+        ii.append(i_); jj.append(j_)
+    ii, jj = np.concatenate(ii), np.concatenate(jj)
+    Xp = np.hstack([A[ii], A[jj], A[ii] - A[jj], ctxv[ii]])
+    return ii, jj, Xp
+
+
+def pair_fit_predict(feats, trn, blk, p):
+    rng = np.random.default_rng(0)
+    t = trn.sort_values(['race_id', 'horse_id']).reset_index(drop=True)
+    t = t[t.pos800.notna()].reset_index(drop=True)
+    t = t.groupby('race_id').filter(lambda g: len(g) >= 2).reset_index(drop=True)
+    if len(t) > 350_000:
+        keep = t.race_id.drop_duplicates().sample(n=int(350_000 / 9.5), random_state=1)
+        t = t[t.race_id.isin(keep)].reset_index(drop=True)
+    ii, jj, Xp = _pairs(t, 6, rng)
+    y = (t.pos800.values[ii] < t.pos800.values[jj]).astype(float)
+    tie = t.pos800.values[ii] == t.pos800.values[jj]
+    m = lgb.train(dict(p, objective='binary', num_leaves=127, min_data_in_leaf=300), lgb.Dataset(Xp[~tie], y[~tie]), NR)
+    b = blk.sort_values(['race_id', 'horse_id'])
+    b_idx = b.index
+    ib, jb, Xb = _pairs(b.reset_index(drop=True), None, rng)
+    pr = m.predict(Xb)
+    score = np.bincount(ib, weights=pr, minlength=len(b)) / np.maximum(np.bincount(ib, minlength=len(b)), 1)
+    out = pd.Series(-score, index=b_idx)       # larger = further back
+    return out.reindex(blk.index).values
+
+
 def fit_predict(kind, feats, trn, blk, seed=None):
     p = dict(P0) if seed is None else dict(P0, seed=seed)
     if kind == 'reg_e':
@@ -397,6 +483,8 @@ def fit_predict(kind, feats, trn, blk, seed=None):
         lab = np.maximum(0, 18 - t.rr.values).astype(int)
         m = lgb.train(dict(p, objective='lambdarank', metric='ndcg', lambdarank_truncation_level=8, label_gain=list(range(0, 40)), eval_at=[3]), lgb.Dataset(t[feats], lab, group=group_sizes(t)), NR)
         return -m.predict(blk[feats])          # larger = further back, like e0
+    if kind == 'pair':
+        return pair_fit_predict(feats, trn, blk, p)
     if kind == 'lead':
         t = trn.sort_values(['race_id', 'horse_id'])
         m = lgb.train(dict(p, objective=softmax_lead_obj(t), metric='None'), lgb.Dataset(t[feats], t.lead.values), NR)
@@ -500,6 +588,10 @@ if __name__ == '__main__':
             run_variant('V8', ['reg_e', 'rank', 'reg_g', 'lead'], FS['V4'])
         elif v == 'V12':
             run_variant('V12', ['reg_e', 'rank', 'reg_g', 'lead'], FS['V12'])
+        elif v == 'V13':
+            run_variant('V13', ['reg_e', 'rank', 'lead'], FS['V13'])
+        elif v == 'V14':
+            run_variant('V14', ['pair'], FS['V13'])
         elif v == 'NOISE':
             for sd in range(ARGS.seeds):
                 P0['seed'] = sd
