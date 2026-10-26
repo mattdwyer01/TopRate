@@ -1,0 +1,40 @@
+name: Race shape prediction study (research)
+
+# Manual research run (26 Oct 2026): research/shape_study.py. Time-forward prediction of how a race will be run (position and gap at 800m, who leads), every
+# variant of inputs and learner, in parallel jobs. Results are in each job's log and the shape-* artifacts; nothing is committed.
+# Start it by changing research/shape_study.trigger and pushing.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/trip-model-study]
+    paths: [research/shape_study.trigger]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    strategy:
+      fail-fast: false
+      matrix:
+        variants: ["NOISE", "V0,V1,V2", "V3,V4", "V5,V6", "V7,V8", "V9,V10,V11,V12"]
+    env:
+      PYTHONPATH: .:projection:research
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - name: Shape study
+        run: python -W ignore -u research/shape_study.py --variants "${{ matrix.variants }}" --seeds 3 --out /tmp/shape_out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shape-${{ strategy.job-index }}
+          path: /tmp/shape_out
+          if-no-files-found: ignore
