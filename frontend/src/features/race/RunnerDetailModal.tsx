@@ -29,7 +29,7 @@ interface RunnerDetailModalProps {
   position?: { index: number; total: number }
   ranks?: (number | null)[] | null
   // Direct model rating on the Proj scale: the main rating when present (rank, field top, fair price from its win chance).
-  direct?: { rating: number; rank: number | null; fieldTop: number | null; fair: number | null; count: number } | null
+  direct?: { rating: number; pct: number | null; rank: number | null; fieldTop: number | null; fair: number | null; count: number } | null
   onPrev: () => void
   onNext: () => void
 }
@@ -140,7 +140,7 @@ export function RunnerDetailModal({
             </div>
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
-                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(ratingValue)}</span>
+                <span className="font-mono font-bold text-emerald-deep">{direct && direct.pct != null ? `${direct.pct.toFixed(0)}%` : fmtWpr(ratingValue)}</span>
                 <span className="text-ink-faint">{direct ? 'direct' : 'rating'}</span>
                 {market != null && <span className="font-mono text-ink-soft">{fmtPrice(market)}</span>}
               </div>
@@ -204,7 +204,8 @@ export function RunnerDetailModal({
             rank={direct?.rank ?? rank}
             fieldSize={direct ? direct.count : fieldSize}
             fieldTop={direct?.fieldTop ?? fieldTop}
-            label={direct ? 'Direct rating' : undefined}
+            label={direct ? 'Direct win chance' : undefined}
+            valueText={direct && direct.pct != null ? `${direct.pct.toFixed(direct.pct < 10 ? 1 : 0)}%` : undefined}
             fair={fair}
             market={market}
             fixedMove={fixedMove}

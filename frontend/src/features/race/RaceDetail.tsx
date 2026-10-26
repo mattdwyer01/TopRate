@@ -53,7 +53,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'nett', label: 'Base', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside Peak and Spd, not blended into the Rating." },
   { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs one earlier figure; with 1 to 5 figures it is pulled toward the average." },
   { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today (WR alone since 23 Oct 2026; Base and Spd are shown beside it but not counted). The table is sorted by Direct when the race has Direct scores, otherwise by this and the three small squares under it show the runner's rank on Peak, Base and Spd. A first starter shows an estimate." },
-  { key: 'direct', label: 'Direct', align: 'right', title: "Direct rating, the main rating: a model trained to predict the finishing order directly (not through a rating) from form, class, jockey and trainer, turned into a rating on the Proj scale (field mean of Proj + 5 points per unit of ln win chance). The small figure under it is the win chance. The three squares show the runner's rank in the field on Peak, Base and Spd, in that order. The table is sorted by it. Not a value claim: against the closing price it adds about +0.005 nats a race." },
+  { key: 'direct', label: 'Direct', align: 'right', title: "Direct win chance, the main figure: a model trained to predict the finishing order directly (not through a rating) from form, class, jockey and trainer, shown as its chance of winning (the field adds up to 100%, scratchings removed). The three squares show the runner's rank in the field on Peak, Base and Spd, in that order. The table is sorted by it. Not a value claim: against the closing price it adds about +0.005 nats a race." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -190,12 +190,13 @@ export function RaceDetail({
   const showBias = racesRunBefore(race, allRaces) >= MIN_BIAS_RACES
   // Direct model on the Proj scale: field mean of the WR figure plus DIRECT_RATING_K points per unit of ln(win chance) above the field's mean ln chance
   // (5 = 1 / priceBeta 0.20, the exact inverse of the Rated $ softmax). Win chances are renormalised over the runners still in. Rank 1 = best, ties share the best place.
-  const { directRankByRunId, directRatingByRunId, directFairByRunId, directTop } = useMemo(() => {
+  const { directRankByRunId, directRatingByRunId, directFairByRunId, directTop, directPctByRunId } = useMemo(() => {
     const live = race.runners.filter((r) => !effectiveScratched.has(r.runId) && r.directProb != null)
     const rank = new Map<string, number>()
     const rating = new Map<string, number>()
     const fair = new Map<string, number>()
-    if (live.length === 0) return { directRankByRunId: rank, directRatingByRunId: rating, directFairByRunId: fair, directTop: null as number | null }
+    const pct = new Map<string, number>()
+    if (live.length === 0) return { directRankByRunId: rank, directRatingByRunId: rating, directFairByRunId: fair, directTop: null as number | null, directPctByRunId: pct }
     const tot = live.reduce((s, r) => s + (r.directProb as number), 0)
     const lp = new Map(live.map((r) => [r.runId, Math.log((r.directProb as number) / tot)] as const))
     const meanLp = [...lp.values()].reduce((s, v) => s + v, 0) / lp.size
@@ -203,10 +204,11 @@ export function RaceDetail({
     const level = figs.length ? figs.reduce((s, v) => s + v, 0) / figs.length : null
     for (const r of live) {
       fair.set(r.runId, tot / (r.directProb as number))
+      pct.set(r.runId, (100 * (r.directProb as number)) / tot)
       rank.set(r.runId, 1 + live.filter((o) => (o.directProb as number) > (r.directProb as number)).length)
       if (level != null) rating.set(r.runId, level + DIRECT_RATING_K * ((lp.get(r.runId) as number) - meanLp))
     }
-    return { directRankByRunId: rank, directRatingByRunId: rating, directFairByRunId: fair, directTop: rating.size ? Math.max(...rating.values()) : null }
+    return { directRankByRunId: rank, directRatingByRunId: rating, directFairByRunId: fair, directTop: rating.size ? Math.max(...rating.values()) : null, directPctByRunId: pct }
   }, [race.runners, effectiveScratched, effectiveByRunId])
   function rowProps(runner: Race['runners'][number]) {
     return {
@@ -217,6 +219,7 @@ export function RaceDetail({
       combo: comboByRunId.get(runner.runId),
       directRank: directRankByRunId.get(runner.runId),
       directRating: directRatingByRunId.get(runner.runId),
+      directPct: directPctByRunId.get(runner.runId),
       hasDirect,
       showFp: hasAnyResult,
       showPrice: hasAnyPrice,
@@ -252,7 +255,7 @@ export function RaceDetail({
 
       {hasAnyResult && (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:items-stretch">
-          <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} directRating={directRatingByRunId} directRank={directRankByRunId} onSelectRunner={setSelectedRunId} />
+          <RaceResult race={race} combo={comboByRunId} effective={effectiveByRunId} scratched={effectiveScratched} directRating={directRatingByRunId} directPct={directPctByRunId} directRank={directRankByRunId} onSelectRunner={setSelectedRunId} />
           <div className="hidden xl:block"><ReplayCard venue={race.venue} date={race.date} raceNumber={race.raceNumber} /></div>
         </div>
       )}
@@ -379,7 +382,7 @@ export function RaceDetail({
           ranks={comboByRunId.get(selectedRunner.runId)?.ranks ?? null}
           direct={
             directRatingByRunId.has(selectedRunner.runId)
-              ? { rating: directRatingByRunId.get(selectedRunner.runId) as number, rank: directRankByRunId.get(selectedRunner.runId) ?? null, fieldTop: directTop, fair: directFairByRunId.get(selectedRunner.runId) ?? null, count: directRankByRunId.size }
+              ? { rating: directRatingByRunId.get(selectedRunner.runId) as number, pct: directPctByRunId.get(selectedRunner.runId) ?? null, rank: directRankByRunId.get(selectedRunner.runId) ?? null, fieldTop: directTop, fair: directFairByRunId.get(selectedRunner.runId) ?? null, count: directRankByRunId.size }
               : null
           }
           onPrev={() => step(-1)}

@@ -21,6 +21,7 @@ interface RunnerRowProps {
   directRank?: number
   // Direct model on the Proj scale (field mean Proj + 5 x ln chance vs the field's mean).
   directRating?: number
+  directPct?: number
   // The race has Direct scores: the Direct rating is the main (bold) figure and the rank squares sit under it; otherwise the Rating keeps both.
   hasDirect?: boolean
   // Lowest and highest Proj in the field, for the bar under the Proj figure (desktop).
@@ -83,7 +84,7 @@ function Missing({ why }: { why: string }) {
   )
 }
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, directRank, directRating, hasDirect = false, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, directRank, directRating, directPct, hasDirect = false, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   return (
@@ -171,13 +172,13 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       {hasDirect && (
         <span
           className="text-right font-mono leading-tight"
-          title={runner.directProb != null ? `Direct ${directRating != null ? directRating.toFixed(1) : '-'} (rank ${directRank ?? '-'}): ${(runner.directProb * 100).toFixed(1)}% to win, fair price ${fmtPrice(1 / runner.directProb)}. A model trained on the finishing order directly, shown as a rating on the Proj scale (field mean Proj + 5 points per unit of ln win chance). The three squares are the runner's rank on Peak, Base and Spd${combo ? ` (${combo.peakRank ?? '-'}, ${combo.ranks[0] ?? '-'}, ${combo.ranks[1] ?? '-'})` : ''}.` : undefined}
+          title={runner.directProb != null ? `Direct ${directPct != null ? directPct.toFixed(1) + '%' : '-'} to win (rank ${directRank ?? '-'}), fair price ${fmtPrice(directPct ? 100 / directPct : null)}${directRating != null ? `, equivalent rating ${directRating.toFixed(1)}` : ''}. A model trained on the finishing order directly. The three squares are the runner's rank on Peak, Base and Spd${combo ? ` (${combo.peakRank ?? '-'}, ${combo.ranks[0] ?? '-'}, ${combo.ranks[1] ?? '-'})` : ''}.` : undefined}
         >
           {f.scratched ? null : runner.directProb == null ? (
             <span className="mr-1.5 text-ink-faint lg:mr-0" title="No direct score for this runner (the model needs the whole field and a rated form history)">&ndash;</span>
           ) : (
             <>
-              <span className={`inline-block min-w-[18px] text-center text-[13px] font-bold lg:text-[14px] ${directRank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>{directRating != null ? directRating.toFixed(1) : '-'}</span>
+              <span className={`inline-block min-w-[18px] text-center text-[13px] font-bold lg:text-[14px] ${directRank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>{directPct != null ? `${directPct.toFixed(directPct < 10 ? 1 : 0)}%` : '-'}</span>
               {combo && <RankSquares combo={combo} />}
             </>
           )}

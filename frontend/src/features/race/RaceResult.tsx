@@ -11,6 +11,7 @@ interface RaceResultProps {
   scratched: Set<string>
   // Direct model rating (Proj scale) and rank inside the field; when present they are the main figures, as in the race table.
   directRating?: Map<string, number>
+  directPct?: Map<string, number>
   directRank?: Map<string, number>
   onSelectRunner: (runId: string) => void
 }
@@ -45,7 +46,7 @@ function Silk({ runner, w, h }: { runner: Runner; w: number; h: number }) {
 // Placings for a race that has run. TAB's fast feed gives the order of the first four (and last fixed prices); margins and starting
 // prices arrive with the official result, so each part fills in when it exists. Phones get compact rows; from lg the four placings are full-width
 // rows with the Rank chip and (from xl) the signal figures.
-export function RaceResult({ race, combo, effective, scratched, directRating, directRank, onSelectRunner }: RaceResultProps) {
+export function RaceResult({ race, combo, effective, scratched, directRating, directPct, directRank, onSelectRunner }: RaceResultProps) {
   const hasDirect = (directRating?.size ?? 0) > 0
   const placed = race.runners
     .filter((r): r is Placed => r.finishPosition != null && !scratched.has(r.runId))
@@ -98,7 +99,7 @@ export function RaceResult({ race, combo, effective, scratched, directRating, di
                   </span>
                   {hasDirect && (
                     <span className="shrink-0 text-right leading-tight" title="Direct rating and its rank in the field before the race">
-                      <span className="block font-mono text-sm font-bold text-ink">{directRating?.get(r.runId) != null ? (directRating.get(r.runId) as number).toFixed(1) : '–'}</span>
+                      <span className="block font-mono text-sm font-bold text-ink">{directPct?.get(r.runId) != null ? `${(directPct.get(r.runId) as number).toFixed(0)}%` : '–'}</span>
                       {directRank?.get(r.runId) != null && <span className={`mt-0.5 inline-block rounded-full border px-1.5 text-[10px] font-semibold ${rankTone(directRank.get(r.runId) as number)}`}>#{directRank.get(r.runId)}</span>}
                     </span>
                   )}
@@ -136,7 +137,7 @@ export function RaceResult({ race, combo, effective, scratched, directRating, di
                 </span>
                 <span className="hidden shrink-0 gap-3 text-center xl:flex">
                   {[
-                    ...(hasDirect ? [['Direct', directRating?.get(r.runId) != null ? (directRating.get(r.runId) as number).toFixed(1) : '–']] : []),
+                    ...(hasDirect ? [['Direct', directPct?.get(r.runId) != null ? `${(directPct.get(r.runId) as number).toFixed(0)}%` : '–']] : []),
                     ['Base', fmtInt(r.nett)],
                     ['Spd', r.speedRating != null ? fmtInt(speedRatingOnScale(r.speedRating)) : '–'],
                     ['WR', fmtInt(proj)],
