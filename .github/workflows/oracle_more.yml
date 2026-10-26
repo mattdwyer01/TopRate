@@ -36,5 +36,5 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Context features
         run: python -W ignore research/direct_ctx_features.py
-      - name: Oracle gap: traffic, interactions, capacity
+      - name: "Oracle gap, traffic interactions capacity"
         run: python -W ignore -u research/oracle_more.py
