@@ -234,6 +234,12 @@ jobs:
       # append in flush_wpr_form_history needs the prior file to accumulate.
       # (The raw uncompressed CSV previously crossed 100MB and broke pushes.)
       # ─────────────────────────────────────────────────────────
+      - name: Log complete-field pre-race features (best effort)
+        run: |
+          START=$(TZ=Australia/Melbourne date +%Y-%m-%d)
+          python direct_log.py snapshot --from "$START" --days 3 || echo "direct log skipped"
+          python direct_log.py labels || echo "direct log labels skipped"
+
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
@@ -255,6 +261,8 @@ jobs:
             [ -d data/tr_runners ] && git add data/tr_runners
             # every past run on those pages, kept for good (tr_form_store.py), one gzipped file per month of the run date
             [ -d data/tr_form ] && git add data/tr_form
+            # complete-field pre-race feature log (direct_log.py)
+            [ -d data/direct_log ] && git add data/direct_log
             [ -f toprate_model_picks.csv ] && git add toprate_model_picks.csv
             # toprate_live.html deliberately not staged: static frontend build, a data run never changes it,
             # and re-staging this job's (older) checkout copy reverted frontend deploys that landed mid-run.
