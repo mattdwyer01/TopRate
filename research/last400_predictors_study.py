@@ -45,7 +45,7 @@ def results(names):
     return r.drop_duplicates(['hk', 'date', 'race_id']).sort_values(['hk', 'date', 'race_id']).reset_index(drop=True)
 
 
-def main():
+def build():
     d = CS.load()
     print(f'GPS runs {len(d):,} in {d.key.nunique():,} races')
     r = results(set(d.hk))
@@ -138,6 +138,11 @@ def main():
     for c in {x for v in fam.values() for x in v}:
         if c in d.columns and d[c].dtype == object:
             d[c] = pd.to_numeric(d[c].replace({True: 1, False: 0, 'True': 1, 'False': 0}), errors='coerce')
+    return d, base, fam
+
+
+def main():
+    d, base, fam = build()
     tr = d[(d.date < '2025-01-01') & d.h_E.notna()]
     te = d[(d.date >= '2025-01-01') & d.h_E.notna()]
     print(f'fit before 2025: {len(tr):,} runs; scored 2025 on: {len(te):,} runs in {te.key.nunique():,} races\n')
