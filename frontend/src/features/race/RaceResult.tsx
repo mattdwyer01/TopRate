@@ -9,10 +9,6 @@ interface RaceResultProps {
   combo: Map<string, CombinedRank>
   effective: Record<string, EffectiveRunner>
   scratched: Set<string>
-  // Direct model rating (Proj scale) and rank inside the field; when present they are the main figures, as in the race table.
-  directRating?: Map<string, number>
-  directPct?: Map<string, number>
-  directRank?: Map<string, number>
   onSelectRunner: (runId: string) => void
 }
 
@@ -46,8 +42,7 @@ function Silk({ runner, w, h }: { runner: Runner; w: number; h: number }) {
 // Placings for a race that has run. TAB's fast feed gives the order of the first four (and last fixed prices); margins and starting
 // prices arrive with the official result, so each part fills in when it exists. Phones get compact rows; from lg the four placings are full-width
 // rows with the Rank chip and (from xl) the signal figures.
-export function RaceResult({ race, combo, effective, scratched, directRating, directPct, directRank, onSelectRunner }: RaceResultProps) {
-  const hasDirect = (directRating?.size ?? 0) > 0
+export function RaceResult({ race, combo, effective, scratched, onSelectRunner }: RaceResultProps) {
   const placed = race.runners
     .filter((r): r is Placed => r.finishPosition != null && !scratched.has(r.runId))
     .sort((a, b) => a.finishPosition - b.finishPosition)
@@ -97,12 +92,6 @@ export function RaceResult({ race, combo, effective, scratched, directRating, di
                       {m ? ` · ${m}` : ''}
                     </span>
                   </span>
-                  {hasDirect && (
-                    <span className="shrink-0 text-right leading-tight" title="Direct rating and its rank in the field before the race">
-                      <span className="block font-mono text-sm font-bold text-ink">{directPct?.get(r.runId) != null ? `${(directPct.get(r.runId) as number).toFixed(0)}%` : '–'}</span>
-                      {directRank?.get(r.runId) != null && <span className={`mt-0.5 inline-block rounded-full border px-1.5 text-[10px] font-semibold ${rankTone(directRank.get(r.runId) as number)}`}>#{directRank.get(r.runId)}</span>}
-                    </span>
-                  )}
                   <span className="shrink-0 font-mono text-sm font-semibold text-ink">{priceCell(r)}</span>
                 </button>
               </li>
@@ -137,23 +126,18 @@ export function RaceResult({ race, combo, effective, scratched, directRating, di
                 </span>
                 <span className="hidden shrink-0 gap-3 text-center xl:flex">
                   {[
-                    ...(hasDirect ? [['Direct', directPct?.get(r.runId) != null ? `${(directPct.get(r.runId) as number).toFixed(0)}%` : '–']] : []),
                     ['Base', fmtInt(r.nett)],
                     ['Spd', r.speedRating != null ? fmtInt(speedRatingOnScale(r.speedRating)) : '–'],
                     ['WR', fmtInt(proj)],
                   ].map(([label, val]) => (
-                    <span key={label} className={label === 'Direct' ? 'w-11' : 'w-9'}>
+                    <span key={label} className="w-9">
                       <span className="block text-[10px] uppercase tracking-wide text-ink-faint">{label}</span>
-                      <span className={`block font-mono text-[13px] ${label === 'Direct' ? 'font-bold text-ink' : 'font-semibold text-ink-soft'}`}>{val}</span>
+                      <span className="block font-mono text-[13px] font-semibold text-ink-soft">{val}</span>
                     </span>
                   ))}
                 </span>
-                <span className={`${hasDirect ? 'w-20' : 'w-16'} shrink-0 text-center`}>
-                  {hasDirect ? (
-                    directRank?.get(r.runId) != null ? <span className={`rounded-full border px-1.5 py-px text-[11px] font-semibold ${rankTone(directRank.get(r.runId) as number)}`}>Direct #{directRank.get(r.runId)}</span> : null
-                  ) : c ? (
-                    <span className={`rounded-full border px-1.5 py-px text-[11px] font-semibold ${rankTone(c.rank)}`}>Rank {c.tied ? '=' : ''}{c.rank}</span>
-                  ) : null}
+                <span className="w-16 shrink-0 text-center">
+                  {c ? <span className={`rounded-full border px-1.5 py-px text-[11px] font-semibold ${rankTone(c.rank)}`}>Rank {c.tied ? '=' : ''}{c.rank}</span> : null}
                 </span>
                 <span className="w-16 shrink-0 text-right">
                   <span className="block text-[10px] uppercase tracking-wide text-ink-faint">Win</span>
