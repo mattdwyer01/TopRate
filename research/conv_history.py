@@ -22,7 +22,7 @@ def load(first_year=2020):
     return pd.concat(out, ignore_index=True)
 
 
-def build(first_year=2020, last_date='2025-12-31', horse_frac=1.0, seed=0):
+def build(first_year=2020, last_date='2025-12-31', horse_frac=1.0, seed=0, per_row=True):
     d = load(first_year)
     d = d[(d.isBarrierTrial.astype(str) != 'True') & (d.is_jumpout.astype(str) != 'True')]
     d = d[~d.race_class.astype(str).str.contains('Hurdle|Steeple', case=False)]
@@ -34,11 +34,24 @@ def build(first_year=2020, last_date='2025-12-31', horse_frac=1.0, seed=0):
         ids = d.horse_id.drop_duplicates().sample(frac=horse_frac, random_state=seed)
         d = d[d.horse_id.isin(ids)]
     d = d.sort_values(['horse_id', 'date']).reset_index(drop=True)
-    last = d.groupby('horse_id').tail(1).copy()
     def off(r):
         age = W.racing_age(r.horse_foaled, r.date) if isinstance(r.horse_foaled, str) and len(r.horse_foaled) >= 10 else (None if pd.isna(r.horse_age) else int(r.horse_age))
         v = W.atw_offset(age, str(r.horse_sex).upper()[:1], r.date.date(), float(r.distance), r.weightCarried) if pd.notna(r.distance) and pd.notna(r.weightCarried) else None
         return np.nan if v is None else v
+    n0 = len(d)
+    if per_row:
+        # every run gets its OWN shift c_t (AR 168 standard weight for that race minus the weight carried, x 0.8): a runner page is struck for the race it is fetched for, so the
+        # history and the target of a training row are both put on that race's scale. Runs with no weight or distance keep c_t NaN: they stay in the history (plain) but are not targets.
+        d['c_t'] = [off(r) for r in d.itertuples()]
+        d['wpr_plain'] = d.wpr
+        d['wpr'] = d.wpr + d.c_t
+        d['shift'] = d.c_t
+        print(f'per-row converted history: {len(d)} runs, c_t known on {d.c_t.notna().mean():.3f}, mean {d.c_t.mean():+.2f} sd {d.c_t.std():.2f}')
+        d['prize'] = np.nan
+        d['race_id'] = -(10_000_000 + np.arange(len(d)))
+        d['isBarrierTrial'] = 0; d['is_jumpout'] = False
+        return d.drop(columns=['horse_age', 'horse_sex', 'horse_foaled'])
+    last = d.groupby('horse_id').tail(1).copy()
     last['c'] = [off(r) for r in last.itertuples()]
     c = last.set_index('horse_id').c
     d['shift'] = d.horse_id.map(c)

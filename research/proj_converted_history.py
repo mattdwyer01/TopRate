@@ -60,6 +60,6 @@ for k, e in res.items():
     print(f'{k:24s} RMSE {r(e):.3f}  MAE {e.abs().mean():.3f}  within-race {r(wi):.3f}  3+runs RMSE {r(sub):.3f}  under3 RMSE {r(e[~use]):.3f}  bias {e.mean():+.2f}  within3 {100*(e.abs()<=3).mean():.1f}%')
 te['p_live'], te['p_page'], te['p_conv'], te['p_both'] = te.f + cl, te.f + cp, te.f + cc, te.f + cb
 te['p_formula'] = te.f
-out = '/tmp/proj_conv_test_%s.pkl' % a.frac
+out = '/tmp/proj_conv_row_%s.pkl' % a.frac
 te[['date', 'horse_id', 'vn', 'distance', 'field_size', 'cls', 'n', 'wpr', 'f', 'marginFinish', 'positionFinish', 'p_live', 'p_page', 'p_conv', 'p_both', 'p_formula']].to_pickle(out)
 print('saved', out)
