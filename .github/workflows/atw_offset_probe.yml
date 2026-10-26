@@ -1,0 +1,89 @@
+name: ATW offset probe (past run ids)
+
+# Manual (26 Oct 2026). Fetches the runner page of a stratified sample of HISTORICAL run ids and writes data/atw_probe/<tag>.json.gz (offset between the page rating
+# and the results files' plain wpr, with the run's own weight, age, sex, distance and date). Tells whether past-run pages are rated for that run's own race, and if
+# so gives the weight-for-age scale by month. Needs the TopRate secrets. Commits only data/atw_probe on the newest tip. See atw_offset_probe.py.
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "First month (YYYY-MM)"
+        default: "2023-01"
+      end:
+        description: "Last month (YYYY-MM)"
+        default: "2026-09"
+      per_month:
+        description: "Runs sampled per month (a probe: 5)"
+        default: "40"
+      tag:
+        description: "Output name"
+        default: "probe1"
+      seed:
+        description: "Sample seed"
+        default: "1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: atw-offset-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TOPRATE_EMAIL: ${{ secrets.TOPRATE_EMAIL }}
+      TOPRATE_PASSWORD: ${{ secrets.TOPRATE_PASSWORD }}
+      TOPRATE_ANON_KEY: ${{ secrets.TOPRATE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests pandas numpy
+      - name: Anon key fallback (same as daily.yml)
+        run: |
+          if [ -z "$TOPRATE_ANON_KEY" ]; then
+            d=$(mktemp -d) && git -C "$d" init -q && git -C "$d" remote add origin "https://github.com/${{ github.repository }}.git"
+            git -C "$d" fetch -q --depth=1 --filter=blob:none origin 774453e455dcec061aca6c30ca6c6131bb2b2cdd
+            git -C "$d" show FETCH_HEAD:toprate_daily.py > "$d/old_td.py"
+            KEY=$(python - "$d/old_td.py" <<'PY'
+          import re, sys
+          m = re.search(r'^ANON_KEY\s*=\s*["\']([^"\']+)["\']', open(sys.argv[1]).read(), re.M)
+          print(m.group(1) if m else "")
+          PY
+          )
+            echo "::add-mask::$KEY"
+            echo "TOPRATE_ANON_KEY=$KEY" >> "$GITHUB_ENV"
+          fi
+      - name: Fetch pages of historical run ids
+        run: python atw_offset_probe.py --from "${{ inputs.start }}" --to "${{ inputs.end }}" --per-month "${{ inputs.per_month }}" --tag "${{ inputs.tag }}" --seed "${{ inputs.seed }}"
+      - name: Keep the output (insurance against a failed commit step)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: atw_probe
+          path: data/atw_probe
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Commit on the newest tip
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          mkdir -p /tmp/atw_keep && cp -r data/atw_probe/. /tmp/atw_keep/
+          for i in 1 2 3 4 5 6; do
+            git fetch -q --depth=1 origin "${{ github.ref_name }}"
+            git checkout -q -B work FETCH_HEAD
+            mkdir -p data/atw_probe && cp -r /tmp/atw_keep/. data/atw_probe/
+            git add data/atw_probe
+            git diff --cached --quiet && { echo "nothing to commit"; exit 0; }
+            git commit -q -m "ATW offset probe: ${{ inputs.tag }}"
+            git push -q origin "HEAD:${{ github.ref_name }}" && exit 0
+            echo "push rejected, retry $i"; sleep $((i*10))
+          done
+          exit 1
