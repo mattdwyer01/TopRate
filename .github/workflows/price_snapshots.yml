@@ -1,0 +1,29 @@
+name: "Export TAB price snapshots (research)"
+
+# Manual research run (26 Oct 2026): research/export_price_snapshots.py on the Vultr runner, where the permanent fixed-odds log lives
+# (tab_price_log.py, outside the repo checkout). Start it by changing research/price_snapshots.trigger and pushing.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/trip-model-study]
+    paths: [research/price_snapshots.trigger]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ${{ vars.SCRAPER_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Export snapshots
+        run: python3 research/export_price_snapshots.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: price-snapshots
+          path: /tmp/price_snap
+          if-no-files-found: error
+          retention-days: 30
