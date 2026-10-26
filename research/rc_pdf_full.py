@@ -55,8 +55,8 @@ def parse(path):
         fr = re.search(r'Finish Rank (\S+)', blk)
         labs = None
         for ln in lines:
-            if ln.startswith('Section L') or re.match(r'^Section( L\d+)+$', ln):
-                labs = re.findall(r'L\d+', ln)
+            if re.match(r'^Section( (L\d+|Overall|\d+m))+$', ln):
+                labs = re.findall(r'L\d+|Overall|\d+m', ln)
                 break
         if not labs:
             continue
@@ -65,8 +65,9 @@ def parse(path):
         if i0 is None or i1 is None:
             continue
         cum, sec, rank = [], [], []
-        for ln in lines[i0 + 1:i1]:
-            m1 = re.match(r'^' + T + r'(?: \[(\d+)\])?$', ln)
+        first = re.sub(r'^Section Times\s*', '', lines[i0])
+        for ln in ([first] if first else []) + lines[i0 + 1:i1]:
+            m1 = re.match(r'^' + T + r' ?(?:\[(\d+)\])?$', ln)
             m2 = re.match(r'^\(' + T + r'\)$', ln)
             if m1:
                 cum.append(tsec(m1.group(1)))
@@ -109,3 +110,85 @@ if __name__ == '__main__':
     if '--limit' not in sys.argv:
         S.to_parquet(os.path.join(ROOT, 'data', 'gps', 'rc_pdf_full_sections.parquet'), index=False)
         R.to_parquet(os.path.join(ROOT, 'data', 'gps', 'rc_pdf_full_races.parquet'), index=False)
+
+
+# ---------------------------------------------------------------- chart layout (Triple S "Data GPS Sectionals", Jul-Oct 2026): values are chart labels, found by position
+TITLES = {'Speed': 'avg_kmh', 'Length': 'stride_m', 'Rate': 'stride_hz', 'Rail': 'rail_m'}
+
+
+def parse_chart(path):
+    import logging, warnings
+    logging.disable(logging.CRITICAL)
+    warnings.filterwarnings('ignore')
+    import pdfplumber
+    stem = os.path.basename(path)[:-4]
+    meet, race = stem.split('_')
+    rows = []
+    try:
+        with pdfplumber.open(path) as pdf:
+            for pi, pg0 in enumerate(pdf.pages):
+                pg = pg0.dedupe_chars(tolerance=1)
+                ws = pg.extract_words()
+                txt = ' '.join(w['text'] for w in ws)
+                mt = re.search(r'\bTAB (\d+)\b', txt)
+                if not mt:
+                    continue
+                tab = int(mt.group(1))
+                ticks = [w for w in ws if re.fullmatch(r'\d{3,4}', w['text']) and w['top'] > 300 and int(w['text']) % 50 == 0]
+                if len(ticks) < 4:
+                    continue
+                # chart titles: Speed, Stride Length, Stride Rate, Distance from Rail (word that names it)
+                titles = []
+                for i, w in enumerate(ws):
+                    if w['top'] < 280 or w['top'] > 480:
+                        continue
+                    if w['text'] == 'Speed' and w['x0'] < 500 or (w['text'] == 'Stride' and i + 1 < len(ws) and ws[i + 1]['text'] in ('Length', 'Rate') and abs(ws[i + 1]['top'] - w['top']) < 3) or w['text'] == 'Distance':
+                        key = 'avg_kmh' if w['text'] == 'Speed' else ('rail_m' if w['text'] == 'Distance' else TITLES[ws[i + 1]['text']])
+                        titles.append((w['x0'], w['top'], key))
+                # split the ticks into charts: a new chart starts when the distance label stops decreasing or the row changes
+                byrow = {}
+                for w in ticks:
+                    byrow.setdefault(round(w['top'] / 4), []).append(w)
+                for _, row in byrow.items():
+                    row = sorted(row, key=lambda w: w['x0'])
+                    charts, cur = [], [row[0]]
+                    for w in row[1:]:
+                        if int(w['text']) < int(cur[-1]['text']):
+                            cur.append(w)
+                        else:
+                            charts.append(cur)
+                            cur = [w]
+                    charts.append(cur)
+                    for ch in charts:
+                        if len(ch) < 3:
+                            continue
+                        x_first, ty = ch[0]['x0'], ch[0]['top']
+                        cand = [t for t in titles if t[1] < ty and abs(t[0] - x_first) < 45]
+                        if not cand:
+                            continue
+                        t = max(cand, key=lambda t: t[1])
+                        key = t[2]
+                        sp = np.median(np.diff([w['x0'] for w in ch])) if len(ch) > 1 else 40
+                        x_hi = ch[-1]['x0'] + 30
+                        vals = [w for w in ws if t[1] + 30 <= w['top'] <= ty - 2 and x_first - 15 <= w['x0'] <= x_hi and re.fullmatch(r'\d+(\.\d+)?m?', w['text'])]
+                        for j, tk in enumerate(ch):
+                            c2 = [w for w in vals if abs(w['x0'] - tk['x0']) < max(10, 0.6 * sp)]
+                            v = np.nan
+                            if c2:
+                                c = min(c2, key=lambda w: abs(w['x0'] - tk['x0']))
+                                v = float(c['text'].rstrip('m'))
+                            rows.append(dict(meet_code=meet, race_no=int(race), tab_no=tab, j=j, n_sec=len(ch), label='L' + tk['text'], key=key, v=v))
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return rows
+    return rows
+
+
+def run_charts(files):
+    with Pool(4) as p:
+        res = p.map(parse_chart, files, chunksize=5)
+    L = pd.DataFrame([r for rows in res for r in rows])
+    if L.empty:
+        return L
+    return L.pivot_table(index=['meet_code', 'race_no', 'tab_no', 'n_sec', 'j', 'label'], columns='key', values='v', aggfunc='first').reset_index()
