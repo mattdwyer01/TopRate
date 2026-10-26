@@ -32,7 +32,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install pandas pyarrow scipy opencv-python-headless numpy && pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr
+      - run: pip install pytesseract pandas pyarrow scipy opencv-python-headless numpy && pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
       - name: Fetch videos and silks
         run: python research/sky_replay_fetch.py ${{ matrix.date }} ${{ matrix.code }} ${{ matrix.venue }} ${{ matrix.races }} /tmp/vid /tmp/silks
       - name: Detect

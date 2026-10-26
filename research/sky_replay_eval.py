@@ -55,6 +55,35 @@ def silk_desc(path):
     return colour_desc(im[..., :3], im[..., 3] > 128)
 
 
+def ocr_num(fr, hbox, jp, valid, dump=None):
+    """Read a saddlecloth number from the body just below the jockey; returns an int in `valid` or None."""
+    import pytesseract
+    hx0, hy0, hx1, hy1 = hbox[:4]
+    w = hx1 - hx0
+    y0 = int(min(jp[3], hy1) - 0.05 * (hy1 - hy0))
+    y1 = int(y0 + 0.45 * (jp[3] - jp[1]) + 4)
+    x0 = int(max(jp[0] - 0.3 * w, hx0))
+    x1 = int(min(jp[2] + 0.3 * w, hx1))
+    if x1 - x0 < 4 or y1 - y0 < 4:
+        return None
+    crop = fr[max(y0, 0):y1, max(x0, 0):x1]
+    if crop.size == 0:
+        return None
+    g = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    g = cv2.resize(g, None, fx=6, fy=6, interpolation=cv2.INTER_CUBIC)
+    outs = []
+    for inv in (False, True):
+        gg = 255 - g if inv else g
+        _, th = cv2.threshold(gg, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        th = cv2.copyMakeBorder(th, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255)
+        t = pytesseract.image_to_string(th, config='--psm 8 -c tessedit_char_whitelist=0123456789').strip()
+        if t.isdigit() and int(t) in valid:
+            outs.append(int(t))
+    if dump is not None:
+        dump.append((crop, outs))
+    return outs[0] if outs else None
+
+
 def sim(a, b):
     return np.minimum(a, b).sum()
 
@@ -153,27 +182,38 @@ def main():
                 ds.append(colour_desc(fr[y0:y1, x0:x1]))
             tabs = [k for k in sd if sd[k] is not None]
             S = np.array([[sim(ds[i], sd[k]) if ds[i] is not None else 0 for k in tabs] for i in range(len(cands))])
-            ri, ci = linear_sum_assignment(-S)
-            xs = np.array([(cands[i][0][0] + cands[i][0][2]) / 2 for i in ri])
-            assigned = [tabs[c] for c in ci]
-            if pos is None or len(assigned) < 5:
+            valid = set(tabs)
+            dump = []
+            nums = [ocr_num(fr, x, jp, valid, dump) for x, jp in cands]
+            row['ord'][-1]['ocr_valid'] = sum(v is not None for v in nums)
+            if len(row.setdefault('crops', [])) < 12 and dump:
+                for k, (cr, o) in enumerate(dump[:2]):
+                    nm = f"crop_{b}_{int(float(t))}_{k}_{o[0] if o else 'none'}.png"
+                    cv2.imwrite(os.path.join(os.path.dirname(out), nm), cr)
+                    row['crops'].append(nm)
+            N = np.array([[1.0 if nums[i] == k else 0.0 for k in tabs] for i in range(len(cands))])
+            variants = {'silk': S, 'number': N + 0.01 * S, 'both': S + 0.6 * N}
+            if pos is None or len(cands) < 5:
                 continue
 
-            def best_tau(assign):
-                best = (-1, None)
+            def best_tau(assign, xs):
+                best = -1
                 for col in pos.columns:
                     pr = np.array([pos.loc[a, col] if a in pos.index else np.nan for a in assign])
                     ok_ = ~np.isnan(pr)
                     if ok_.sum() < 5:
                         continue
                     tau = abs(kendalltau(xs[ok_], pr[ok_]).statistic)
-                    if tau > best[0]:
-                        best = (tau, col)
-                return best[0]
-            obs = best_tau(assigned)
-            nulls = [best_tau(list(rng.permutation(assigned))) for _ in range(60)]
-            row['ord'][-1].update(tau=obs, null_mean=float(np.mean(nulls)), n_assigned=len(assigned),
-                                  p_null_ge=float(np.mean([x >= obs for x in nulls])))
+                    best = max(best, tau)
+                return best
+            for vn, M in variants.items():
+                ri, ci = linear_sum_assignment(-M)
+                xs = np.array([(cands[i][0][0] + cands[i][0][2]) / 2 for i in ri])
+                assigned = [tabs[c] for c in ci]
+                obs = best_tau(assigned, xs)
+                nulls = [best_tau(list(rng.permutation(assigned)), xs) for _ in range(60)]
+                row['ord'][-1][vn] = dict(tau=obs, null_mean=float(np.mean(nulls)), n=len(assigned),
+                                          p_null_ge=float(np.mean([x >= obs for x in nulls])))
         res.append(row)
         print(b, {k: v for k, v in row.items() if k != 'ord'}, 'ord_frames', len(row['ord']), flush=True)
     json.dump(res, open(out, 'w'), indent=1)
