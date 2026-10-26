@@ -103,7 +103,6 @@ export interface RawRunner {
   wpjpr: number | null
   wpjr: number | null
   wpjpk: number | null
-  dm?: number | null // direct finishing-position model: win chance (0 to 1), normalised inside the race
   // model_prob - market_prob (WPR's own price vs the market's, see
   // wpr_projection.compute_edge_scores). null unless both a projection and
   // a usable market price exist for this runner (and at least 2 runners in

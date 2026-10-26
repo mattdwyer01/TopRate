@@ -28,8 +28,6 @@ interface RunnerDetailModalProps {
   onClose: () => void
   position?: { index: number; total: number }
   ranks?: (number | null)[] | null
-  // Direct model rating on the Proj scale: the main rating when present (rank, field top, fair price from its win chance).
-  direct?: { rating: number; pct: number | null; rank: number | null; fieldTop: number | null; fair: number | null; count: number } | null
   onPrev: () => void
   onNext: () => void
 }
@@ -80,7 +78,6 @@ export function RunnerDetailModal({
   onClose,
   position,
   ranks = null,
-  direct = null,
   onPrev,
   onNext,
 }: RunnerDetailModalProps) {
@@ -111,11 +108,11 @@ export function RunnerDetailModal({
 
   // The projection at today's weight (ATW).
   const effectiveWpr = scratched ? null : (effective?.effectiveProjectedWpr ?? runner.projectedWpr)
-  const ratingValue = scratched ? null : (direct?.rating ?? rating ?? effectiveWpr)
+  const ratingValue = scratched ? null : (rating ?? effectiveWpr)
   const atwOff = effective != null && Math.abs(effective.atwOff) >= 0.05 ? effective.atwOff : null
   const hasOverride = effective?.hasOverride ?? false
   const fixedMove = computePriceMove(runner.openFixedPrice, runner.fixedWinPrice)
-  const fair = scratched ? null : (direct?.fair ?? effective?.effectivePrice ?? null)
+  const fair = scratched ? null : (effective?.effectivePrice ?? null)
   const market = runner.fixedWinPrice
   const hasPriceInfo = runner.priceSeries.length >= 2 || market != null || runner.startingPrice != null
 
@@ -140,8 +137,8 @@ export function RunnerDetailModal({
             </div>
             {scrolled ? (
               <div className="flex items-center gap-2 truncate text-xs">
-                <span className="font-mono font-bold text-emerald-deep">{direct && direct.pct != null ? `${direct.pct.toFixed(0)}%` : fmtWpr(ratingValue)}</span>
-                <span className="text-ink-faint">{direct ? 'direct' : 'rating'}</span>
+                <span className="font-mono font-bold text-emerald-deep">{fmtWpr(ratingValue)}</span>
+                <span className="text-ink-faint">rating</span>
                 {market != null && <span className="font-mono text-ink-soft">{fmtPrice(market)}</span>}
               </div>
             ) : (
@@ -192,7 +189,7 @@ export function RunnerDetailModal({
           )}
 
           <div className="lg:order-2 lg:col-span-7">
-            <SignalsPanel runner={runner} proj={effectiveWpr} ranks={ranks} direct={direct} />
+            <SignalsPanel runner={runner} proj={effectiveWpr} ranks={ranks} />
           </div>
 
           <div className="lg:order-1 lg:col-span-5">
@@ -201,11 +198,9 @@ export function RunnerDetailModal({
             race={race}
             proj={ratingValue}
             scratched={scratched}
-            rank={direct?.rank ?? rank}
-            fieldSize={direct ? direct.count : fieldSize}
-            fieldTop={direct?.fieldTop ?? fieldTop}
-            label={direct ? 'Direct win chance' : undefined}
-            valueText={direct && direct.pct != null ? `${direct.pct.toFixed(direct.pct < 10 ? 1 : 0)}%` : undefined}
+            rank={rank}
+            fieldSize={fieldSize}
+            fieldTop={fieldTop}
             fair={fair}
             market={market}
             fixedMove={fixedMove}

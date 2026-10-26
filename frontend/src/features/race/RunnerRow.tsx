@@ -17,13 +17,6 @@ interface RunnerRowProps {
   // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
   showBias?: boolean
   combo?: CombinedRank
-  // Rank on the direct model's win chance inside the race (desktop Direct column).
-  directRank?: number
-  // Direct model on the Proj scale (field mean Proj + 5 x ln chance vs the field's mean).
-  directRating?: number
-  directPct?: number
-  // The race has Direct scores: the Direct rating is the main (bold) figure and the rank squares sit under it; otherwise the Rating keeps both.
-  hasDirect?: boolean
   // Lowest and highest Proj in the field, for the bar under the Proj figure (desktop).
   onClick: () => void
 }
@@ -34,46 +27,25 @@ interface RunnerRowProps {
 // Strip under the rank: one square per column (Peak, Base, Spd), darker green = better rank, outline-grey = no value.
 const rankShade = (x: number | null) => (x == null ? '#e5e7eb' : x === 1 ? '#047857' : x === 2 ? '#34d399' : x === 3 ? '#a7f3d0' : '#d1d5db')
 
-// Columns: silk | # | Horse | RTS | Base | Spd | Rating (| Direct) | Fixed $ | FP (Peak left the table 26 Oct 2026; its rank still shows in the squares).
-const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_62px_84px_30px]'
-const DESKTOP_GRID_DIRECT = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_62px_62px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_62px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show, and the Fixed $ column only once a price is out.
-export const rowGrid = (showFp: boolean, showPrice = true, hasDirect = false) =>
+export const rowGrid = (showFp: boolean, showPrice = true) =>
   // Phone: [silk] | # | Horse | Peak | Base | Spd | Rating (| Fixed $) (| FP), everything on screen at once. The silk column joins from 380px up,
   // or from 430px up in the densest state (result and prices both shown) so horse names keep some room on a 390px phone.
   // The # track is 20px so a two-digit tab number clears the badge beside it.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
-    hasDirect
-      ? showFp
-        ? showPrice
-          ? 'grid-cols-[20px_minmax(0,1fr)_24px_26px_36px_42px_58px_18px] min-[430px]:grid-cols-[24px_20px_minmax(0,1fr)_24px_28px_36px_42px_58px_18px]'
-          : 'grid-cols-[20px_minmax(0,1fr)_24px_28px_36px_42px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_24px_28px_36px_42px_18px]'
-        : showPrice
-          ? 'grid-cols-[20px_minmax(0,1fr)_24px_28px_36px_42px_58px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_24px_28px_36px_42px_58px]'
-          : 'grid-cols-[20px_minmax(0,1fr)_24px_28px_36px_42px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_24px_28px_36px_42px]'
-      : showFp
-        ? showPrice
-          ? 'grid-cols-[20px_minmax(0,1fr)_24px_26px_44px_60px_18px] min-[430px]:grid-cols-[24px_20px_minmax(0,1fr)_24px_28px_44px_60px_18px]'
-          : 'grid-cols-[20px_minmax(0,1fr)_24px_28px_44px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_24px_28px_44px_18px]'
-        : showPrice
-          ? 'grid-cols-[20px_minmax(0,1fr)_24px_28px_44px_60px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_24px_28px_44px_60px]'
-          : 'grid-cols-[20px_minmax(0,1fr)_24px_28px_44px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_24px_28px_44px]'
-  } ${hasDirect ? DESKTOP_GRID_DIRECT : DESKTOP_GRID}`
+    showFp
+      ? showPrice
+        ? 'grid-cols-[20px_minmax(0,1fr)_26px_24px_24px_44px_60px_18px] min-[430px]:grid-cols-[24px_20px_minmax(0,1fr)_26px_24px_28px_44px_60px_18px]'
+        : 'grid-cols-[20px_minmax(0,1fr)_26px_24px_28px_44px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_26px_24px_28px_44px_18px]'
+      : showPrice
+        ? 'grid-cols-[20px_minmax(0,1fr)_26px_24px_28px_44px_60px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_26px_24px_28px_44px_60px]'
+        : 'grid-cols-[20px_minmax(0,1fr)_26px_24px_28px_44px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_26px_24px_28px_44px]'
+  } ${DESKTOP_GRID}`
 // Where the silk column starts showing on a phone (matches rowGrid).
 export const silkFrom = (showFp: boolean, showPrice = true) => (showFp && showPrice ? 'min-[430px]:block' : 'min-[380px]:block')
 const LG_ONLY = 'hidden lg:block'
-
-// Three small squares: the runner's rank in the field on Peak, Base and Spd (darker green = better rank).
-function RankSquares({ combo }: { combo: CombinedRank }) {
-  return (
-    <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">
-      {[combo.peakRank, combo.ranks[0], combo.ranks[1]].map((x, i) => (
-        <span key={i} className="h-[5px] w-[5px] rounded-[1px] lg:h-[6px] lg:w-[6px]" style={{ background: rankShade(x) }} />
-      ))}
-    </span>
-  )
-}
 
 // A cell with no value: a faint dash whose tooltip says why, so "not rated" is not mistaken for a blank rendering glitch.
 function Missing({ why }: { why: string }) {
@@ -84,7 +56,7 @@ function Missing({ why }: { why: string }) {
   )
 }
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, directRank, directRating, directPct, hasDirect = false, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   return (
@@ -98,7 +70,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
           onClick()
         }
       }}
-      className={`group grid min-w-full cursor-pointer items-center gap-x-1 border-b border-l-4 ${runner.finishPosition === 1 && !f.scratched ? 'border-l-amber' : 'border-l-transparent'} border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp, showPrice, hasDirect)} ${
+      className={`group grid min-w-full cursor-pointer items-center gap-x-1 border-b border-l-4 ${runner.finishPosition === 1 && !f.scratched ? 'border-l-amber' : 'border-l-transparent'} border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp, showPrice)} ${
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : runner.finishPosition === 1 ? 'bg-amber-bg/40 hover:bg-amber-bg/70' : 'hover:bg-bg'
       }`}
     >
@@ -144,6 +116,12 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       <span className={`text-right font-mono ${f.rtsClass} ${LG_ONLY}`} title={f.rtsTitle}>
         {f.spell.label}
       </span>
+      <span
+        className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
+        title={runner.peakWpr != null ? `Peak ${runner.peakWpr.toFixed(1)}: the highest rating this horse has run in the 12 months before this race (runner-page ratings, same scale as WR)` : undefined}
+      >
+        {f.scratched ? '' : runner.peakWpr == null ? <Missing why="No rated run in the 12 months before this race" /> : Math.round(runner.peakWpr)}
+      </span>
       <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title="TopRate's own forward rating (wpr_nett)">
         {f.scratched ? '' : runner.nett == null ? <Missing why="No Base from TopRate for this runner (first starters usually have none)" /> : Math.round(runner.nett)}
       </span>
@@ -161,29 +139,18 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="No WR (no rated form, or a jumps race)">&ndash;</span>
         ) : (
           <>
-            <span className={`inline-block min-w-[18px] text-center text-[13px] lg:text-[14px] ${hasDirect ? 'font-normal text-ink-mute' : 'font-semibold'} ${combo.estimated ? 'italic text-ink-faint' : !hasDirect && combo.rank === 1 ? 'text-emerald-deep' : hasDirect ? '' : 'text-ink'}`}>
+            <span className={`inline-block min-w-[18px] text-center text-[13px] font-semibold lg:text-[14px] ${combo.estimated ? 'italic text-ink-faint' : combo.rank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>
               {combo.estimated ? '~' : ''}{combo.rating != null ? combo.rating.toFixed(1) : combo.rank}
             </span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
-            {!hasDirect && <RankSquares combo={combo} />}
+            <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">
+              {[combo.peakRank, combo.ranks[0], combo.ranks[1]].map((x, i) => (
+                <span key={i} className="h-[5px] w-[5px] rounded-[1px] lg:h-[6px] lg:w-[6px]" style={{ background: rankShade(x) }} />
+              ))}
+            </span>
           </>
         )}
       </span>
-      {hasDirect && (
-        <span
-          className="text-right font-mono leading-tight"
-          title={runner.directProb != null ? `Direct ${directPct != null ? directPct.toFixed(1) + '%' : '-'} to win (rank ${directRank ?? '-'}), fair price ${fmtPrice(directPct ? 100 / directPct : null)}${directRating != null ? `, equivalent rating ${directRating.toFixed(1)}` : ''}. A model trained on the finishing order directly. The three squares are the runner's rank on Peak, Base and Spd${combo ? ` (${combo.peakRank ?? '-'}, ${combo.ranks[0] ?? '-'}, ${combo.ranks[1] ?? '-'})` : ''}.` : undefined}
-        >
-          {f.scratched ? null : runner.directProb == null ? (
-            <span className="mr-1.5 text-ink-faint lg:mr-0" title="No direct score for this runner (the model needs the whole field and a rated form history)">&ndash;</span>
-          ) : (
-            <>
-              <span className={`inline-block min-w-[18px] text-center text-[13px] font-bold lg:text-[14px] ${directRank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>{directPct != null ? `${directPct.toFixed(directPct < 10 ? 1 : 0)}%` : '-'}</span>
-              {combo && <RankSquares combo={combo} />}
-            </>
-          )}
-        </span>
-      )}
       <span className={`text-right text-ink-mute ${showPrice ? '' : LG_ONLY}`}>
         <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
       </span>

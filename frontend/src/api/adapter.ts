@@ -130,7 +130,6 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     wprPrice: r.wpjpr,
     wprRank: r.wpjr,
     peakWpr: r.wpjpk,
-    directProb: r.dm ?? null,
     edge: r.wpje,
     projectionDescription: r.wpjd,
 

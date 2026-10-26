@@ -128,8 +128,6 @@ export interface Runner {
   wprPrice: number | null
   wprRank: number | null
   peakWpr: number | null
-  // Direct finishing-position model win chance (0 to 1), a standalone column; null when the race has no direct scores.
-  directProb: number | null
   // WPR's own implied win probability vs the market's, for this runner -
   // edge = edgeModelProb - edgeMarketProb (positive = WPR rates this runner
   // shorter than the market does). null unless both a projection and a
