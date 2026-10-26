@@ -6,7 +6,8 @@ import hashlib, json, os, sys, urllib.request
 date, code, venue, nr, vid, silk = sys.argv[1:7]
 os.makedirs(vid, exist_ok=True)
 os.makedirs(silk, exist_ok=True)
-for n in range(1, int(nr) + 1):
+lo, hi = (nr.split('-') + [nr])[:2] if '-' in nr else ('1', nr)
+for n in range(int(lo), int(hi) + 1):
     f = f'{date}{code}{n:02d}'
     url = f'https://mediatabs.skyracing.com.au/Race_Replay/{date[:4]}/{date[4:6]}/{f}_V.mp4'
     try:
