@@ -89,3 +89,42 @@ def atw_offset(age, sex, date, distance, weight):
     if w is None or weight is None:
         return None
     return ATW_PER_KG * (w - float(weight))
+
+
+# AR 170: allowance (kg off the standard weight) for horses SIRED in the northern hemisphere and FOALED between 1 January and 31 July, standard weight-for-age races.
+# Blocks: up to 1200, over 1200 to 1600, over 1600 to 2000, over 2000 to 2400, over 2400 to 3000, over 3000. Months AUG..JUL, ages 2, 3, 4 (5yo and older none).
+NH_BLOCKS = [1200, 1600, 2000, 2400, 3000, 99999]
+_Z = 0.0
+NH_ALLOWANCE = {
+    0: {'2': [_Z] * 5 + [3] * 7, '3': [2.5, 2.5, 2, 2, 2, 2, 1.5, 1.5, 1.5, 1, 1, 1], '4': [0.5, 0.5, 0.5, 0.5] + [_Z] * 8},
+    1: {'2': [_Z] * 5 + [3.5] * 7, '3': [3, 3, 2.5, 2.5, 2.5, 2.5, 2, 2, 2, 1.5, 1.5, 1.5], '4': [1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5, _Z, _Z, _Z, _Z]},
+    2: {'2': [_Z] * 5 + [4] * 7, '3': [3, 3, 2.5, 2.5, 2.5, 2.5, 2.5, 2, 2, 2, 2, 2], '4': [1.5, 1.5, 1.5, 1, 1, 1, 0.5, 0.5, 0.5, _Z, _Z, _Z]},
+    3: {'2': [_Z] * 12, '3': [3.5, 3.5, 3, 3, 3, 3, 2.5, 2.5, 2.5, 2, 2, 2], '4': [2, 1.5, 1, 1, 0.5] + [_Z] * 7},
+    4: {'2': [_Z] * 12, '3': [4, 4, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 3, 3, 3, 3], '4': [2.5, 1.5, 1, 1, 0.5] + [_Z] * 7},
+    5: {'2': [_Z] * 12, '3': [_Z] * 4 + [4] * 8, '4': [3, 2, 1.5, 1.5, 1, 0.5, 0.5] + [_Z] * 5},
+}
+SOUTHERN_SIRE_COUNTRIES = {'AUS', 'NZ', 'ARG', 'SAF', 'CHI', 'BRZ', 'URU', 'PER'}
+
+
+def is_nh_eligible(sire_country, foaled):
+    """AR 170 applies to horses sired in the northern hemisphere and foaled 1 January to 31 July."""
+    if not sire_country or str(sire_country) == 'nan' or foaled is None:
+        return False
+    f = foaled if isinstance(foaled, dt.date) else dt.date.fromisoformat(str(foaled)[:10])
+    return str(sire_country).upper() not in SOUTHERN_SIRE_COUNTRIES and 1 <= f.month <= 7
+
+
+def nh_allowance(age, date, distance, interpolate=True):
+    """AR 170 allowance in kg for an eligible horse (see is_nh_eligible), 0 for 5yo and older."""
+    if age is None or age < 2 or age >= 5:
+        return 0.0
+    d = date if isinstance(date, dt.date) else dt.date.fromisoformat(str(date)[:10])
+    blk = next(i for i, hi in enumerate(NH_BLOCKS) if distance <= hi)
+    row = NH_ALLOWANCE[blk][str(int(age))]
+    d0 = d.replace(day=1)
+    a = row[(d0.month - 8) % 12]
+    if interpolate:
+        d1 = (d0 + dt.timedelta(days=32)).replace(day=1)
+        b = row[(d1.month - 8) % 12]
+        a = a + (b - a) * (d.day - 1) / (d1 - d0).days
+    return a
