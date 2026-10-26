@@ -110,6 +110,20 @@ def main():
         print(f'{k:8s} n={len(z):5d} coef {beta[1]:+.2f} (t {beta[1] / se:+.1f}); races with earlier lean >= +0.2: {hi.groupby(["meet_code", "race_no"]).ngroups} races, '
               f'inside third vs wide third rating residual {hi[hi.bf < -0.15].y.mean():+.2f} vs {hi[hi.bf > 0.15].y.mean():+.2f}')
 
+    # ---- 4. does the width lean carry anything beyond the draw lean? (the two are correlated: the fence is usually best when the inside draws are)
+    print('\n=== 4. joint regression: bf x earlier BARRIER lean and bf x earlier WIDTH lean together (which one carries the rating effect?)')
+    for k in ('w_final', 'w800', 'w_mid'):
+        Lb = L[['meet_code', 'race_no', 'prev_barrier', 'prev_' + k, 'nprev']]
+        z = d.merge(Lb, on=['meet_code', 'race_no'])
+        z = z[z.nprev >= 3].dropna(subset=['y', 'bf', 'prev_barrier', 'prev_' + k])
+        X = np.column_stack([np.ones(len(z)), (z.bf * z.prev_barrier).values, (z.bf * z['prev_' + k]).values])
+        yv = z.y.values
+        beta, *_ = np.linalg.lstsq(X, yv, rcond=None)
+        r_ = yv - X @ beta
+        cov = r_.var(ddof=3) * np.linalg.inv(X.T @ X)
+        se = np.sqrt(np.diag(cov))
+        print(f'{k:8s} n={len(z):5d}  barrier lean coef {beta[1]:+.2f} (t {beta[1] / se[1]:+.1f})   {k} lean coef {beta[2]:+.2f} (t {beta[2] / se[2]:+.1f})')
+
 
 if __name__ == '__main__':
     main()
