@@ -52,6 +52,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'nett', label: 'Base', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside Peak and Spd, not blended into the Rating." },
   { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs one earlier figure; with 1 to 5 figures it is pulled toward the average." },
   { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today (WR alone since 23 Oct 2026; Base and Spd are shown beside it but not counted). The three small squares under it show the runner's rank in the field on Peak, Base and Spd, in that order. The table is sorted by it. A first starter shows an estimate." },
+  { key: 'direct', label: 'Direct', align: 'right', lgOnly: true, title: "Direct model: win chance from a model trained to predict the finishing order directly (not through a rating), using the same form, class, jockey and trainer inputs. Shown on its own, not blended into the Rating. Not a value claim: against the closing price it adds about +0.005 nats a race." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
@@ -185,6 +186,13 @@ export function RaceDetail({
   }
 
   const showBias = racesRunBefore(race, allRaces) >= MIN_BIAS_RACES
+  // Rank of each runner on the direct model's win chance inside this race (1 = best, ties share the best place), scratched runners left out.
+  const directRankByRunId = useMemo(() => {
+    const live = race.runners.filter((r) => !effectiveScratched.has(r.runId) && r.directProb != null)
+    const m = new Map<string, number>()
+    for (const r of live) m.set(r.runId, 1 + live.filter((o) => (o.directProb as number) > (r.directProb as number)).length)
+    return m
+  }, [race.runners, effectiveScratched])
   function rowProps(runner: Race['runners'][number]) {
     return {
       runner,
@@ -192,6 +200,7 @@ export function RaceDetail({
       selected: compareMode ? compareIds.includes(runner.runId) : runner.runId === selectedRunId,
       effective: effectiveByRunId[runner.runId],
       combo: comboByRunId.get(runner.runId),
+      directRank: directRankByRunId.get(runner.runId),
       showFp: hasAnyResult,
       showPrice: hasAnyPrice,
       showBias,

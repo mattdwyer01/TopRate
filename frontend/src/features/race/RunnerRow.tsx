@@ -17,6 +17,8 @@ interface RunnerRowProps {
   // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
   showBias?: boolean
   combo?: CombinedRank
+  // Rank on the direct model's win chance inside the race (desktop Direct column).
+  directRank?: number
   // Lowest and highest Proj in the field, for the bar under the Proj figure (desktop).
   onClick: () => void
 }
@@ -27,7 +29,7 @@ interface RunnerRowProps {
 // Strip under the rank: one square per column (Peak, Base, Spd), darker green = better rank, outline-grey = no value.
 const rankShade = (x: number | null) => (x == null ? '#e5e7eb' : x === 1 ? '#047857' : x === 2 ? '#34d399' : x === 3 ? '#a7f3d0' : '#d1d5db')
 
-const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_62px_84px_30px]'
+const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_62px_58px_84px_30px]'
 // The FP column only takes room on a phone once there is a result to show, and the Fixed $ column only once a price is out.
 export const rowGrid = (showFp: boolean, showPrice = true) =>
   // Phone: [silk] | # | Horse | Peak | Base | Spd | Rating (| Fixed $) (| FP), everything on screen at once. The silk column joins from 380px up,
@@ -56,7 +58,7 @@ function Missing({ why }: { why: string }) {
   )
 }
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, directRank, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   return (
@@ -148,6 +150,19 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
                 <span key={i} className="h-[5px] w-[5px] rounded-[1px] lg:h-[6px] lg:w-[6px]" style={{ background: rankShade(x) }} />
               ))}
             </span>
+          </>
+        )}
+      </span>
+      <span
+        className={`text-right font-mono leading-tight ${LG_ONLY}`}
+        title={runner.directProb != null ? `Direct model: ${(runner.directProb * 100).toFixed(1)}% to win (fair price ${fmtPrice(1 / runner.directProb)}), rank ${directRank ?? '-'} in this field. A model trained on the finishing order directly; shown on its own, not blended into the Rating.` : undefined}
+      >
+        {f.scratched ? null : runner.directProb == null ? (
+          <Missing why="No direct score for this runner (the model needs the whole field and a rated form history)" />
+        ) : (
+          <>
+            <span className={`text-[13px] font-semibold ${directRank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>{(runner.directProb * 100).toFixed(runner.directProb < 0.1 ? 1 : 0)}%</span>
+            <span className="block text-[10px] font-normal text-ink-faint">{fmtPrice(1 / runner.directProb)}</span>
           </>
         )}
       </span>
