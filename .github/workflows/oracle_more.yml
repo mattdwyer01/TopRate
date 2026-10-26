@@ -1,4 +1,4 @@
-name: Oracle gap: traffic, interactions, capacity (research)
+name: "Oracle gap, traffic interactions capacity (research)"
 
 # Manual research run (26 Oct 2026): research/oracle_more.py. Reuses the shape predictions exported by direct_v5.yml run 40294703438 (artifact shape-oof, kept 90 days).
 # Start it by changing research/oracle_more.trigger and pushing.
