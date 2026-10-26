@@ -146,6 +146,44 @@ def main():
         lo, hi = np.percentile(out, [5, 95], axis=0)
         print(f'{k:8s} meetings {len(ms):3d}  barrier lean {out[:, 0].mean():+.1f} [{lo[0]:+.1f}, {hi[0]:+.1f}]   {k} lean {out[:, 1].mean():+.1f} [{lo[1]:+.1f}, {hi[1]:+.1f}]')
 
+    # ---- 6. the dashboard's own track bias (projection/run.py draw_lean_by_race: mean barrier fraction of the first 4 home, earlier races, 3+) against the width lean
+    print('\n=== 6. dashboard draw lean (top-4 barrier) vs width lean, same races, meeting-resampled 90% ranges (both signed so that + = the inside is favoured)')
+    t4 = []
+    for (m, r), z in d.groupby(['meet_code', 'race_no']):
+        top = z[z.fin <= 4]
+        if len(z) >= 8 and len(top) == 4:
+            t4.append(dict(meet_code=m, race_no=int(r), top4=-(top.barfrac.mean() - 0.5)))   # + = inside barriers filled the first 4
+    T = pd.DataFrame(t4)
+    L2 = L.merge(T, on=['meet_code', 'race_no'], how='left').sort_values(['meet_code', 'race_no'])
+    L2['prev_top4'] = L2.groupby('meet_code').top4.transform(lambda s: s.shift(1).expanding().mean())
+    L2['n4'] = L2.groupby('meet_code').top4.transform(lambda s: s.shift(1).expanding().count())
+    print('races with a clear top 4 and 3+ earlier such races:', int((L2.n4 >= 3).sum()), 'of', len(L2), '| mean top-4 lean (+ = inside favoured)', round(float(L2.top4.mean()), 3), 'sd', round(float(L2.top4.std()), 3))
+    rng = np.random.default_rng(1)
+
+    def fit_cols(df, cols):
+        X = np.column_stack([np.ones(len(df))] + [df[c].values for c in cols])
+        b, *_ = np.linalg.lstsq(X, df.y.values, rcond=None)
+        return b[1:], float(np.sqrt(((df.y.values - X @ b) ** 2).mean()))
+
+    for wname in ('w_final', 'w_mid'):
+        z = d.merge(L2[['meet_code', 'race_no', 'prev_top4', 'n4', 'prev_' + wname, 'nprev']], on=['meet_code', 'race_no'])
+        z = z[(z.n4 >= 3) & (z.nprev >= 3)].dropna(subset=['y', 'bf', 'prev_top4', 'prev_' + wname]).copy()
+        z['xt'] = z.bf * z.prev_top4
+        z['xw'] = z.bf * z['prev_' + wname]
+        groups = {m: g for m, g in z.groupby('meet_code')}
+        ms = list(groups)
+        res_ = {}
+        for name, cols in (('top-4 draw lean alone', ['xt']), (wname + ' alone', ['xw']), ('both', ['xt', 'xw'])):
+            b0, rm = fit_cols(z, cols)
+            bs = []
+            for _ in range(200):
+                g = pd.concat([groups[ms[i]] for i in rng.choice(len(ms), len(ms), replace=True)])
+                bs.append(fit_cols(g, cols)[0])
+            bs = np.array(bs)
+            lo, hi = np.percentile(bs, [5, 95], axis=0)
+            res_[name] = (b0, lo, hi, rm)
+            print(f'{wname:7s} {name:24s} n={len(z)} meetings={len(ms)} rmse {rm:.4f}  ' + '   '.join(f'{c} {b0[i]:+.1f} [{lo[i]:+.1f}, {hi[i]:+.1f}]' for i, c in enumerate(cols)))
+
 
 if __name__ == '__main__':
     main()
