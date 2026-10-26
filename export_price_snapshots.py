@@ -1,7 +1,7 @@
 """Export the TAB fixed-win price at fixed minutes before the jump from the Vultr runner's permanent price log (tab_price_log.py), for early-price value tests.
 Reads $PRICE_LOG_DIR (default ~/racing-data/tab_prices) YYYY-MM-DD.csv and .csv.gz, one row per read (about every 1 to 2 minutes within 2 h of the jump).
 Writes /tmp/price_snap/prices_snap.csv.gz: one row per (date, venue, race_no, tab) with the latest read at or before each offset, plus the last read before the jump.
-Run on the self-hosted runner only (the log lives on its disk): research/price_snapshots.yml."""
+Run on the self-hosted runner only (the log lives on its disk): price_snapshots.yml."""
 import glob, gzip, os, sys
 from pathlib import Path
 import numpy as np, pandas as pd

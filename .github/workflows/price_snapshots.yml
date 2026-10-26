@@ -1,6 +1,6 @@
 name: "Export TAB price snapshots (research)"
 
-# Manual research run (26 Oct 2026): research/export_price_snapshots.py on the Vultr runner, where the permanent fixed-odds log lives
+# Manual research run (26 Oct 2026): export_price_snapshots.py on the Vultr runner, where the permanent fixed-odds log lives
 # (tab_price_log.py, outside the repo checkout). Start it by changing research/price_snapshots.trigger and pushing.
 on:
   workflow_dispatch:
@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 1
       - name: Export snapshots
-        run: python3 research/export_price_snapshots.py
+        run: python3 export_price_snapshots.py
       - uses: actions/upload-artifact@v4
         with:
           name: price-snapshots
