@@ -315,7 +315,7 @@ print(f'   softmax sharpness that fits the blended rating on 2025: {Tr:.3f} (sta
 print('\nReliability: predicted size of the miss for each runner (model fitted on the 2024 H2 misses of the stand-in, scored on 2025)')
 vaR = va[va.tgt.notna()].copy()
 vaR['r2'] = (vaR.tgt - vaR.sA) ** 2
-RF = AFE + ['sA', 'nr']
+RF = list(dict.fromkeys(AFE + ['sA', 'nr']))
 PR = dict(objective='regression', learning_rate=0.03, num_leaves=15, min_data_in_leaf=300, feature_fraction=0.7, bagging_fraction=0.7, bagging_freq=1, lambda_l2=20, verbose=-1)
 half = vaR.race_id.rank(method='dense') % 2 == 0
 mR = lgb.train(PR, lgb.Dataset(vaR[~half][RF], label=vaR[~half].r2.values), num_boost_round=1500, valid_sets=[lgb.Dataset(vaR[half][RF], label=vaR[half].r2.values)], callbacks=[lgb.early_stopping(60, verbose=False)])
