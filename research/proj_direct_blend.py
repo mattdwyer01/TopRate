@@ -532,3 +532,38 @@ placings(S2, S2.pj, 'real Proj alone')
 placings(S2, blend_p(S2, S2.pj, S2.sD, 0.20, TD, W_STAR), f'blend w={W_STAR}')
 placings(S2, blend_p(S2, S2.pj, S2.sD, 0.20, TD, 0.5), 'blend w=0.5')
 placings(S2, S2.sD, 'direct alone')
+
+
+# ---------------- shortlists within 2 / 4 / 6 rating points of the top-rated runner ----------------
+def within_pts(df, rating, name, pts=(2, 4, 6)):
+    d_ = df.assign(r=np.asarray(rating))
+    d_ = d_[d_.pos.notna() & d_.r.notna()].copy()
+    d_['gap'] = d_.groupby('race_id').r.transform('max') - d_.r
+    ok = d_.groupby('race_id').pos.transform(lambda s: (s.nunique() == len(s)) and len(s) >= 6)
+    d_ = d_[ok]
+    n = d_.race_id.nunique()
+    print(f'\n  {name} ({n} races)')
+    for k in pts:
+        ins = d_.gap <= k
+        size = d_[ins].groupby('race_id').size().reindex(d_.race_id.unique(), fill_value=0).mean()
+        out = [f'within {k} pts: {size:4.1f} runners']
+        for j in (1, 2, 3, 4):
+            g = d_[d_.pos == j]
+            out.append(f'#{j} finisher in {(g.gap <= k).mean():5.1%}')
+        top4 = d_[d_.pos <= 4]
+        out.append(f'avg of real top 4 inside {(top4.gap <= k).mean():5.1%}')
+        w = d_.assign(i=ins).pivot_table(index='race_id', columns='pos', values='i', aggfunc='first')
+        out.append(f'all of top 3 inside {(w[1] & w[2] & w[3]).mean():5.1%}')
+        out.append(f'precision (shortlist runners who finish top 4) {(d_[ins].pos <= 4).mean():5.1%}')
+        print('   ' + '  |  '.join(out))
+
+
+print('\n\n===== SHORTLISTS WITHIN 2 / 4 / 6 RATING POINTS OF THE TOP RATED RUNNER =====')
+print('\nT1 (2025 full fields)')
+within_pts(te, te.sA, 'stand-in Proj alone')
+within_pts(te, to_rating(te, te.sA, te.sD, TA, TD, W_STAR), f'blend rating w={W_STAR}')
+within_pts(te, to_rating(te, te.sA, te.sD, TA, TD, 0.5), 'blend rating w=0.5')
+print('\nT2 (real dashboard Proj)')
+within_pts(S2, S2.pj, 'real Proj alone')
+within_pts(S2, to_rating(S2, S2.pj, S2.sD, 0.20, TD, W_STAR), f'blend rating w={W_STAR}')
+within_pts(S2, to_rating(S2, S2.pj, S2.sD, 0.20, TD, 0.5), 'blend rating w=0.5')
