@@ -28,6 +28,15 @@ jobs:
       - run: pip install -r projection/requirements.txt scipy scikit-learn
       - name: Retrain
         run: python -W ignore projection/train_ctx.py --v2 --conv-frac 1.0
+      - name: Keep the models even if the check fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctx-v2-models
+          path: |
+            projection/models_tr/ctx_model.txt
+            projection/models_tr/ctx_rel_model.txt
+            projection/models_tr/ctx.json
       - name: Live path equals training path
         run: python -W ignore research/ctx_v2_live_check.py --days 12
       - name: Commit artifacts to this branch
