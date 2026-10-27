@@ -80,6 +80,7 @@ export interface RawRunner {
   jwN: number | null
   wn?: number | null // TopRate wpr_nett, absent on older payloads
   dst?: number | null // running style for the draw and style card (draw_style.py): average 800m position over the last 6 runs as a share of the field (0 = led), null with under 2 runs
+  dsp?: number | null // early speed for the same card: average early-section figure against the field over the last 6 runs (higher = faster), null with under 2 such runs
   sr?: number | null // pre-race speed rating (speed_rating.py): recency-weighted time-based figures in lengths vs par, higher = faster; absent on older payloads
   twN: number | null
   fx: number | null

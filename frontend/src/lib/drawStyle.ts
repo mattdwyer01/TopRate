@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Race, Runner } from '../types/domain'
+import type { Race } from '../types/domain'
 
 // Draw and style card data (draw_style.py, Oct 2026): per venue, every priced runner since 2017 as a compact row so the card can filter by distance, rail, going and
 // race pace in the browser. Files are data/venue_draw/<slug>.json.gz with data/venue_draw/index.json mapping venue names to them. Optional: no file, no card.
@@ -8,8 +8,10 @@ export const STYLE_EDGES = [0.15, 0.3, 0.42, 0.55, 0.7] // L, OP, OP/MF, MF, MF/
 export const STYLE_NAMES = ['L', 'OP', 'OP/MF', 'MF', 'MF/BM', 'BM']
 export const FORWARD_MAX = 0.3 // a runner whose average position is at or under this counts as a Forward-style runner in the race pace count
 
-// row = [barrier (16 = 16 and wider), style 0-5, distance group 0-2, rail -1..3, going -1..6, race pace 0-2, won, normalised price-implied chance]
-export type DrawRow = [number, number, number, number, number, number, number, number]
+// row = [barrier (16 = 16 and wider), style 0-5, distance group 0-2, rail -1..3, going -1..6, race pace 0-2, won, normalised price-implied chance, early speed 0 slow / 1 average / 2 fast / -1 none]
+export type DrawRow = [number, number, number, number, number, number, number, number, number]
+export const STYLE_COL = 1
+export const SPEED_COL = 8
 
 // [rating points inside to widest, its se, runners, rating points per barrier step wider, its se]
 export type SlopeEntry = [number, number, number, number, number]
@@ -23,6 +25,7 @@ export interface VenueDraw {
   races: number
   from: string
   through: string
+  speedCuts: [number, number] // early speed thirds: at or under the first is slow, over the second is fast
   rating: RatingSlope // draw slope of the within-race ATW rating by distance group (keys '0' '1' '2') and 'all'
   rows: DrawRow[]
 }
@@ -88,6 +91,10 @@ export function styleIndex(avg: number): number {
   return i
 }
 
+export function speedIndex(avg: number, cuts: [number, number]): number {
+  return avg <= cuts[0] ? 0 : avg <= cuts[1] ? 1 : 2
+}
+
 export function distanceGroup(m: number): number {
   return m <= 1300 ? 0 : m <= 1650 ? 1 : 2
 }
@@ -131,12 +138,10 @@ export interface Conditions {
   p: number | null
 }
 
-export function raceConditions(race: Race, active: Runner[]): Conditions {
-  const forward = active.filter((r) => r.styleAvg != null && r.styleAvg <= FORWARD_MAX).length
-  const some = active.some((r) => r.styleAvg != null)
+export function raceConditions(race: Race, forward: number | null): Conditions {
   const r = railGroup(race.rail)
   const g = goingGroup(race.going)
-  return { d: distanceGroup(race.distance), r: r < 0 ? null : r, g: g < 0 ? null : g, p: some ? paceGroup(forward) : null }
+  return { d: distanceGroup(race.distance), r: r < 0 ? null : r, g: g < 0 ? null : g, p: forward === null ? null : paceGroup(forward) }
 }
 
 export function filterRows(rows: DrawRow[], c: Conditions): DrawRow[] {
@@ -150,13 +155,13 @@ export interface Cell {
   z: number
 }
 
-export function aggregate(rows: DrawRow[], barrier: [number, number], styles: number[]): Cell {
+export function aggregate(rows: DrawRow[], barrier: [number, number], groups: number[], col: number): Cell {
   let n = 0
   let w = 0
   let e = 0
   let v = 0
   for (const r of rows) {
-    if (r[0] < barrier[0] || r[0] > barrier[1] || !styles.includes(r[1])) continue
+    if (r[0] < barrier[0] || r[0] > barrier[1] || !groups.includes(r[col] as number)) continue
     n++
     w += r[6]
     e += r[7]

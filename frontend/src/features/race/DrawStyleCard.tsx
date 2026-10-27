@@ -5,10 +5,13 @@ import {
   GOING_LABELS,
   PACE_LABELS,
   RAIL_LABELS,
+  SPEED_COL,
+  STYLE_COL,
   aggregate,
   filterRows,
   raceConditions,
   smoothA2E,
+  speedIndex,
   styleIndex,
   useVenueDraw,
   widen,
@@ -23,11 +26,21 @@ const ROWS: { label: string; range: [number, number] }[] = [
   { label: '4-7', range: [4, 7] },
   { label: '8+', range: [8, 16] },
 ]
-const COLS: { label: string; styles: number[] }[] = [
-  { label: 'Forward', styles: [0, 1] },
-  { label: 'Midfield', styles: [2, 3] },
-  { label: 'Back', styles: [4, 5] },
-]
+type Axis = 'style' | 'speed'
+// Three columns per axis; `groups` are the values of the row's style (0-5) or early speed (0 slow, 1 average, 2 fast) column that fall in each.
+const COLS: Record<Axis, { label: string; groups: number[] }[]> = {
+  style: [
+    { label: 'Forward', groups: [0, 1] },
+    { label: 'Midfield', groups: [2, 3] },
+    { label: 'Back', groups: [4, 5] },
+  ],
+  speed: [
+    { label: 'Fast', groups: [2] },
+    { label: 'Average', groups: [1] },
+    { label: 'Slow', groups: [0] },
+  ],
+}
+type Override = Partial<Record<Axis, number>> // runner moved to this column (0-2) on that axis by hand
 const KEYS = ['d', 'r', 'g', 'p'] as const
 const FIELD_LABEL = { d: 'Distance', r: 'Rail', g: 'Going', p: 'Race pace' } as const
 const LABELS = { d: DISTANCE_LABELS, r: RAIL_LABELS, g: GOING_LABELS, p: PACE_LABELS } as const
@@ -46,26 +59,44 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
   const [showFilters, setShowFilters] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [manual, setManual] = useState<Conditions | null>(null)
+  const [axis, setAxis] = useState<Axis>('style')
+  const [ov, setOv] = useState<Record<string, Override>>({})
 
-  const raceCond = useMemo(() => raceConditions(race, runners), [race, runners])
   const view = useMemo(() => {
     if (!data) return null
+    const cuts = data.speedCuts
+    // The column each runner falls in on an axis: its history, or the hand override. undefined = no history and no override.
+    const natural = (r: Runner, ax: Axis): number | undefined => {
+      if (ax === 'style') {
+        if (r.styleAvg == null) return undefined
+        const si = styleIndex(r.styleAvg)
+        return COLS.style.findIndex((c) => c.groups.includes(si))
+      }
+      if (r.earlySpeedAvg == null) return undefined
+      const sp = speedIndex(r.earlySpeedAvg, cuts)
+      return COLS.speed.findIndex((c) => c.groups.includes(sp))
+    }
+    const effective = (r: Runner, ax: Axis) => ov[r.runId]?.[ax] ?? natural(r, ax)
+    const styleCols = runners.map((r) => effective(r, 'style'))
+    const anyStyle = styleCols.some((c) => c !== undefined)
+    const forward = styleCols.filter((c) => c === 0).length
+    const raceCond = raceConditions(race, anyStyle ? forward : null)
     const w = manual ? { cond: manual, dropped: [] as ('p' | 'g' | 'r')[] } : widen(data.rows, raceCond)
     const rows = filterRows(data.rows, w.cond)
     const marks = new Map<string, number[]>()
-    const noHistory: number[] = []
+    const noHistory: Runner[] = []
     for (const r of runners) {
-      if (r.styleAvg == null || r.barrier == null) {
-        noHistory.push(r.tabNumber)
+      const ci = effective(r, axis)
+      const ri = r.barrier == null ? -1 : ROWS.findIndex((x) => r.barrier! >= x.range[0] && r.barrier! <= x.range[1])
+      if (ci === undefined || ci < 0 || ri < 0) {
+        noHistory.push(r)
         continue
       }
-      const ri = ROWS.findIndex((x) => r.barrier! >= x.range[0] && r.barrier! <= x.range[1])
-      const si = styleIndex(r.styleAvg)
-      const ci = COLS.findIndex((x) => x.styles.includes(si))
       const k = `${ri}|${ci}`
       marks.set(k, [...(marks.get(k) ?? []), r.tabNumber])
     }
-    const cells = ROWS.map((row) => COLS.map((col) => aggregate(rows, row.range, col.styles)))
+    const col = axis === 'style' ? STYLE_COL : SPEED_COL
+    const cells = ROWS.map((row) => COLS[axis].map((c) => aggregate(rows, row.range, c.groups, col)))
     const up: number[] = []
     const dn: number[] = []
     let sig = 0
@@ -80,14 +111,32 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
         }
       }),
     )
-    return { ...w, rows, marks, cells, up, dn, sig, noHistory }
-  }, [data, raceCond, manual, runners])
+    return { ...w, raceCond, rows, marks, cells, up, dn, sig, noHistory, natural, effective }
+  }, [data, race, runners, manual, axis, ov])
 
-  if (!data || !view || runners.filter((r) => r.styleAvg != null).length < 3) return null
+  // Click a runner's number to move it to the next column on this axis (a hand override); after the last column it goes back to its own.
+  const cycle = (r: Runner) => {
+    if (!view) return
+    const nat = view.natural(r, axis)
+    const cur = ov[r.runId]?.[axis] ?? nat
+    let next: number | undefined = cur === undefined ? 0 : (cur + 1) % 3
+    if (next === nat || (nat === undefined && cur === 2)) next = undefined
+    setOv((o) => {
+      const cp = { ...o, [r.runId]: { ...o[r.runId] } }
+      if (next === undefined) delete cp[r.runId]![axis]
+      else cp[r.runId]![axis] = next
+      if (!Object.keys(cp[r.runId]!).length) delete cp[r.runId]
+      return cp
+    })
+  }
+  const overridden = Object.keys(ov).length > 0
+  const byNumber = new Map(runners.map((r) => [r.tabNumber, r]))
+
+  if (!data || !view || runners.filter((r) => r.styleAvg != null || r.earlySpeedAvg != null).length < 3) return null
 
   const cond = view.cond
   const total = view.rows.length
-  const dg = cond.d ?? raceCond.d
+  const dg = cond.d ?? view.raceCond.d
   const slope = (dg != null ? data.rating[String(dg)] : undefined) ?? data.rating.all
   const gates = Math.max(0, ...runners.map((r) => r.barrier ?? 0))
   const used = KEYS.filter((k) => cond[k] !== null).map((k) => (LABELS[k] as readonly string[])[cond[k] as number])
@@ -132,7 +181,7 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
           <div className="grid gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
             <div className="grid grid-cols-[28px_repeat(3,minmax(0,1fr))] gap-0.5">
               <div />
-              {COLS.map((c) => (
+              {COLS[axis].map((c) => (
                 <div key={c.label} className="text-center text-xs font-semibold text-ink-mute">
                   {c.label}
                 </div>
@@ -140,7 +189,7 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
               {ROWS.map((row, ri) => (
                 <div key={row.label} className="contents">
                   <div className="flex items-center text-xs font-semibold text-ink-mute">{row.label}</div>
-                  {COLS.map((col, ci) => {
+                  {COLS[axis].map((col, ci) => {
                     const c = view.cells[ri]![ci]!
                     const m = view.marks.get(`${ri}|${ci}`) ?? []
                     const sig = Math.abs(c.z) >= 2
@@ -159,11 +208,21 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
                           {m
                             .slice()
                             .sort((a, b) => a - b)
-                            .map((n) => (
-                              <i key={n} className="inline-flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-ink px-0.5 text-[8px] font-semibold not-italic text-panel">
-                                {n}
-                              </i>
-                            ))}
+                            .map((n) => {
+                              const rr = byNumber.get(n)
+                              const moved = rr ? ov[rr.runId]?.[axis] !== undefined : false
+                              return (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  onClick={() => rr && cycle(rr)}
+                                  title={`#${n} ${rr?.horse ?? ''}${moved ? ' (moved by hand)' : ''}: click to move to another column`}
+                                  className={`inline-flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-ink px-0.5 text-[8px] font-semibold text-panel ${moved ? 'ring-2 ring-amber' : ''}`}
+                                >
+                                  {n}
+                                </button>
+                              )
+                            })}
                         </span>
                         {sig && c.n >= 15 && <span className={`absolute right-[3px] top-[3px] h-[5px] w-[5px] rounded-full ${c.z > 0 ? 'bg-emerald' : 'bg-rose'}`} />}
                       </div>
@@ -174,9 +233,14 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
             </div>
             <div className="flex min-w-0 flex-col gap-1.5 text-xs text-ink-soft">
               {(view.sig > 0 || view.noHistory.length > 0) && (
-                <p className="m-0">
+                <p className="m-0 flex flex-wrap items-center gap-1">
                   {view.sig > 0 && <span className="font-semibold text-ink">{`${view.sig} cell${view.sig > 1 ? 's' : ''} beyond chance.`}</span>}
-                  {view.noHistory.length > 0 && `${view.sig > 0 ? ' ' : ''}No history: ${fmtNums(view.noHistory)}.`}
+                  {view.noHistory.length > 0 && <span>{axis === 'style' ? 'No style history:' : 'No early speed history:'}</span>}
+                  {view.noHistory.map((r) => (
+                    <button key={r.runId} type="button" onClick={() => cycle(r)} title={`#${r.tabNumber} ${r.horse}: click to place it in a column`} className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full border border-line bg-bg px-1 text-[9px] font-semibold text-ink">
+                      {r.tabNumber}
+                    </button>
+                  ))}
                 </p>
               )}
               {slope && slope[4] > 0 && (
@@ -193,7 +257,19 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
                 {used.join(' · ')} · {total.toLocaleString()} runners{view.dropped.length ? ` (no ${view.dropped.map((k) => DROP_NAME[k]).join('/')} filter)` : ''}
                 {total < 500 ? ' · thin sample' : ''}
               </p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <div className="flex overflow-hidden rounded border border-line" role="group" aria-label="Columns">
+                  {(['style', 'speed'] as const).map((a) => (
+                    <button key={a} type="button" aria-pressed={axis === a} onClick={() => setAxis(a)} className={`px-2 py-0.5 text-[11px] font-semibold ${axis === a ? 'bg-emerald-deep text-panel' : 'text-ink-mute'}`}>
+                      {a === 'style' ? 'Style' : 'Early speed'}
+                    </button>
+                  ))}
+                </div>
+                {overridden && (
+                  <button type="button" className="text-emerald-deep underline" onClick={() => setOv({})}>
+                    Reset runners
+                  </button>
+                )}
                 <button type="button" className="text-emerald-deep underline" onClick={() => setShowFilters(!showFilters)}>
                   Filters
                 </button>
@@ -209,7 +285,7 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
                 <span className="font-semibold text-ink">Cells</span> show A2E: wins divided by the wins the starting price implied (1.00 is exactly as expected), pulled toward 1 when the sample is small. The small number is runners. Hover for the win rate against expected. Green or red means above or below 1, a corner dot means beyond chance, a faded cell has under 40 runners, numbered dots are this race's runners. {data.venue.replace(/\b\w/g, (c) => c.toUpperCase())}, {data.from.slice(0, 4)} to {data.through.slice(0, 7)}.
               </p>
               <p className="m-0 mb-1.5">
-                <span className="font-semibold text-ink">Style</span> is the horse's average position at 800m over its last 6 runs: Forward up to 30% back, Midfield 30 to 55%, Back beyond that. <span className="font-semibold text-ink">Race pace</span> counts the Forward-style runners in this race: few is 0 to 1, some 2 to 3, many 4 or more. Distance, rail and going are this race's; if that leaves under 500 runners the card drops pace, then going, then rail.
+                <span className="font-semibold text-ink">Style</span> is the horse's average position at 800m over its last 6 runs: Forward up to 30% back, Midfield 30 to 55%, Back beyond that. <span className="font-semibold text-ink">Early speed</span> is its average early-section figure against the field over the same runs: Fast is the top third of all runners, Slow the bottom third (live figures compare against the runners the data holds for each earlier race, so about 8 in 10 horses land in the same third as the whole-field version). Click a numbered runner to move it to another column by hand (amber ring); Reset runners undoes it. <span className="font-semibold text-ink">Race pace</span> counts the Forward-style runners in this race: few is 0 to 1, some 2 to 3, many 4 or more. Distance, rail and going are this race's; if that leaves under 500 runners the card drops pace, then going, then rail.
               </p>
               <p className="m-0">
                 <span className="font-semibold text-ink">Not a betting signal.</span> The price already covers the draw and style. The rating line is the draw slope of the within-race ATW rating at this venue and distance, in rating points per barrier step; a wider field has more steps, so the same slope costs more across it.
