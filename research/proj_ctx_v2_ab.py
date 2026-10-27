@@ -70,3 +70,16 @@ for m in [c for c in d.columns if c.startswith('p_')]:
     x = pr_race(m); dd = x - base
     top = d.loc[d.groupby('g')[m].idxmax()].win.mean()
     print(f'{m:18s} winner LL {x.mean():.4f}  top pick {top:.1%}  vs page old {dd.mean():+.4f} (se {dd.std()/np.sqrt(len(dd)):.4f})')
+
+# price sharpness and gap lines (27 Oct 2026): best softmax beta fitted on all stored races, and winners inside 2 / 4 points of the top, old vs new Proj.
+# Stored races hold only some runners, so runner counts are for comparison between the two, not absolute.
+print('--- sharpness and lines (same races) ---')
+for m in ('p_page old', 'p_conv+page v2'):
+    ll = {round(b, 3): float(np.log(pr(d, m, b)[d.win == 1]).mean()) for b in betas}
+    bb = max(ll, key=ll.get)
+    gap = d.groupby('g')[m].transform('max') - d[m]
+    out = [f'{m:16s} best beta {bb:.3f} (LL {ll[bb]:.4f}; at 0.20 {ll[min(ll, key=lambda k: abs(k - 0.2))]:.4f})']
+    for k in (2, 4):
+        ins = gap <= k
+        out.append(f'<={k}pt: runners {ins.groupby(d.g).sum().mean():.2f}, winners {100 * ins[d.win == 1].mean():.1f}%')
+    print('  '.join(out), flush=True)
