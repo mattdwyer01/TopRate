@@ -1,0 +1,28 @@
+name: "ctx v2 live vs training feature diff (research)"
+
+# Manual research run (27 Oct 2026): research/ctx_v2_live_diff.py. Nothing is committed, results are in the job log.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/ctx-live-diff]
+    paths: [research/ctx_v2_live_diff.trigger]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - run: python -W ignore research/ctx_v2_live_diff.py --days 12
