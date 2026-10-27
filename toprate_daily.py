@@ -1924,6 +1924,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wn":   sf(row.get("wpr_nett")),
                 # Pre-race speed rating (speed_rating.py, runner column spd_fig): lengths vs par, higher = faster; None when under 2 earlier figures
                 "sr":   sf(row.get("spd_fig")),
+                # Running style for the draw and style card (draw_style.py): average 800m position over the last 6 runs as a share of the field (0 = led); None with under 2 such runs
+                "dst":  sf(row.get("draw_style")),
                 # Distance performance: starts/wins/places at this distance ±10%
                 "ds":   si(row.get("starts_at_dist")),
                 "dw":   si(row.get("wins_at_dist")),
@@ -2539,6 +2541,16 @@ def main():
     except Exception as e:
         print(f"  speed rating failed ({type(e).__name__}: {e}), column left as it was")
     _main_step("Step 3b: speed rating")
+    print()
+
+    # Step 3c: running style for the draw and style card (draw_style.py): average 800m position over the last 6 runs. Additive and fail-safe.
+    print("── Step 3c: draw style ──")
+    try:
+        import draw_style
+        runners_df = draw_style.apply(runners_df)
+    except Exception as e:
+        print(f"  draw style failed ({type(e).__name__}: {e}), column left as it was")
+    _main_step("Step 3c: draw style")
     print()
 
     # Step 4: steward and video comments onto resulted runners from the form history, and the explanation of material misses.
