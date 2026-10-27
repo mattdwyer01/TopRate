@@ -1,0 +1,39 @@
+name: "Retrain the context Proj with option 2 inputs and converted history"
+
+# 27 Oct 2026: projection/train_ctx.py --v2 --conv-frac 1.0, then research/ctx_v2_live_check.py (live path must equal the training path), then commits the
+# artifacts (projection/models_tr/ctx_model.txt, ctx_rel_model.txt, ctx.json) to the branch it ran on. Nothing reaches main from here.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/proj-improve-1-2-4]
+    paths: [research/train_ctx_v2.trigger]
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - name: Retrain
+        run: python -W ignore projection/train_ctx.py --v2 --conv-frac 1.0
+      - name: Live path equals training path
+        run: python -W ignore research/ctx_v2_live_check.py --days 12
+      - name: Commit artifacts to this branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add projection/models_tr/ctx_model.txt projection/models_tr/ctx_rel_model.txt projection/models_tr/ctx.json
+          git commit -m "Context Proj retrained: option 2 inputs and converted history" || echo nothing to commit
+          git push origin HEAD:${{ github.ref_name }}
