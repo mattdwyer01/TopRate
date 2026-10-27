@@ -1,0 +1,31 @@
+name: "Live ctx option 2 A/B (research)"
+
+# Manual research run (27 Oct 2026): research/proj_ctx_v2_ab.py --frac 0.3. Reuses the context features built by the direct-v3 run (artifact direct-v3,
+# run 40280640127), so it skips the 1.5 hour feature build. Nothing is committed; results are in the job log.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/proj-improve-1-2-4]
+    paths: [research/proj_ctx_v2_ab.trigger]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - name: Proj and direct blend
+        run: python -W ignore research/proj_ctx_v2_ab.py --frac 0.3

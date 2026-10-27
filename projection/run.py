@@ -352,7 +352,7 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             # ratings only: held-out rating error 8.70 to 8.35 on 15.9k runs (train_ctx.py). The sd by earlier-run count is the held-out error with it.
             import ctx as CTX
             cmeta = json.load(open(os.path.join(M, 'ctx.json')))
-            Tc = R[['horse_id', 'date', 'jockey', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading'] + (['prize'] if 'prize' in R.columns else [])].assign(venue=R.track).reset_index(drop=True)
+            Tc = R[['horse_id', 'date', 'jockey', 'trainer', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading'] + (['prize'] if 'prize' in R.columns else [])].assign(venue=R.track).reset_index(drop=True)
             f2, corr = CTX.predict(Tc, meta=cmeta)
             use = has & ~np.isnan(corr)
             if CTX_CAP_FEW > 0:

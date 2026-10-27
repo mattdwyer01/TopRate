@@ -9,7 +9,7 @@ import wfa_scale as W
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COLS = ['horse_id', 'horse', 'date', 'wpr', 'track', 'venue', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading', 'jockey',
-        'positionFinish', 'marginFinish', 'priceStarting', 'position800m', 'comments_steward', 'horse_age', 'horse_sex', 'horse_foaled', 'isBarrierTrial', 'is_jumpout']
+        'positionFinish', 'marginFinish', 'priceStarting', 'position800m', 'comments_steward', 'horse_age', 'horse_sex', 'horse_foaled', 'isBarrierTrial', 'is_jumpout', 'trainer']
 
 
 def load(first_year=2020):

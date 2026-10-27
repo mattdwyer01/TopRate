@@ -34,6 +34,13 @@ BASE_FEATS = ['f', 'n', 'mean3', 'max4', 'std4', 'ldays', 'distance', 'dist_chg'
 # and the runner's formula figure against it). The field mean is read over the runners the page store has: in training that is only part of an earlier field, live it is the declared field.
 NEW_FEATS = ['lprize', 'prize_chg', 'pair_n', 'trk_n', 'fld_other', 'f_vs_fld']
 FEATS = BASE_FEATS + NEW_FEATS
+# 27 Oct 2026 (option 2, research/proj_speed_joint.py): jockey and trainer as-of win rates (projection/rates.py) and the runner's figures against the rest of its field
+RATE_FEATS = ['jw', 'jw90', 'tw', 'tw90']
+FLD_BASE = ['f', 'mean3', 'jw', 'jw90', 'tw', 'tw90', 'jock_eff']
+FLD_FEATS = [p + c for c in FLD_BASE for p in ('r_', 'k_')]
+FLD_REL_BASE = ['c_ewm3', 'sim_all']
+FLD_REL_FEATS = [p + c for c in FLD_REL_BASE for p in ('r_', 'k_')]
+FEATS2 = FEATS + RATE_FEATS + FLD_FEATS
 
 
 LAG_NAMES = [f'{nm}{k}' for k in range(1, LAGS + 1) for nm in ('dd', 'gd', 'trk', 'jk', 'cl', 'wd', 'dg', 'mg', 'pf', 'dev')]
@@ -41,6 +48,7 @@ CAR_NAMES = ['c_mean', 'c_max', 'c_sd', 'c_ewm3', 'c_near', 'c_vs_f', 'cmax_vs_f
 SIM_NAMES = ['sim_dist', 'sim_going', 'sim_track', 'sim_jock', 'sim_class', 'sim_days', 'sim_all']
 OWN_NAMES = ['h_dist', 'h_dist_n', 'h_going', 'h_going_n', 'h_track', 'h_track_n', 'h_spell', 'h_spell_n', 'h_jock', 'h_jock_n']
 REL_FEATS = LAG_NAMES + CAR_NAMES + SIM_NAMES + OWN_NAMES
+REL_FEATS2 = REL_FEATS + FLD_REL_FEATS
 SPD_FEATS = ['sp1', 'sp2', 'sp3', 'sp4', 'n_sp', 'sp_ewm4', 'sp_max4', 'sp_std4', 'spd_vs_f', 'sd1', 'sd2', 'sd3', 'sd4', 'sd_mean4']     # the time-based block (speed figures), optional
 SPD_A, SPD_B = 79.15, 1.33                         # speed figure (lengths vs par) to the rating scale, lib/speed.ts speedRatingOnScale
 
@@ -358,6 +366,45 @@ def add_field(df):
     return df
 
 
+def _race_key(df):
+    return df.date.astype(str) + '|' + df.vn.astype(str) + '|' + df.distance.astype(str) + '|' + df.field_size.astype(str) + '|' + df.cls.astype(str)
+
+
+def add_field_rel(df, cols):
+    """r_<c> (the runner's value minus the race mean) and k_<c> (its percentile rank in the race) for each column in cols; race = date, venue key, distance, field size, class."""
+    k = _race_key(df)
+    df = df.copy()
+    new = {}
+    for c in cols:
+        g = df[c].groupby(k)
+        new['r_' + c] = df[c] - g.transform('mean')
+        new['k_' + c] = g.rank(pct=True)
+    return pd.concat([df.drop(columns=[c for c in new if c in df.columns]), pd.DataFrame(new, index=df.index)], axis=1)
+
+
+def add_trainer(rp):
+    """Page runs carry no trainer: take it from the results files by (horse_id, date). Runs the results files do not cover (the last weeks) keep a blank trainer."""
+    import glob
+    if 'trainer' in rp.columns:
+        return rp
+    parts = []
+    for f in sorted(glob.glob(os.path.join(os.path.dirname(M), '..', 'race_results_20[12]?.csv.gz'))) + [os.path.join(os.path.dirname(M), '..', 'race_results_2026.csv.gz')]:
+        if os.path.exists(f):
+            parts.append(pd.read_csv(f, usecols=lambda c: c in ('horse_id', 'date', 'trainer'), low_memory=False))
+    t = pd.concat(parts, ignore_index=True)
+    t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce')
+    t['date'] = pd.to_datetime(t.date)
+    t = t.dropna(subset=['horse_id', 'trainer']).drop_duplicates(['horse_id', 'date'], keep='last')
+    return rp.merge(t[['horse_id', 'date', 'trainer']], on=['horse_id', 'date'], how='left')
+
+
+def add_v2(df):
+    """Option 2 columns on a frame that has date, jockey, trainer, f, mean3, jock_eff: rates and the field-relative block."""
+    import rates
+    df = rates.add_rates(df)
+    return add_field_rel(df, FLD_BASE)
+
+
 def add_venue(df, rp):
     """ven_eff for every row of df (columns venue, date): shrunk mean formula residual of the venue's page runs in the window before the date (rp carries resid)."""
     t = rp[rp.resid.notna()].groupby(['venue', 'date']).resid.agg(['sum', 'count']).reset_index().sort_values(['venue', 'date'])
@@ -382,23 +429,30 @@ def add_venue(df, rp):
     return df
 
 
-def training_frame():
-    """Page runs with formula, residual and every context feature (training rows: runs with at least one earlier run)."""
+def training_frame(v2=False):
+    """Page runs with formula, residual and every context feature (training rows: runs with at least one earlier run). v2 adds the option 2 columns (rates, field-relative)."""
     co = coefs()
     rp = page_frame()
+    if v2:
+        rp = add_trainer(rp)
     rp['f'] = formula_pred(rp, co)
     rp = context_columns(rp)
     rp['resid'] = rp.wpr - rp.f
     rp = add_jockey(rp, jockey_table(rp))
     rp = add_venue(rp, rp)
     rp = add_field(rp)
+    if v2:
+        rp = add_v2(rp)
     return rp
 
 
-def training_frame_rel():
+def training_frame_rel(v2=False):
     """training_frame plus the relevance features (rel_features run on the page runs themselves, history strictly before each run's date)."""
-    rp = training_frame()
-    return pd.concat([rp, rel_features(rp, rp)], axis=1)
+    rp = training_frame(v2)
+    rp = pd.concat([rp, rel_features(rp, rp)], axis=1)
+    if v2:
+        rp = add_field_rel(rp, FLD_REL_BASE)
+    return rp
 
 
 def _cls(series, classes):
@@ -440,6 +494,8 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip
     X = add_jockey(X, tab, targets=True)
     X = add_venue(X, rp)
     X = add_field(X)
+    if 'jw' in meta.get('feats', FEATS):
+        X = add_v2(X)
     X['cls_c'] = _cls(X.cls, meta['classes'])
     corr = np.full(len(X), np.nan)
     ok = X.f.notna().values
@@ -448,8 +504,13 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip
     if rel_booster is not None:
         use = ok & (X.n.values >= REL_MIN_RUNS)
         if use.any():
-            Xr = X.loc[use].copy()
+            fld = any(c in meta['rel_feats'] for c in FLD_REL_FEATS)
+            # the field-relative columns compare a runner with every other runner that has relevance features, as in training (all page runs), so compute them for every runner with a figure
+            Xr = X.loc[ok].copy() if fld else X.loc[use].copy()
             Xr = pd.concat([Xr, rel_features(Xr, rp)], axis=1)
+            if fld:
+                Xr = add_field_rel(Xr, FLD_REL_BASE)
+                Xr = Xr.loc[X.loc[use].index]
             if any(c in meta['rel_feats'] for c in SPD_FEATS):
                 Xr = pd.concat([Xr, speed_features(Xr, rp)], axis=1)
             corr[use] = rel_booster.predict(Xr[meta['rel_feats']])
