@@ -489,3 +489,46 @@ print(f'   blend minus Proj alone: {dd.mean():+.4f} (se {dd.std() / np.sqrt(len(
 r2 = to_rating(S2, S2.pj, S2.sD, 0.20, TD, W_STAR)
 print(f'   blended rating vs Proj: mean change {(r2 - S2.pj).mean():+.3f}, mean |change| {(r2 - S2.pj).abs().mean():.2f}, max {(r2 - S2.pj).abs().max():.1f}; within-race sd Proj {S2.pj.groupby(S2.race_id).transform(lambda s: s - s.mean()).std():.2f} vs blend {r2.groupby(S2.race_id).transform(lambda s: s - s.mean()).std():.2f}')
 print(f'   top pick changes in {(S2.assign(a=S2.pj, b=r2).groupby("race_id").apply(lambda g: g.a.idxmax() != g.b.idxmax())).mean():.1%} of races')
+
+
+# ---------------- placings: do the 2nd, 3rd and 4th picks and the real placegetters line up better? ----------------
+def placings(df, p, name):
+    d_ = df.assign(p=np.asarray(p))
+    d_ = d_[d_.pos.notna()].copy()
+    d_['rk'] = d_.groupby('race_id').p.rank(ascending=False, method='first')
+    d_['fin'] = d_.pos
+    ok = d_.groupby('race_id').fin.transform(lambda s: (s.nunique() == len(s)) and len(s) >= 6)
+    d_ = d_[ok]
+    n = d_.race_id.nunique()
+    print(f'\n  {name} ({n} races)')
+    row = []
+    for k in (1, 2, 3, 4):
+        g = d_[d_.rk == k]
+        row.append(f'our #{k}: wins {(g.fin == 1).mean():5.1%} top3 {(g.fin <= 3).mean():5.1%} avg fin {g.fin.mean():4.1f}')
+    print('   ' + '  |  '.join(row))
+    row = []
+    for j in (1, 2, 3, 4):
+        g = d_[d_.fin == j]
+        row.append(f'real {j}: in our top4 {(g.rk <= 4).mean():5.1%} avg our rank {g.rk.mean():4.1f}')
+    print('   ' + '  |  '.join(row))
+    w = d_.pivot_table(index='race_id', columns='fin', values='rk', aggfunc='first')
+    q3 = ((w[1] <= 3) & (w[2] <= 3)).mean()
+    q4 = ((w[1] <= 4) & (w[2] <= 4)).mean()
+    t4 = ((w[1] <= 4) & (w[2] <= 4) & (w[3] <= 4)).mean()
+    t5 = ((w[1] <= 5) & (w[2] <= 5) & (w[3] <= 5)).mean()
+    f5 = ((w[1] <= 5) & (w[2] <= 5) & (w[3] <= 5) & (w[4] <= 5)).mean()
+    f6 = ((w[1] <= 6) & (w[2] <= 6) & (w[3] <= 6) & (w[4] <= 6)).mean()
+    print(f'   quinella (1st+2nd both in our top 3 / top 4): {q3:5.1%} / {q4:5.1%}   trifecta (real top 3 all in our top 4 / top 5): {t4:5.1%} / {t5:5.1%}   first four (all in our top 5 / top 6): {f5:5.1%} / {f6:5.1%}')
+
+
+print('\n\n===== PLACINGS: Proj vs blend (w chosen on val) vs direct alone =====')
+print('\nT1 (2025 full fields, Proj stand-in)')
+placings(te, te.sA, 'stand-in Proj alone')
+placings(te, blend_p(te, te.sA, te.sD, TA, TD, W_STAR), f'blend w={W_STAR}')
+placings(te, blend_p(te, te.sA, te.sD, TA, TD, 0.5), 'blend w=0.5')
+placings(te, te.sD, 'direct alone')
+print('\nT2 (real dashboard Proj, complete fields)')
+placings(S2, S2.pj, 'real Proj alone')
+placings(S2, blend_p(S2, S2.pj, S2.sD, 0.20, TD, W_STAR), f'blend w={W_STAR}')
+placings(S2, blend_p(S2, S2.pj, S2.sD, 0.20, TD, 0.5), 'blend w=0.5')
+placings(S2, S2.sD, 'direct alone')
