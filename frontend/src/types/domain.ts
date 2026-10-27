@@ -70,7 +70,6 @@ export interface Runner {
 
   nett: number | null // TopRate wpr_nett (its own forward rating), null when TopRate has none
   styleAvg: number | null // average 800m position over the last 6 runs as a share of the field (0 = led, 1 = last), null with under 2 such runs (draw and style card)
-  earlySpeedAvg: number | null // average early-section figure against the field over the last 6 runs (higher = faster), null with under 2 such runs (draw and style card)
   speedRating: number | null // pre-race speed rating, lengths vs par (higher = faster), null with no earlier time-based figure
   projectionSd: number | null // typical error of the projection (WPR points), from the new model
   projectionMade: string | null // when the logged projection was made (ISO), null on older payloads

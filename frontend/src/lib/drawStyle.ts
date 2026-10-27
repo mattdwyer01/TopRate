@@ -8,10 +8,8 @@ export const STYLE_EDGES = [0.15, 0.3, 0.42, 0.55, 0.7] // L, OP, OP/MF, MF, MF/
 export const STYLE_NAMES = ['L', 'OP', 'OP/MF', 'MF', 'MF/BM', 'BM']
 export const FORWARD_MAX = 0.3 // a runner whose average position is at or under this counts as a Forward-style runner in the race pace count
 
-// row = [barrier (16 = 16 and wider), style 0-5, distance group 0-2, rail -1..3, going -1..6, race pace 0-2, won, normalised price-implied chance, early speed 0 slow / 1 average / 2 fast / -1 none]
-export type DrawRow = [number, number, number, number, number, number, number, number, number]
-export const STYLE_COL = 1
-export const SPEED_COL = 8
+// row = [barrier (16 = 16 and wider), style 0-5, distance group 0-2, rail -1..3, going -1..6, race pace 0-2, won, normalised price-implied chance]
+export type DrawRow = [number, number, number, number, number, number, number, number]
 
 // [rating points inside to widest, its se, runners, rating points per barrier step wider, its se]
 export type SlopeEntry = [number, number, number, number, number]
@@ -25,7 +23,6 @@ export interface VenueDraw {
   races: number
   from: string
   through: string
-  speedCuts: [number, number] // early speed thirds: at or under the first is slow, over the second is fast
   rating: RatingSlope // draw slope of the within-race ATW rating by distance group (keys '0' '1' '2') and 'all'
   rows: DrawRow[]
 }
@@ -91,10 +88,6 @@ export function styleIndex(avg: number): number {
   return i
 }
 
-export function speedIndex(avg: number, cuts: [number, number]): number {
-  return avg <= cuts[0] ? 0 : avg <= cuts[1] ? 1 : 2
-}
-
 export function distanceGroup(m: number): number {
   return m <= 1300 ? 0 : m <= 1650 ? 1 : 2
 }
@@ -155,13 +148,13 @@ export interface Cell {
   z: number
 }
 
-export function aggregate(rows: DrawRow[], barrier: [number, number], groups: number[], col: number): Cell {
+export function aggregate(rows: DrawRow[], barrier: [number, number], styles: number[]): Cell {
   let n = 0
   let w = 0
   let e = 0
   let v = 0
   for (const r of rows) {
-    if (r[0] < barrier[0] || r[0] > barrier[1] || !groups.includes(r[col] as number)) continue
+    if (r[0] < barrier[0] || r[0] > barrier[1] || !styles.includes(r[1])) continue
     n++
     w += r[6]
     e += r[7]

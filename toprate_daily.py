@@ -1926,8 +1926,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "sr":   sf(row.get("spd_fig")),
                 # Running style for the draw and style card (draw_style.py): average 800m position over the last 6 runs as a share of the field (0 = led); None with under 2 such runs
                 "dst":  sf(row.get("draw_style")),
-                # Early speed for the same card: average early-section figure against the field over the last 6 runs (higher = faster); None with under 2 such runs
-                "dsp":  sf(row.get("draw_speed")),
                 # Distance performance: starts/wins/places at this distance ±10%
                 "ds":   si(row.get("starts_at_dist")),
                 "dw":   si(row.get("wins_at_dist")),
