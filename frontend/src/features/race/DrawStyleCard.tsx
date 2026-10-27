@@ -172,10 +172,12 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
               ))}
             </div>
             <div className="flex min-w-0 flex-col gap-1.5 text-xs text-ink-soft">
-              <p className="m-0">
-                <span className="font-semibold text-ink">{view.sig ? `${view.sig} cell${view.sig > 1 ? 's' : ''} beyond chance.` : 'No cell beyond chance.'}</span>
-                {view.noHistory.length > 0 && ` No history: ${fmtNums(view.noHistory)}.`}
-              </p>
+              {(view.sig > 0 || view.noHistory.length > 0) && (
+                <p className="m-0">
+                  {view.sig > 0 && <span className="font-semibold text-ink">{`${view.sig} cell${view.sig > 1 ? 's' : ''} beyond chance.`}</span>}
+                  {view.noHistory.length > 0 && `${view.sig > 0 ? ' ' : ''}No history: ${fmtNums(view.noHistory)}.`}
+                </p>
+              )}
               {slope && slope[1] > 0 && (
                 <p className="m-0 flex items-baseline gap-2 text-ink-mute">
                   <span className="text-xl font-bold leading-none text-emerald-deep">{`${slope[0] >= 0 ? '+' : ''}${slope[0].toFixed(1)}`}</span>
