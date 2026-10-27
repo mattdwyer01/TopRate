@@ -89,6 +89,7 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
   const total = view.rows.length
   const dg = cond.d ?? raceCond.d
   const slope = (dg != null ? data.rating[String(dg)] : undefined) ?? data.rating.all
+  const gates = Math.max(0, ...runners.map((r) => r.barrier ?? 0))
   const used = KEYS.filter((k) => cond[k] !== null).map((k) => (LABELS[k] as readonly string[])[cond[k] as number])
   const summary =
     (view.sig ? `${view.sig} cell${view.sig > 1 ? 's' : ''} beyond chance` : 'No clear edge') +
@@ -178,12 +179,13 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
                   {view.noHistory.length > 0 && `${view.sig > 0 ? ' ' : ''}No history: ${fmtNums(view.noHistory)}.`}
                 </p>
               )}
-              {slope && slope[1] > 0 && (
+              {slope && slope[4] > 0 && (
                 <p className="m-0 flex items-baseline gap-2 text-ink-mute">
-                  <span className="text-xl font-bold leading-none text-emerald-deep">{`${slope[0] >= 0 ? '+' : ''}${slope[0].toFixed(1)}`}</span>
+                  <span className="text-xl font-bold leading-none text-emerald-deep">{`${slope[3] >= 0 ? '+' : ''}${slope[3].toFixed(2)}`}</span>
                   <span>
-                    rating points, wide vs inside barriers{dg != null ? ` (${DISTANCE_LABELS[dg]!.toLowerCase()})` : ''}
-                    {Math.abs(slope[0] / slope[1]) < 2 ? ', not reliable' : ''}
+                    rating points per gate wider{dg != null ? ` (${DISTANCE_LABELS[dg]!.toLowerCase()})` : ''}
+                    {gates > 1 ? `, about ${slope[3] * (gates - 1) >= 0 ? '+' : ''}${(slope[3] * (gates - 1)).toFixed(1)} across this field's ${gates} gates` : ''}
+                    {Math.abs(slope[3] / slope[4]) < 2 ? ', not reliable' : ''}
                   </span>
                 </p>
               )}
@@ -210,7 +212,7 @@ export function DrawStyleCard({ race, runners }: { race: Race; runners: Runner[]
                 <span className="font-semibold text-ink">Style</span> is the horse's average position at 800m over its last 6 runs: Forward up to 30% back, Midfield 30 to 55%, Back beyond that. <span className="font-semibold text-ink">Race pace</span> counts the Forward-style runners in this race: few is 0 to 1, some 2 to 3, many 4 or more. Distance, rail and going are this race's; if that leaves under 500 runners the card drops pace, then going, then rail.
               </p>
               <p className="m-0">
-                <span className="font-semibold text-ink">Not a betting signal.</span> The price already covers the draw and style. The rating line is the draw slope of the within-race ATW rating at this venue and distance.
+                <span className="font-semibold text-ink">Not a betting signal.</span> The price already covers the draw and style. The rating line is the draw slope of the within-race ATW rating at this venue and distance, in rating points per barrier step; a wider field has more steps, so the same slope costs more across it.
               </p>
             </div>
           )}

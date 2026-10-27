@@ -65,7 +65,7 @@ def _going(x):
 
 
 def _rating_slopes(d):
-    """Draw slope of the within-race ATW rating, rating points from the inside to the widest barrier, with a cluster-robust standard error, per distance group and overall."""
+    """Draw slope of the within-race ATW rating per distance group and overall: [rating points from the inside to the widest barrier, its se, runners, rating points per barrier step, its se], cluster-robust standard errors."""
     import wfa_scale as W
 
     @functools.lru_cache(None)
@@ -80,6 +80,7 @@ def _rating_slopes(d):
     d["atw"] = d.wpr + d.c
     d["ad"] = d.atw - d.groupby("race_id").atw.transform("mean")
     d["bf"] = (d.barrier - 1) / (d.field_size - 1)
+    d["bs"] = d.barrier - d.groupby("race_id").barrier.transform("mean")   # barrier steps, centred in the race
     d["dg"] = np.where(d.distance <= 1300, 0, np.where(d.distance <= 1650, 1, 2))
     out = {}
     for v, x in d.groupby("v"):
@@ -87,11 +88,14 @@ def _rating_slopes(d):
         for k, z in [("all", x)] + [(str(i), x[x.dg == i]) for i in range(3)]:
             if len(z) < 800:
                 continue
-            xc = z.bf - z.bf.mean()
-            sxx = (xc ** 2).sum()
-            b = (xc * z.ad).sum() / sxx
-            sc = (xc * (z.ad - b * xc)).groupby(z.race_id).sum()
-            res[k] = [round(float(b), 2), round(float(np.sqrt((sc ** 2).sum()) / sxx), 2), int(len(z))]
+            fit = []
+            for col in ("bf", "bs"):
+                xc = z[col] - z[col].mean()
+                sxx = (xc ** 2).sum()
+                b = (xc * z.ad).sum() / sxx
+                sc = (xc * (z.ad - b * xc)).groupby(z.race_id).sum()
+                fit += [round(float(b), 2 if col == "bf" else 3), round(float(np.sqrt((sc ** 2).sum()) / sxx), 2 if col == "bf" else 3)]
+            res[k] = [fit[0], fit[1], int(len(z)), fit[2], fit[3]]
         out[v] = res
     return out
 

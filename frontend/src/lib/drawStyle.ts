@@ -11,12 +11,10 @@ export const FORWARD_MAX = 0.3 // a runner whose average position is at or under
 // row = [barrier (16 = 16 and wider), style 0-5, distance group 0-2, rail -1..3, going -1..6, race pace 0-2, won, normalised price-implied chance]
 export type DrawRow = [number, number, number, number, number, number, number, number]
 
+// [rating points inside to widest, its se, runners, rating points per barrier step wider, its se]
+export type SlopeEntry = [number, number, number, number, number]
 export interface RatingSlope {
-  0?: [number, number, number]
-  1?: [number, number, number]
-  2?: [number, number, number]
-  all?: [number, number, number]
-  [k: string]: [number, number, number] | undefined
+  [k: string]: SlopeEntry | undefined
 }
 
 export interface VenueDraw {
@@ -25,7 +23,7 @@ export interface VenueDraw {
   races: number
   from: string
   through: string
-  rating: RatingSlope // draw slope of the within-race ATW rating, rating points from the inside to the widest barrier: [slope, se, runners]
+  rating: RatingSlope // draw slope of the within-race ATW rating by distance group (keys '0' '1' '2') and 'all'
   rows: DrawRow[]
 }
 
