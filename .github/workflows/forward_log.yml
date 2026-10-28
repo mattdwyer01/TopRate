@@ -1,0 +1,48 @@
+name: Forward log (forward map vs Proj)
+
+# Logs, before each jump, every runner in races that have a Trip map forecast (Proj, forecast gap, Nett, Spd, last fixed price), then labels the results the next day.
+# See forward_log.py and research/forward_log_report.py. Judges the 'lower-rated but forward on the map' idea on races not used to find it. Changes nothing on the dashboard.
+# GitHub's own schedule can run late; runners.csv on main carries the TAB poller's prices (about every 5 minutes), so a late pass only makes `price` a little earlier than the jump.
+
+on:
+  schedule:
+    - cron: "*/15 21-23,0-8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: forward-log
+  cancel-in-progress: false
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas
+      - name: Snapshot today and tomorrow, then label finished days
+        run: |
+          python forward_log.py snapshot --days 2
+          python forward_log.py labels
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          [ -d data/forward_log ] || exit 0
+          git add data/forward_log
+          git diff --cached --quiet && { echo "nothing new"; exit 0; }
+          git commit -q -m "Forward log $(date -u +%FT%H:%MZ)"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git fetch -q origin main && git reset -q --mixed origin/main && git add data/forward_log && git commit -q -m "Forward log $(date -u +%FT%H:%MZ)" || true
+            sleep $((i * 4))
+          done
+          exit 1
