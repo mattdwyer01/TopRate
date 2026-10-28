@@ -3,7 +3,7 @@ put on the page ATW scale per target race (wfa_scale AR 168, as research/conv_hi
 Uses the out-of-sample gap forecast and prices in the pickle written by research/fwd_map_backtest.py.   Run: PYTHONPATH=. python research/fwd_map_formula12m.py <bt.pkl> <out.pkl>"""
 import sys, json
 import numpy as np, pandas as pd
-sys.path.insert(0, 'research')
+sys.path.insert(0, 'research'); sys.path.insert(0, '.')
 import conv_history as C
 from projection import features as F
 
