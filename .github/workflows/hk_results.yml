@@ -6,6 +6,8 @@ on:
   push:
     paths:
       - "research/hk_results.trigger"
+  schedule:
+    - cron: "0 21 * * *"      # 05:00 HKT, after the previous day's meeting; only active once this file is on main
   workflow_dispatch:
     inputs:
       since:
