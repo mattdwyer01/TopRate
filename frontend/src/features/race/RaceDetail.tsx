@@ -18,7 +18,6 @@ import { computeCombinedRank } from '../../lib/combinedRank'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMapGrid } from './SpeedMapGrid'
 import { TripMap } from './TripMap'
-import { DrawStyleCard } from './DrawStyleCard'
 import { AerialTrip } from './AerialTrip'
 import { PaceStrip } from './PaceStrip'
 import { ReplayCard } from './ReplayCard'
@@ -329,7 +328,6 @@ export function RaceDetail({
           ) : (
             <SpeedMapGrid race={race} runners={activeRunners} narrow={wide} />
           )}
-          <DrawStyleCard race={race} runners={activeRunners} />
           <AerialTrip race={race} />
         </div>
       </div>
