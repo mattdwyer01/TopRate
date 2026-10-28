@@ -1,8 +1,11 @@
 name: HK results backfill
 
 # Hong Kong results history from HKJC's results pages (hk_results.py): race_results_hk.csv.gz + data/hk_results_state.json.
-# Manual only. Resumable: dates already in the state file are skipped, so re-running with the same range continues where it stopped.
+# Runs on a push that touches research/hk_results.trigger (works from any branch) or by hand. Resumable: dates already in the state file are skipped, so re-running with the same range continues where it stopped.
 on:
+  push:
+    paths:
+      - "research/hk_results.trigger"
   workflow_dispatch:
     inputs:
       since:
@@ -36,7 +39,7 @@ jobs:
       - run: pip install pandas numpy
       - name: Fetch HKJC results
         run: |
-          ARGS="--since ${{ inputs.since }} --workers ${{ inputs.workers }} --max-minutes 320"
+          ARGS="--since ${{ inputs.since || '2016-09-01' }} --workers ${{ inputs.workers || '4' }} --max-minutes 320"
           if [ -n "${{ inputs.until }}" ]; then ARGS="$ARGS --until ${{ inputs.until }}"; fi
           python hk_results.py $ARGS
       - name: Commit and push
