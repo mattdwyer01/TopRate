@@ -45,14 +45,14 @@ mdl = lgb.train(dict(objective='huber', alpha=4.0, learning_rate=0.05, num_leave
 r['rat'] = np.where(r.l1.notna(), mdl.predict(r[F]), np.nan)
 print('rating stand-in fitted', flush=True)
 
-d = sc.merge(r[['race_id', 'horse_id', 'date', 'track', 'distance', 'going', 'priceStarting', 'winner', 'rat', 'field_size']], on=['race_id', 'horse_id'])
+d = sc.merge(r[['race_id', 'horse_id', 'date', 'track', 'distance', 'going', 'priceStarting', 'positionFinish', 'rat', 'field_size']], on=['race_id', 'horse_id'])
 d = d[d.priceStarting.notna() & (d.priceStarting > 1) & d.rat.notna()]
 cnt = d.groupby('race_id').horse_id.transform('size'); fsz = d.groupby('race_id').field_size.transform('max')
 d = d[(cnt >= 6) & (cnt >= 0.95 * fsz)]
 d['p'] = 1 / d.priceStarting; bk = d.groupby('race_id').p.transform('sum'); d = d[(bk >= 1.05) & (bk <= 2.0)]
 d['imp'] = d.p / d.groupby('race_id').p.transform('sum')
-win = d.groupby('race_id').winner.transform('sum'); d = d[win == 1]
-d['won'] = d.winner.astype(float)
+d['won'] = (d.positionFinish == 1).astype(float)
+win = d.groupby('race_id').won.transform('sum'); d = d[win == 1]
 d['top'] = d.rat == d.groupby('race_id').rat.transform('max')
 d = d[d.groupby('race_id').top.transform('sum') == 1].copy()
 d['gap'] = d.groupby('race_id').rat.transform('max') - d.rat
