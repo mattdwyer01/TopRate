@@ -1,0 +1,53 @@
+name: HK results backfill
+
+# Hong Kong results history from HKJC's results pages (hk_results.py): race_results_hk.csv.gz + data/hk_results_state.json.
+# Manual only. Resumable: dates already in the state file are skipped, so re-running with the same range continues where it stopped.
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "First date (yyyy-mm-dd)"
+        default: "2016-09-01"
+      until:
+        description: "Last date (yyyy-mm-dd), blank = yesterday"
+        default: ""
+      workers:
+        description: "Parallel fetches"
+        default: "4"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hk-results
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas numpy
+      - name: Fetch HKJC results
+        run: |
+          ARGS="--since ${{ inputs.since }} --workers ${{ inputs.workers }} --max-minutes 320"
+          if [ -n "${{ inputs.until }}" ]; then ARGS="$ARGS --until ${{ inputs.until }}"; fi
+          python hk_results.py $ARGS
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add race_results_hk.csv.gz data/hk_results_state.json
+          if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
+          git commit -m "HK results $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin "${{ github.ref_name }}" && git push origin "HEAD:${{ github.ref_name }}" && exit 0
+            sleep $((i * 10))
+          done
+          exit 1
