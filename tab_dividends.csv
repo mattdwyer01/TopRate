@@ -16718,3 +16718,4 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-10-31T04:46:30+00:00,2026-10-31,ALICE SPRINGS,2,VIC,Paying,Trifecta,4/2/3,12.3,"{""selections"":[4,2,3],""amount"":12.3}"
 2026-10-31T04:46:30+00:00,2026-10-31,ALICE SPRINGS,2,VIC,Paying,FirstFour,4/2/3/5,67,"{""selections"":[4,2,3,5],""amount"":67}"
 2026-10-31T04:46:30+00:00,2026-10-31,ALICE SPRINGS,2,VIC,Paying,RunningDouble,5/4,126.7,"{""selections"":[5,4],""amount"":126.7}"
+2026-10-31T04:51:00+00:00,2026-10-31,TRARALGON,4,VIC,Abandoned,(abandoned),,,
