@@ -60,6 +60,10 @@ on:
         description: 'cron-job.org use: fetch N days ahead of the real current Melbourne date (0=today/re-fetch, 1=tomorrow, 2, 3). Ignored if `date` is set.'
         required: false
         type: string
+      refetch_runners:
+        description: 'Set to "true" to refetch runner pages even if already fetched today (stale ratings after a weight change). Needs `date`.'
+        required: false
+        type: string
       mode:
         description: 'cron-job.org use: set to "results" for the 23:00 results-collection slot (runs bare, no --date). Ignored if `date` or `days_ahead` is set.'
         required: false
@@ -184,7 +188,8 @@ jobs:
           python toprate_race_fetch.py --from "$START" --days "$DAYS" --out data/tr_fields --min-age-hours "$MINAGE"
           # runner pages (pedigree, owners, stats splits, rating profiles, past runs) for today and the next two days: once per runner per day. Their past runs
           # carry TopRate's ratings for races run since the results files stopped supplying them (the projection's history), so the days ahead matter
-          python toprate_runner_fetch.py --from "$START" --days 3 || echo "runner pages skipped"
+          FORCE=""; [ "${{ inputs.refetch_runners }}" = "true" ] && FORCE="--force"
+          python toprate_runner_fetch.py --from "$START" --days 3 $FORCE || echo "runner pages skipped"
 
       - name: Merge racing.com fields and rebuild the payload
         run: |
