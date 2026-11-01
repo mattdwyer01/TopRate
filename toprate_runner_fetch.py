@@ -139,6 +139,7 @@ def main():
     ap.add_argument("--from", dest="start", default=None)
     ap.add_argument("--limit", type=int, default=0, help="stop after N fetches (testing)")
     ap.add_argument("--workers", type=int, default=3)
+    ap.add_argument("--force", action="store_true", help="refetch runners already fetched today (a page is rated at the weight of the horse's next race, so it goes stale when a weight changes)")
     ap.add_argument("--keep-days", type=int, default=7)
     a = ap.parse_args()
     email, password, anon = (os.environ.get(k, "").strip() for k in ("TOPRATE_EMAIL", "TOPRATE_PASSWORD", "TOPRATE_ANON_KEY"))
@@ -165,7 +166,7 @@ def main():
         todo = []
         for r in rows:
             cur = have.get(str(r["run_id"]))
-            if cur and str(cur.get("at", "")) >= today_utc:
+            if cur and not a.force and str(cur.get("at", "")) >= today_utc:
                 continue
             todo.append(r)
         if a.limit:
