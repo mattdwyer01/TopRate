@@ -37,6 +37,25 @@ BIO = {"horseCountry": "horse_country", "horseColour": "horse_colour", "horseFoa
        "owners": "owners", "trainingLocation": "training_location", "weightHandicap": "weight_handicap_today"}
 
 
+def _needs_refetch(cur, row, day_index, today_utc, now_utc, max_age_hours):
+    """A page rates every past run at the weight of the horse's next race, so it goes stale when that weight changes (Melbourne Cup 1 Nov 2026: toprate.au
+    ATWs were a constant 2.4 higher than the page fetched earlier that day). Refetch when (1) the declared weight differs from the one read with the page,
+    (2) for today and tomorrow, the page is older than max_age_hours, (3) for later dates, it was last read on an earlier UTC day."""
+    w_now, w_then = row.get("weight"), cur.get("fetch_weight")
+    try:
+        if w_now is not None and w_then is not None and abs(float(w_now) - float(w_then)) > 0.01:
+            return True
+    except (TypeError, ValueError):
+        pass
+    if day_index < 2 and max_age_hours > 0:
+        try:
+            age = (now_utc - datetime.fromisoformat(cur["fetched_at"])).total_seconds() / 3600.0
+            return age > max_age_hours
+        except (KeyError, TypeError, ValueError):
+            return True                     # no fetch time stored (older record): read it once more
+    return str(cur.get("at", "")) < today_utc
+
+
 def fetch_runner(session, run_id):
     url = f"{f.WEB_BASE}/runners/{run_id}/__data.json?x-sveltekit-invalidated=0001"
     headers = {"apikey": os.environ["TOPRATE_ANON_KEY"], "Authorization": f"Bearer {session['access_token']}",
@@ -139,6 +158,7 @@ def main():
     ap.add_argument("--from", dest="start", default=None)
     ap.add_argument("--limit", type=int, default=0, help="stop after N fetches (testing)")
     ap.add_argument("--workers", type=int, default=3)
+    ap.add_argument("--max-age-hours", type=float, default=4.0, help="refetch a runner of the first two dates when its page is older than this (0 = once per UTC day only)")
     ap.add_argument("--force", action="store_true", help="refetch runners already fetched today (a page is rated at the weight of the horse's next race, so it goes stale when a weight changes)")
     ap.add_argument("--keep-days", type=int, default=7)
     a = ap.parse_args()
@@ -153,8 +173,9 @@ def main():
     print(f"logged in | token expires {datetime.fromtimestamp(session.get('expires_at', 0)):%H:%M:%S}")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     today_utc = datetime.now(timezone.utc).date().isoformat()
+    now_utc = datetime.now(timezone.utc)
     done = 0
-    for d in dates:
+    for di, d in enumerate(dates):
         try:
             rows = [r for r in json.loads((IN_DIR / f"{d}.json").read_text()).get("rows", []) if not r.get("scratched") and r.get("run_id")]
         except Exception:
@@ -166,7 +187,7 @@ def main():
         todo = []
         for r in rows:
             cur = have.get(str(r["run_id"]))
-            if cur and not a.force and str(cur.get("at", "")) >= today_utc:
+            if cur and not a.force and not _needs_refetch(cur, r, di, today_utc, now_utc, a.max_age_hours):
                 continue
             todo.append(r)
         if a.limit:
@@ -182,6 +203,8 @@ def main():
                 continue
             rec = compact(rd, base_of(r))
             rec["at"] = today_utc
+            rec["fetched_at"] = now_utc.isoformat(timespec="seconds")
+            rec["fetch_weight"] = r.get("weight")          # the declared weight when the page was read: the page rates every run at it
             new[str(r["run_id"])] = rec
         done += len(todo)
         try:
