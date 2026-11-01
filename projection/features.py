@@ -104,6 +104,7 @@ def runner_page_runs():
     t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce')
     t['date'] = pd.to_datetime(t.date)
     t['wpr'] = pd.to_numeric(t.wpr, errors='coerce')
+    t['priceStarting'] = pd.to_numeric(t.priceStarting, errors='coerce')   # a few page runs carry the string 'NaN'
     t = t.dropna(subset=['horse_id', 'date', 'wpr']).drop_duplicates(['horse_id', 'date'], keep='last').reset_index(drop=True)
     t = t[~is_jumps(t.race_class)].reset_index(drop=True)
     t['race_id'] = -(1_000_000 + np.arange(len(t)))
