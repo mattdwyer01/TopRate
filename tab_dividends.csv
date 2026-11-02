@@ -18290,3 +18290,4 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-11-02T06:10:43+00:00,2026-11-02,BALLARAT,8,VIC,Paying,Trifecta,9/11/7,45,"{""selections"":[9,11,7],""amount"":45}"
 2026-11-02T06:10:43+00:00,2026-11-02,BALLARAT,8,VIC,Paying,FirstFour,9/11/7/10,105.3,"{""selections"":[9,11,7,10],""amount"":105.3}"
 2026-11-02T06:10:43+00:00,2026-11-02,BALLARAT,8,VIC,Paying,RunningDouble,7/9,42,"{""selections"":[7,9],""amount"":42}"
+2026-11-02T06:16:54+00:00,2026-11-02,COROWA,6,VIC,Abandoned,(abandoned),,,
