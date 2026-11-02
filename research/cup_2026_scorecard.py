@@ -88,6 +88,15 @@ def main():
     for _, q in t.sort_values(['score', 'neg'], ascending=[False, True]).iterrows():
         print(f"  {q.horse:20s} +{q.score} -{q.neg}  | {q.positives}  | {q.negatives}")
 
+    # Rules that also held in 2800m+ races that are not Cups (research/cup_group_test.py part 2): score and thirds
+    t['net2'] = ((t.gap3 <= 6).astype(int) + (t.last_frac <= 0.25).astype(int) + (t.placed24 >= 2).astype(int) + (t.wt_rel >= 1).astype(int)
+                 - (t.gap3 > 10).astype(int) - (t.last_frac > 0.5).astype(int))
+    t = t.sort_values(['net2', 'last3'], ascending=[False, False]).reset_index(drop=True)
+    t['third'] = np.where(t.index < 8, 'top', np.where(t.index < 16, 'middle', 'bottom'))
+    print('\nScored with the six rules that held outside the Cups (within 6 of best last-3, last start top quarter, placed 2+ at 2400m+, weight 1kg+ above mean; minus: over 10 behind, last start back half); ties broken by last-3:')
+    for _, q in t.iterrows():
+        print(f"  {q.third:7s} {q.horse:20s} score {int(q.net2):+d}   last3 {q.last3:5.1f} gap {q.gap3:4.1f}  last start {int(q.last_pos)}/{int(q.last_field)}  placed2400+ {int(q.placed24)}  weight {q.weight:.1f}")
+
 
 if __name__ == '__main__':
     main()
