@@ -18292,3 +18292,15 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-11-02T06:10:43+00:00,2026-11-02,BALLARAT,8,VIC,Paying,RunningDouble,7/9,42,"{""selections"":[7,9],""amount"":42}"
 2026-11-02T06:16:54+00:00,2026-11-02,COROWA,6,VIC,Abandoned,(abandoned),,,
 2026-11-02T06:20:40+00:00,2026-11-02,COROWA,7,VIC,Abandoned,(abandoned),,,
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,DailyDouble,11/7,19.7,"{""selections"":[11,7],""amount"":19.7}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,Quaddie,2/11/5/7,220.5,"{""selections"":[2,11,5,7],""amount"":220.5}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,Treble,11/5/7,114.5,"{""selections"":[11,5,7],""amount"":114.5}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,Win,7,6.5,"{""selections"":[7],""amount"":6.5}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,Place,7,2.9,"{""selections"":[7],""amount"":2.9}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,Place,11,2.8,"{""selections"":[11],""amount"":2.8}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,Quinella,7/11,14,"{""selections"":[7,11],""amount"":14}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,Exacta,7/11,32.7,"{""selections"":[7,11],""amount"":32.7}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,Duet,F/F,0,"{""selections"":[""F"",""F""],""amount"":0}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,Trifecta,7/11/3,77.2,"{""selections"":[7,11,3],""amount"":77.2}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,FirstFour,7/11/3/2,140.1,"{""selections"":[7,11,3,2],""amount"":140.1}"
+2026-11-02T06:40:38+00:00,2026-11-02,BALLINA,6,VIC,Paying,RunningDouble,5/7,23.7,"{""selections"":[5,7],""amount"":23.7}"
