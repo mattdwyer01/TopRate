@@ -26,6 +26,7 @@ def main():
     ap.add_argument('--es-from', default='2025-10-01')
     ap.add_argument('--v2', action='store_true', help='option 2 inputs: jockey/trainer rates and the field-relative block (ctx.FEATS2 / REL_FEATS2)')
     ap.add_argument('--conv-frac', type=float, default=0.0, help='also train on results-file history put on the ATW scale per target race (research/conv_history.py, AR 168); fraction of horses, 0 = page store only')
+    ap.add_argument('--no-write', action='store_true', help='only report the held-out results, do not refit or write the model files')
     a = ap.parse_args()
     conv = None
     if a.conv_frac > 0:
@@ -83,6 +84,27 @@ def main():
     sd = {str(k): round(r(te.e1[kk == k]), 2) for k in range(1, C.K + 1)}
     sd0 = {str(k): round(r(te.e0[kk == k]), 2) for k in range(1, C.K + 1)}
     print('error sd by earlier runs (deployed):', sd, ' formula:', sd0)
+    # held-out bias by projected level and by recent form (27 Oct+: is the top end low?). Proj = formula + deployed correction; mean3 = last-3 average.
+    te['proj_h'] = te.f + te['corr']
+    te['gap3'] = te.proj_h - te.mean3
+    def band(lab, col, edges, sub=te):
+        print(f'-- {lab}')
+        for lo, hi in zip(edges[:-1], edges[1:]):
+            b = sub[(sub[col] >= lo) & (sub[col] < hi)]
+            if len(b) >= 30:
+                print(f"   {lo:>5}..{hi:<5} n={len(b):6d}  actual - proj: mean {b.e1.mean():+.2f} median {b.e1.median():+.2f} sd {b.e1.std():.2f}   proj - last3 mean {b.gap3.mean():+.2f}")
+    inf = float('inf')
+    band('by projected rating', 'proj_h', [-inf, 70, 80, 85, 90, 95, 100, 105, inf])
+    band('by last-3 average', 'mean3', [-inf, 70, 80, 90, 95, 98, 100, 102, inf])
+    band('by gap (proj - last3)', 'gap3', [-inf, -10, -6, -4, -2, 0, 2, 4, inf])
+    top = te[te.mean3 >= 98]
+    band('last3 >= 98, by gap', 'gap3', [-inf, -8, -6, -4, -2, 0, inf], top)
+    if 'distance' in te.columns:
+        band('by distance', 'distance', [0, 1200, 1600, 2000, 2400, 2800, inf])
+        band('last3 >= 98, by distance', 'distance', [0, 1600, 2400, inf], top)
+    band('by earlier runs', 'n', [1, 3, 6, 10, 20, inf])
+    if a.no_write:
+        return
     # final fits on every run
     n0, n1 = int(b0 * 1.15), int(b1 * 1.15)
     fin0 = lgb.LGBMRegressor(**{**params, 'n_estimators': n0}).fit(pg_all[F0], pg_all.resid)

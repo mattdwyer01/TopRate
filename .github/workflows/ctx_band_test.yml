@@ -1,0 +1,30 @@
+name: "Context Proj held-out bias by band (no files written)"
+
+# 2 Nov 2026: does the live context Proj run low for high-rated horses? Same fit as train_ctx_v2.yml (--v2 --conv-frac 1.0) with --no-write, so the
+# only output is the job log. Trigger: push to this branch touching research/ctx_band_test.trigger.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/ctx-band-test]
+    paths: [research/ctx_band_test.trigger]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - name: Held-out report
+        run: python -W ignore projection/train_ctx.py --v2 --conv-frac 1.0 --no-write
