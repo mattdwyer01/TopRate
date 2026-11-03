@@ -182,7 +182,6 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
   const cont = items.filter((r) => contenders[r.rid])
   const hasCont = cont.length >= 2
   const best = hasCont ? cont.reduce((a, b) => (b.gx < a.gx ? b : a)) : null
-  const topRated = hasCont ? cont.reduce((a, b) => (contenders[b.rid].rank < contenders[a.rid].rank ? b : a)) : null
   const leaders = items.filter((r) => r.gx <= LEADER_ZONE_L)
   // First quarter and first half of the field by forecast order (same cut as the rule tested: rank within 1 + 0.25 x (n - 1) and 1 + 0.5 x (n - 1)).
   // Each line sits halfway (in lengths) between the last runner inside and the first runner outside.
@@ -194,17 +193,6 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
   const cutGx = (k: number) => (k >= 1 && k < nField ? (order[k - 1].gx + order[k].gx) / 2 : null)
   const qGx = nField >= 4 ? cutGx(qN) : null
   const hGx = nField >= 4 && hN > qN ? cutGx(hN) : null
-  const numOf = (r: Placed) => byRid.get(r.rid)?.tabNumber ?? r.barrier
-  let summary: string | null = null
-  if (best && topRated) {
-    if (best.rid === topRated.rid) {
-      summary = `Top rated ${numOf(topRated)} ${topRated.name} is the best placed of the ${cont.length} contenders.`
-    } else {
-      const back = topRated.gx - best.gx
-      const wide = topRated.lane - best.lane
-      summary = `Top rated ${numOf(topRated)} ${topRated.name} is forecast ${back.toFixed(1)}L behind the best placed contender (${numOf(best)} ${best.name})${Math.abs(wide) >= 1 ? ` and ${Math.abs(wide).toFixed(1)}m ${wide > 0 ? 'wider' : 'closer to the rail'}` : ''}.`
-    }
-  }
   const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'width from rail in the final 200m (racing.com GPS), not at 800m'
 
   return (
@@ -213,7 +201,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
         <span className="text-sm font-semibold text-ink">Trip map</span>
         <span className="text-xs text-ink-faint">{narrow ? (noGps ? 'Width at 800m (estimated)' : trip.laneKind === '800m' ? 'Width at 800m from home' : 'Width in the final 200m') : `Projected running line · ${laneLabel}`}</span>
       </div>
-      {summary && <div className="mt-1 text-xs text-ink-soft">{summary} Forecast error is about {trip.err.gap.toFixed(1)}L, so small gaps are not reliable.</div>}
+      <div className="mt-1 text-xs text-ink-soft">Forecast error is about {trip.err.gap.toFixed(1)}L, so small gaps are not reliable.</div>
       {qGx != null && (
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
           <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First quarter of the field, forecast order ({qN} of {nField})</span>
@@ -267,14 +255,6 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
               </text>
             </g>
           )}
-          {best &&
-            topRated &&
-            topRated.rid !== best.rid &&
-            topRated.gx - best.gx >= 1.5 && (
-              <text x={topRated.px} y={topRated.py - hh - 5} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
-                +{(topRated.gx - best.gx).toFixed(1)}L
-              </text>
-            )}
           <text x={m.l + 4} y={m.t - 10} fontSize={10} fill="var(--color-ink-mute)">
             INSIDE RAIL
           </text>
