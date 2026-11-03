@@ -95,7 +95,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
             </span>
           )}
           {runner.projectionModel === 'light' && !f.scratched && (
-            <span className="hidden flex-none rounded border border-line px-1 text-[10px] text-ink-faint lg:inline" title="Light-history model (0-2 prior runs): wider error">
+            <span className="flex-none rounded border border-line px-1 text-[10px] text-ink-faint" title="Light-history model (0-2 prior runs): wider error">
               light
             </span>
           )}
