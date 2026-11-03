@@ -183,16 +183,16 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
   const hasCont = cont.length >= 2
   const best = hasCont ? cont.reduce((a, b) => (b.gx < a.gx ? b : a)) : null
   const leaders = items.filter((r) => r.gx <= LEADER_ZONE_L)
-  // First quarter and first half of the field by forecast order (same cut as the rule tested: rank within 1 + 0.25 x (n - 1) and 1 + 0.5 x (n - 1)).
+  // First third and second third of the field by forecast order (same cut as the rule tested: rank within 1 + (n - 1) / 3 and 1 + 2 x (n - 1) / 3).
   // Each line sits halfway (in lengths) between the last runner inside and the first runner outside.
   const nField = items.length
   const order = [...items].sort((a, b) => a.gx - b.gx)
   const orderOf = new Map(order.map((r, i) => [r.rid, i + 1]))
-  const qN = Math.floor(1 + 0.25 * (nField - 1))
-  const hN = Math.floor(1 + 0.5 * (nField - 1))
+  const t1N = Math.floor(1 + (nField - 1) / 3)
+  const t2N = Math.floor(1 + (2 * (nField - 1)) / 3)
   const cutGx = (k: number) => (k >= 1 && k < nField ? (order[k - 1].gx + order[k].gx) / 2 : null)
-  const qGx = nField >= 4 ? cutGx(qN) : null
-  const hGx = nField >= 4 && hN > qN ? cutGx(hN) : null
+  const t1Gx = nField >= 4 ? cutGx(t1N) : null
+  const t2Gx = nField >= 4 && t2N > t1N ? cutGx(t2N) : null
   const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'width from rail in the final 200m (racing.com GPS), not at 800m'
 
   return (
@@ -202,10 +202,10 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
         <span className="text-xs text-ink-faint">{narrow ? (noGps ? 'Width at 800m (estimated)' : trip.laneKind === '800m' ? 'Width at 800m from home' : 'Width in the final 200m') : `Projected running line · ${laneLabel}`}</span>
       </div>
       <div className="mt-1 text-xs text-ink-soft">Forecast error is about {trip.err.gap.toFixed(1)}L, so small gaps are not reliable.</div>
-      {qGx != null && (
+      {t1Gx != null && (
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First quarter of the field, forecast order ({qN} of {nField})</span>
-          {hGx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-ink-soft" />First half ({hN} of {nField})</span>}
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First third of the field, forecast order ({t1N} of {nField})</span>
+          {t2Gx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-ink-soft" />Second third ({t2N} of {nField})</span>}
         </div>
       )}
       {hasCont && (
@@ -239,19 +239,19 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             {leaders.length} likely {leaders.length === 1 ? 'leader' : 'leaders'}
           </text>
           <line x1={m.l} x2={m.l + iw} y1={Y(0)} y2={Y(0)} stroke="var(--color-ink)" strokeWidth={3} />
-          {hGx != null && (
+          {t2Gx != null && (
             <g>
-              <line x1={X(hGx)} x2={X(hGx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-ink-soft)" strokeWidth={2} strokeDasharray="1.5 4" strokeLinecap="round" />
-              <text x={X(hGx)} y={m.t - 20} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--color-ink-soft)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
-                {narrow ? 'half' : 'first half'}
+              <line x1={X(t2Gx)} x2={X(t2Gx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-ink-soft)" strokeWidth={2} strokeDasharray="1.5 4" strokeLinecap="round" />
+              <text x={X(t2Gx)} y={m.t - 20} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--color-ink-soft)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
+                {narrow ? '2/3' : 'second third'}
               </text>
             </g>
           )}
-          {qGx != null && (
+          {t1Gx != null && (
             <g>
-              <line x1={X(qGx)} x2={X(qGx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-emerald-deep)" strokeWidth={2} strokeDasharray="1.5 4" strokeLinecap="round" />
-              <text x={X(qGx)} y={m.t - 20} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
-                {narrow ? 'qtr' : 'first quarter'}
+              <line x1={X(t1Gx)} x2={X(t1Gx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-emerald-deep)" strokeWidth={2} strokeDasharray="1.5 4" strokeLinecap="round" />
+              <text x={X(t1Gx)} y={m.t - 20} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
+                {narrow ? '1/3' : 'first third'}
               </text>
             </g>
           )}
@@ -332,7 +332,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             </div>
             <div>
               Forecast order {orderOf.get(hov.rid)} of {nField}
-              {nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= qN ? ' (first quarter)' : nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= hN ? ' (first half)' : ''}
+              {nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t1N ? ' (first third)' : nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t2N ? ' (second third)' : ''}
             </div>
             {contenders[hov.rid] && best && (
               <div>
