@@ -223,7 +223,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
       {hasCont && (
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
           <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-emerald-deep text-center text-[8px] font-bold leading-3 text-white">1</span>Rating rank (contenders within {innerGap} of the top)</span>
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-4 border-t-2 border-dashed border-emerald" />ground to the best placed contender</span>
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-4 border-t-2 border-dashed border-emerald" />best placed contender</span>
           <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm bg-blue-bg" />likely leaders (within {LEADER_ZONE_L}L of the front)</span>
         </div>
       )}
@@ -272,18 +272,13 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             <line x1={X(best.gx)} x2={X(best.gx)} y1={m.t} y2={m.t + ih} stroke="var(--color-emerald)" strokeWidth={1.5} strokeDasharray="5 4" />
           )}
           {best &&
-            cont
-              .filter((r) => r.rid !== best.rid && r.gx - best.gx >= 1.5)
-              .map((r) => (
-                <g key={`gt${r.rid}`}>
-                  <line x1={r.px + hw} x2={X(best.gx)} y1={r.py} y2={r.py} stroke="var(--color-emerald)" strokeWidth={1.5} strokeDasharray="3 3" />
-                  {topRated && r.rid === topRated.rid && (
-                    <text x={r.px} y={r.py - hh - 5} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
-                      +{(r.gx - best.gx).toFixed(1)}L
-                    </text>
-                  )}
-                </g>
-              ))}
+            topRated &&
+            topRated.rid !== best.rid &&
+            topRated.gx - best.gx >= 1.5 && (
+              <text x={topRated.px} y={topRated.py - hh - 5} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
+                +{(topRated.gx - best.gx).toFixed(1)}L
+              </text>
+            )}
           <text x={m.l + 4} y={m.t - 10} fontSize={10} fill="var(--color-ink-mute)">
             INSIDE RAIL
           </text>
