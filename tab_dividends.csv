@@ -19192,3 +19192,4 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-11-03T05:46:02+00:00,2026-11-03,FLEMINGTON,9,VIC,Paying,FirstFour,2/15/11/8,9962.2,"{""selections"":[2,15,11,8],""amount"":9962.2}"
 2026-11-03T05:46:02+00:00,2026-11-03,FLEMINGTON,9,VIC,Paying,RunningDouble,5/2,6.2,"{""selections"":[5,2],""amount"":6.2}"
 2026-11-03T05:46:02+00:00,2026-11-03,FLEMINGTON,9,VIC,Paying,DailyDouble,20/2,22.8,"{""selections"":[20,2],""amount"":22.8}"
+2026-11-03T05:50:31+00:00,2026-11-03,MUSWELLBROOK,5,VIC,Abandoned,(abandoned),,,
