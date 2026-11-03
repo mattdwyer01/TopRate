@@ -21,7 +21,7 @@ interface TripMapProps {
 }
 
 // Contenders for the green Rating-rank circle: every runner within this many Rating points of the top rated runner.
-export const TRIP_CONTENDER_GAP = 6
+export const TRIP_CONTENDER_GAP = 4
 
 const LEADER_ZONE_L = 1.5 // runners this close to the front are the likely leaders
 // Horses side by side keep their barrier order more often than not (Queensland GPS, 432k pairs at 800m from home: 78% in order when level,

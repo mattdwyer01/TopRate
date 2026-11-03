@@ -123,7 +123,7 @@ export function RaceDetail({
   // Only this race's runners count against the (global) scratched set.
   const comboByRunId = useMemo(() => computeCombinedRank(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
   // the combined Rating of the top rated runner (first starters' estimates do not set the top), for the runner page's "off the top" line
-  // contenders for the Trip map: runners within TRIP_CONTENDER_GAP (6) points of the top combined Rating get the green rank circle (first starters' estimates are left out)
+  // contenders for the Trip map: runners within TRIP_CONTENDER_GAP (4) points of the top combined Rating get the green rank circle (first starters' estimates are left out)
   const tripContenders = useMemo(() => {
     const out: Record<string, { rank: number; tier: 'core' | 'inner' | 'outer' }> = {}
     let top: number | null = null
