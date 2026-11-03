@@ -17,7 +17,7 @@ import { RunnerRow, rowGrid, silkFrom } from './RunnerRow'
 import { computeCombinedRank } from '../../lib/combinedRank'
 import { RunnerDetailModal } from './RunnerDetailModal'
 import { SpeedMapGrid } from './SpeedMapGrid'
-import { TripMap } from './TripMap'
+import { TripMap, TRIP_CONTENDER_GAP } from './TripMap'
 import { AerialTrip } from './AerialTrip'
 import { PaceStrip } from './PaceStrip'
 import { ReplayCard } from './ReplayCard'
@@ -123,16 +123,16 @@ export function RaceDetail({
   // Only this race's runners count against the (global) scratched set.
   const comboByRunId = useMemo(() => computeCombinedRank(race.runners, effectiveByRunId, effectiveScratched), [race.runners, effectiveByRunId, effectiveScratched])
   // the combined Rating of the top rated runner (first starters' estimates do not set the top), for the runner page's "off the top" line
-  // contenders for the Trip map: runners inside the inner gap line of the top combined Rating (first starters' estimates are left out)
+  // contenders for the Trip map: runners within TRIP_CONTENDER_GAP (6) points of the top combined Rating get the green rank circle (first starters' estimates are left out)
   const tripContenders = useMemo(() => {
-    const out: Record<string, { rank: number; tier: 'core' | 'inner' }> = {}
+    const out: Record<string, { rank: number; tier: 'core' | 'inner' | 'outer' }> = {}
     let top: number | null = null
     for (const [id, c] of comboByRunId) if (!c.estimated && c.rating != null && !effectiveScratched.has(id) && (top == null || c.rating > top)) top = c.rating
     if (top == null) return out
     for (const [id, c] of comboByRunId) {
       if (c.estimated || c.rating == null || effectiveScratched.has(id)) continue
       const gap = top - c.rating
-      if (gap <= INNER_GAP_FROM_TOP) out[id] = { rank: c.rank, tier: gap <= CORE_GAP_FROM_TOP ? 'core' : 'inner' }
+      if (gap <= TRIP_CONTENDER_GAP) out[id] = { rank: c.rank, tier: gap <= CORE_GAP_FROM_TOP ? 'core' : gap <= INNER_GAP_FROM_TOP ? 'inner' : 'outer' }
     }
     return out
   }, [comboByRunId, effectiveScratched])
@@ -324,7 +324,7 @@ export function RaceDetail({
             </div>
           )}
           {shapeView === 'trip' && tripRace && tripMap ? (
-            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} compact={wide} contenders={tripContenders} innerGap={INNER_GAP_FROM_TOP} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
+            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} compact={wide} contenders={tripContenders} innerGap={TRIP_CONTENDER_GAP} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
           ) : (
             <SpeedMapGrid race={race} runners={activeRunners} narrow={wide} />
           )}
