@@ -1,6 +1,6 @@
-name: Volume rules tracker (v1 and v2)
+name: Volume rules tracker (v1, v2 and v3)
 
-# 4 Nov 2026. Logs the bets of the two volume rules (volume_rules.py) for races jumping in the next 40 minutes, with the fixed price at that time, fills in results
+# 4 Nov 2026. Logs the bets of the three volume rules (v3 reads Proj v2 from data/direct_scores, written by direct_score.yml) (volume_rules.py) for races jumping in the next 40 minutes, with the fixed price at that time, fills in results
 # and starting prices after the race, and keeps a daily copy of the trip map forecast. Research only: it changes no rating and places no bets. Commits ONLY
 # volume_bets_log.csv, volume_races_log.csv, volume_report.md, volume_summary.json and data/trip_map_archive/ (files no other job writes). GitHub's own schedule
 # can run late, so tab_results_poller.py also dispatches this workflow when a race is about to jump and has not been checked yet.
@@ -40,6 +40,7 @@ jobs:
             runners.csv
             trip_map.json
             data/trip_map_archive
+            data/direct_scores
           sparse-checkout-cone-mode: false
       - uses: actions/setup-python@v5
         with:
