@@ -1107,6 +1107,41 @@ def dispatch_meeting_lean_if_needed(day):
         print(f"  Meeting lean dispatch skipped ({type(e).__name__}: {str(e)[:60]})")
 
 
+def dispatch_volume_log_if_needed(day):
+    """Best-effort: the volume rules tracker (volume_log.yml, volume_rules.py) freezes the bets of a race while it is 1 to 40 minutes from the jump. GitHub's own
+    schedule runs late, so while a race on `day` is inside that window and volume_races_log.csv has no row for it, trigger a pass (about 30 s on a hosted
+    runner, commits only when something is new). Never breaks the cycle."""
+    import os
+    token, repo = os.environ.get("GITHUB_TOKEN"), os.environ.get("GITHUB_REPOSITORY")
+    if not token or not repo:
+        return
+    try:
+        import requests
+        cols = ["date", "race_id", "start_time", "interim_resulted", "resulted"]
+        df = pd.read_csv(td.RUNNERS_CSV if hasattr(td, "RUNNERS_CSV") else "runners.csv", usecols=lambda c: c in cols, low_memory=False)
+        df = df[df["date"] == day].copy()
+        if df.empty:
+            return
+        ran = (pd.to_numeric(df["interim_resulted"], errors="coerce").fillna(0) == 1) | (pd.to_numeric(df["resulted"], errors="coerce").fillna(0) == 1)
+        df = df[~df["race_id"].isin(set(df.loc[ran, "race_id"]))]
+        mins = (pd.to_datetime(df["start_time"], utc=True, errors="coerce") - pd.Timestamp.now("UTC")).dt.total_seconds() / 60
+        soon = set(df.loc[(mins >= 1) & (mins <= 40), "race_id"])
+        if not soon:
+            return
+        have = set(pd.read_csv("volume_races_log.csv", usecols=["race_id"], low_memory=False)["race_id"]) if os.path.exists("volume_races_log.csv") else set()
+        missing = soon - have
+        if not missing:
+            return
+        h = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+        q = requests.get(f"https://api.github.com/repos/{repo}/actions/workflows/volume_log.yml/runs?status=queued&per_page=1", headers=h, timeout=20)
+        if q.ok and q.json().get("total_count", 0) > 0:
+            return
+        r = requests.post(f"https://api.github.com/repos/{repo}/actions/workflows/volume_log.yml/dispatches", headers=h, json={"ref": "main"}, timeout=20)
+        print(f"  Volume tracker pass dispatched ({len(missing)} race(s) about to jump, not logged yet): HTTP {r.status_code}")
+    except Exception as e:
+        print(f"  Volume tracker dispatch skipped ({type(e).__name__}: {str(e)[:60]})")
+
+
 def run_once(push=True):
     target_date = date.today().isoformat()
     _prune_raw_archive(target_date)
@@ -1117,6 +1152,7 @@ def run_once(push=True):
         target_date, terminal_cache=terminal_cache, div_done=tab_dividends.done_keys())
     save_terminal_cache(terminal_cache)
     dispatch_meeting_lean_if_needed(target_date)
+    dispatch_volume_log_if_needed(target_date)
     try:  # Hong Kong fixed prices from Betr (TAB has none for HKG); best-effort, never breaks the cycle
         import betr_prices
         prices = prices + betr_prices.fetch_hk_prices()
