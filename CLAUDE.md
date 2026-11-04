@@ -2825,7 +2825,7 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
 
 - **Volume rules v1 and v2 tracked side by side (4 Nov 2026, branch claude/volume-v2, research only, places no bets)**: `volume_rules.py` holds both rules and logs them
   for a forward test (the 30 day figures they were tuned on are in sample). Qualifier = forecast in the FIRST THIRD of the field on the trip map (rank on forecast gap behind the
-  leader, `(rank - 1) / (n - 1) <= 1/3`) and fixed price over $2. **v1**: every qualifier within 4 Proj points of the top-rated runner. **v2**: if the top-rated runner is itself a
+  leader, `(rank - 1) / (n - 1) <= 1/3`) and fixed price over $3 (raised from $2 on 4 Nov 2026: on the 5 Oct to 3 Nov backtest v1 went from +8.8% to +11.5% and v2 from +14.6% to +20.5%, the $2 to $3 runners returned -4.2%; within noise). **v1**: every qualifier within 4 Proj points of the top-rated runner. **v2**: if the top-rated runner is itself a
   qualifier, qualifiers within 2 points of the top; if NO qualifier is within 1 point of the top, qualifiers within 4; otherwise no bet. Both skip a race with under 5 live runners, any
   first starter / light-history / no-Proj runner, any runner with no trip map forecast, or a bush meeting (biggest single race prize $20,000 or less, same as `lib/meetings.ts`).
   Stake $25 a race per rule split equally across that rule's bets in the race. Hand exclusions (for example a transferred meeting) go in `volume_overrides.json` (4 Nov: Grafton, moved to Coffs
