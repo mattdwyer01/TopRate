@@ -785,15 +785,16 @@ def _peak12_table():
 _DIRECT_CACHE = {}
 
 
-def direct_chance(race_id, tab, race_date):
-    """Direct model win chance for a runner (data/direct_scores/<date>.json, written by direct_score.py), or None."""
+def direct_chance(race_id, tab, race_date, key="races", nd=4):
+    """Direct model win chance for a runner (data/direct_scores/<date>.json, written by direct_score.py), or None.
+    key="ratings" reads Proj v2 (the same chances on the Proj scale, winner_v2.py) instead."""
     try:
         d = str(race_date)[:10]
         if d not in _DIRECT_CACHE:
             f = Path("data/direct_scores") / f"{d}.json"
-            _DIRECT_CACHE[d] = json.load(open(f, encoding="utf-8")).get("races", {}) if f.exists() else {}
-        v = _DIRECT_CACHE[d].get(str(int(float(race_id))), {}).get(str(int(float(tab))))
-        return None if v is None else round(float(v), 4)
+            _DIRECT_CACHE[d] = json.load(open(f, encoding="utf-8")) if f.exists() else {}
+        v = _DIRECT_CACHE[d].get(key, {}).get(str(int(float(race_id))), {}).get(str(int(float(tab))))
+        return None if v is None else round(float(v), nd)
     except Exception:
         return None
 
@@ -2015,6 +2016,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
                 "wpjpk": peak_last_year(row.get("horse_id"), row.get("date")),    # peak runner-page rating in the 365 days before the race (23 Oct 2026; was the career peak)
                 "dm":   direct_chance(row.get("race_id"), row.get("tab_number"), row.get("date")),    # direct finishing-position model win chance (direct_score.py), None until scored
+                "dv2":  direct_chance(row.get("race_id"), row.get("tab_number"), row.get("date"), key="ratings", nd=2),    # Proj v2: winner-trained rating on the Proj scale (winner_v2.py via direct_score.py), None until scored; nothing on the dashboard reads it yet
                 # Blend score (Step 2c2): the PRIMARY ranking as of Aug
                 # 2026 (promoted from wpr_rank/wprp_rank - a held-out
                 # backtest found it beats WPR-alone ranking on both top-1

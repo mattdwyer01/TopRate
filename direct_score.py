@@ -7,6 +7,8 @@ jockey and trainer win rates from the results files, and the Proj's context / re
   python direct_score.py score --from 2026-10-27 --days 3      writes data/direct_scores/<date>.json (race_id -> {tab: chance})
   python direct_score.py classes                              rewrites direct_model/classes.json (class codes seen 200+ times before 2024-07, the model's `cls` input)
 
+Also writes `ratings` (Proj v2, winner_v2.py: the same chances on the Proj scale, blended 80/20 with the Proj the log row holds) next to `races` in each file.
+
 Best effort in the daily job: a failure never stops the run. The output holds win chances over every runner in the log for the race; the dashboard renormalises over
 the runners still in. First starters and runners with no rated form get a score too (their form inputs are blank, as in training)."""
 import argparse, datetime as dt, glob, gzip, json, os, re, sys
@@ -17,6 +19,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / 'projection'))
 import ctx as C            # noqa: E402
 import features as FT      # noqa: E402,F401
+import winner_v2 as V2     # noqa: E402
 
 MODEL_DIR = ROOT / 'direct_model'
 LOG_DIR = ROOT / 'data' / 'direct_log'
@@ -209,9 +212,11 @@ def run(dates):
         return {}
     Lf = build_features(L, meta)
     Lf['dm'] = score(Lf, meta)
+    Lf['proj'] = pd.to_numeric(Lf.proj, errors='coerce')
+    Lf['v2'] = V2.to_rating(Lf)          # Proj v2: the winner chances on the Proj scale (winner_v2.py), NaN where the race has no Proj
     out = {}
     for d, g in Lf.groupby(Lf.date.dt.strftime('%Y-%m-%d')):
-        races = {}
+        races, ratings = {}, {}
         skipped = 0
         for rid, gr in g.groupby('race_id'):
             tabs = pd.to_numeric(gr.tab, errors='coerce')
@@ -220,9 +225,12 @@ def run(dates):
                 skipped += 1
                 continue
             races[str(int(rid))] = {str(int(t)): round(float(p), 4) for t, p in zip(tabs, gr.dm)}
+            rt = {str(int(t)): round(float(v), 2) for t, v in zip(tabs, gr.v2) if pd.notna(v)}
+            if rt:
+                ratings[str(int(rid))] = rt
         out[d] = races
         OUT_DIR.mkdir(parents=True, exist_ok=True)
-        (OUT_DIR / f'{d}.json').write_text(json.dumps({'generated': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'), 'races': races}, separators=(',', ':')))
+        (OUT_DIR / f'{d}.json').write_text(json.dumps({'generated': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'), 'races': races, 'ratings': ratings}, separators=(',', ':')))
         print(f'{d}: {len(races)} races, {sum(len(v) for v in races.values())} runners scored, {skipped} races not declared yet')
     return Lf
 
