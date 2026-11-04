@@ -1,0 +1,67 @@
+name: Volume rules tracker (v1 and v2)
+
+# 4 Nov 2026. Logs the bets of the two volume rules (volume_rules.py) for races jumping in the next 40 minutes, with the fixed price at that time, fills in results
+# and starting prices after the race, and keeps a daily copy of the trip map forecast. Research only: it changes no rating and places no bets. Commits ONLY
+# volume_bets_log.csv, volume_races_log.csv, volume_report.md, volume_summary.json and data/trip_map_archive/ (files no other job writes). GitHub's own schedule
+# can run late, so tab_results_poller.py also dispatches this workflow when a race is about to jump and has not been checked yet.
+
+on:
+  schedule:
+    - cron: "*/10 0-11 * * *"   # 11:00 to 22:50 Melbourne
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Melbourne date YYYY-MM-DD for the log step (blank = today)"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: volume-log
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+          sparse-checkout: |
+            volume_rules.py
+            volume_overrides.json
+            volume_bets_log.csv
+            volume_races_log.csv
+            volume_report.md
+            volume_summary.json
+            runners.csv
+            trip_map.json
+            data/trip_map_archive
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas numpy
+      - name: Log, settle, archive, report
+        run: |
+          python volume_rules.py log ${{ inputs.date && format('--date {0}', inputs.date) || '' }}
+          python volume_rules.py settle
+          python volume_rules.py snapshot
+          python volume_rules.py report > /dev/null || true
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          FILES="volume_bets_log.csv volume_races_log.csv volume_report.md volume_summary.json data/trip_map_archive"
+          stage() { for f in $FILES; do [ -e "$f" ] && git add "$f"; done; true; }
+          stage
+          git diff --cached --quiet && { echo "nothing new"; exit 0; }
+          git commit -q -m "Volume tracker $(date -u +%FT%H:%MZ)"
+          for i in 1 2 3 4 5; do
+            git push origin HEAD:main && exit 0
+            git fetch -q origin main && git reset -q --mixed origin/main && stage && git commit -q -m "Volume tracker $(date -u +%FT%H:%MZ)" || true
+            sleep $((i * 4))
+          done
+          exit 1
