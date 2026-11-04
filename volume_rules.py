@@ -62,7 +62,7 @@ RUNNER_COLS = ["date", "venue", "race", "race_id", "run_id", "horse", "tab_numbe
 
 BET_COLS = ["logged_at", "mins_to_jump", "date", "venue", "race", "race_id", "run_id", "start_time", "horse", "tab_number", "barrier", "price_logged",
             "v1", "v2", "stake_v1", "stake_v2", "proj", "top_proj", "off_top", "gap", "gap_rank", "field_n", "sp_frac", "top_is_bet", "n_qual_within1",
-            "going", "rs_label", "meeting_min_prize", "race_prize", "won", "finish_position", "sp_final", "void", "settled_at"]
+            "going", "rs_label", "meeting_min_prize", "race_prize", "prev_races", "prev_win_first_third", "prev_win_sp", "prev_top3_sp", "won", "finish_position", "sp_final", "void", "settled_at"]
 RACE_COLS = ["checked_at", "mins_to_jump", "date", "venue", "race", "race_id", "start_time", "field_n", "reason", "v1_bets", "v2_bets"]
 
 
@@ -211,6 +211,29 @@ def _read_csv(path, cols):
     return pd.DataFrame(columns=cols)
 
 
+def meeting_bias(d):
+    """Per race: how the EARLIER races at the same meeting (same date and venue, earlier start) ran against the trip map forecast.
+    prev_races = earlier races with a result, a forecast for every runner and a single winner; prev_win_first_third = share of those won from the first
+    third of the forecast; prev_win_sp = mean forecast position of the winners (0 = leader, 1 = last; 0.5 is neutral); prev_top3_sp = the same for the
+    first three. Tested 4 Nov 2026: no carry-over in the backtest, logged to check it forward."""
+    x = d[(~d["nogap"]) & (d["n"] >= MIN_FIELD)].copy()
+    x["st"] = pd.to_datetime(x["start_time"], utc=True, errors="coerce")
+    x["w"] = num(x["won"])
+    x["fp"] = num(x["finish_position"])
+    nw = x.groupby("race_id")["w"].transform(lambda s: (s == 1).sum())
+    x = x[nw == 1]
+    win = x[x["w"] == 1].groupby("race_id").agg(date=("date", "first"), venue=("venue", "first"), st=("st", "first"), wsp=("sp", "first"))
+    top3 = x[x["fp"] <= 3].groupby("race_id")["sp"].mean().rename("t3sp")
+    win = win.join(top3)
+    out = {}
+    for rid, r in d.drop_duplicates("race_id").set_index("race_id").iterrows():
+        st = pd.to_datetime(r["start_time"], utc=True, errors="coerce")
+        prev = win[(win["date"] == r["date"]) & (win["venue"] == r["venue"]) & (win["st"] < st)]
+        out[rid] = (len(prev), (prev["wsp"] <= FIRST_THIRD + 1e-9).mean() if len(prev) else np.nan, prev["wsp"].mean() if len(prev) else np.nan,
+                    prev["t3sp"].mean() if len(prev) else np.nan)
+    return out
+
+
 def cmd_log(a):
     now = now_utc(a.now)
     date = a.date or melb(now).strftime("%Y-%m-%d")
@@ -237,13 +260,17 @@ def cmd_log(a):
     mins = rc.set_index("race_id")["mins"]
     new_races = rc.assign(checked_at=stamp, mins_to_jump=rc["mins"].round(1))[RACE_COLS]
     x = d[d["race_id"].isin(ids) & (d["v1"] | d["v2"])]
+    mb = meeting_bias(d)
     nb = pd.DataFrame({
         "logged_at": stamp, "mins_to_jump": x["race_id"].map(mins).round(1), "date": x["date"], "venue": x["venue"], "race": x["race"], "race_id": x["race_id"],
         "run_id": x["rid"], "start_time": x["start_time"], "horse": x["horse"], "tab_number": x["tab_number"], "barrier": x["barrier"], "price_logged": x["price"],
         "v1": x["v1"].astype(int), "v2": x["v2"].astype(int), "stake_v1": x["stake_v1"].round(2), "stake_v2": x["stake_v2"].round(2), "proj": x["proj"],
         "top_proj": x["top"], "off_top": x["off"].round(2), "gap": x["gap"], "gap_rank": x["rk"], "field_n": x["n"], "sp_frac": x["sp"].round(3),
         "top_is_bet": x["top_is_bet"].astype(int), "n_qual_within1": x["n_qual_within1"], "going": x["going"], "rs_label": x["rs_label"],
-        "meeting_min_prize": x["meet_min"], "race_prize": x["prize_money"], "won": np.nan, "finish_position": np.nan, "sp_final": np.nan, "void": 0, "settled_at": np.nan})[BET_COLS]
+        "meeting_min_prize": x["meet_min"], "race_prize": x["prize_money"],
+        "prev_races": x["race_id"].map(lambda r: mb[r][0]), "prev_win_first_third": x["race_id"].map(lambda r: round(mb[r][1], 3) if mb[r][0] else np.nan),
+        "prev_win_sp": x["race_id"].map(lambda r: round(mb[r][2], 3) if mb[r][0] else np.nan), "prev_top3_sp": x["race_id"].map(lambda r: round(mb[r][3], 3) if mb[r][0] else np.nan),
+        "won": np.nan, "finish_position": np.nan, "sp_final": np.nan, "void": 0, "settled_at": np.nan})[BET_COLS]
     bets = pd.concat([bets, nb], ignore_index=True) if len(bets) else nb
     races = pd.concat([races, new_races], ignore_index=True) if len(races) else new_races
     bets.to_csv(BETS_LOG, index=False)
@@ -340,6 +367,10 @@ SEGMENTS = [
     ("Field of 8 or more", lambda b: num(b["field_n"]) >= 8),
     ("Field of 5 to 7", lambda b: num(b["field_n"]) <= 7),
     ("$40k+ and field of 8+", lambda b: (num(b["meeting_min_prize"]) >= 40000) & (num(b["field_n"]) >= 8)),
+    # meeting bias: did earlier winners at the meeting come from the first third of the forecast? (no carry-over in the 4 Nov backtest)
+    ("3+ earlier races, 40%+ won from first third", lambda b: (num(b["prev_races"]) >= 3) & (num(b["prev_win_first_third"]) >= 0.4)),
+    ("3+ earlier races, under 25% won from first third", lambda b: (num(b["prev_races"]) >= 3) & (num(b["prev_win_first_third"]) < 0.25)),
+    ("3+ earlier races, winners forecast at the back (mean 0.55+)", lambda b: (num(b["prev_races"]) >= 3) & (num(b["prev_win_sp"]) >= 0.55)),
 ]
 
 
