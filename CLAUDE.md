@@ -2839,6 +2839,15 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   Findings behind the rules (all one 30 day window, starting prices, many slices, so treat as leads): only runners forecast in the first third beat their price (middle and last thirds lose
   20 to 47%), v2 drops the races where the top pick is a bet but the other bets are 2 to 4 points off (-31%), no cap on bets per race helps, day of week and going are noise or thin.
   Judge the rules on the log, not on the backtest. Not on the dashboard.
+  Segments (4 Nov 2026): the bet log also stores `meeting_min_prize` (lowest race prize at the meeting), `race_prize` and `going`, and `volume_report.md` has a
+  segment table (meeting minimum prize $30k+ / $40k+ / $50k+, good or firm going, field 8+, and combinations) for v1 and v2, so the cuts below can be judged on
+  bets taken before the jump. Backtest behind them (5 Oct to 3 Nov, v1 with the $3 floor, starting prices, 216 combinations of price floor, meeting minimum prize,
+  going and minimum field, `/tmp/grid.py` style): all meetings +9.0% (585 races, halves +4.6/+11.9, ex3 -2.6%, ex6 -9.6%); meeting minimum prize $30k+ +20.4%,
+  $40k+ +27.7%, $50k+ +50.8% (ROI rises with the prize floor, both halves positive, ex6 -15 to -27% at every floor); good/firm going alone +13.5%; $30k+ and
+  good/firm +34.0% (halves +71.6/+8.6); fields of 5 to 7 lose (-33.4%, both halves), a minimum field of 8 lifts the whole rule to +18.3% (479 races, halves
+  +18.3/+18.3, ex3 +4.2%, ex6 -4.3%), the most robust single filter found. No combination is positive without the 6 biggest winning races except none (0 of 127
+  combinations with 100+ races); walk-forward (pick the top 10 on one half, score on the other) kept about 21% on the second half against 13% for the average
+  combination, so the prize and field cuts carry some real signal but the sample is one month. The prize cut includes Hong Kong (HKD prize money always clears it).
 
 ## What to be careful about
 

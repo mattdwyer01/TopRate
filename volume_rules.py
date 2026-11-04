@@ -62,7 +62,7 @@ RUNNER_COLS = ["date", "venue", "race", "race_id", "run_id", "horse", "tab_numbe
 
 BET_COLS = ["logged_at", "mins_to_jump", "date", "venue", "race", "race_id", "run_id", "start_time", "horse", "tab_number", "barrier", "price_logged",
             "v1", "v2", "stake_v1", "stake_v2", "proj", "top_proj", "off_top", "gap", "gap_rank", "field_n", "sp_frac", "top_is_bet", "n_qual_within1",
-            "going", "rs_label", "won", "finish_position", "sp_final", "void", "settled_at"]
+            "going", "rs_label", "meeting_min_prize", "race_prize", "won", "finish_position", "sp_final", "void", "settled_at"]
 RACE_COLS = ["checked_at", "mins_to_jump", "date", "venue", "race", "race_id", "start_time", "field_n", "reason", "v1_bets", "v2_bets"]
 
 
@@ -109,6 +109,9 @@ def evaluate(df, gaps, price_mode="fixed", overrides=None):
     top_prize = d.drop_duplicates("race_id").groupby(["date", "venue"])["prize_money"].max().rename("meet_top").reset_index()
     d = d.merge(top_prize, on=["date", "venue"], how="left")
     d["bush"] = d["meet_top"].notna() & (d["meet_top"] <= BUSH_MAX_PRIZE)
+    # lowest race prize of the meeting (segment column for the forward test: meetings where every race is over $30k / $40k ...)
+    low_prize = d.drop_duplicates("race_id").groupby(["date", "venue"])["prize_money"].min().rename("meet_min").reset_index()
+    d = d.merge(low_prize, on=["date", "venue"], how="left")
     for o in overrides or []:
         d = d[~((d["date"] == o.get("date")) & (d["venue"] == o.get("venue")))]
     d = d[num(d["scratched"]).fillna(0) != 1]
@@ -239,7 +242,7 @@ def cmd_log(a):
         "v1": x["v1"].astype(int), "v2": x["v2"].astype(int), "stake_v1": x["stake_v1"].round(2), "stake_v2": x["stake_v2"].round(2), "proj": x["proj"],
         "top_proj": x["top"], "off_top": x["off"].round(2), "gap": x["gap"], "gap_rank": x["rk"], "field_n": x["n"], "sp_frac": x["sp"].round(3),
         "top_is_bet": x["top_is_bet"].astype(int), "n_qual_within1": x["n_qual_within1"], "going": x["going"], "rs_label": x["rs_label"],
-        "won": np.nan, "finish_position": np.nan, "sp_final": np.nan, "void": 0, "settled_at": np.nan})[BET_COLS]
+        "meeting_min_prize": x["meet_min"], "race_prize": x["prize_money"], "won": np.nan, "finish_position": np.nan, "sp_final": np.nan, "void": 0, "settled_at": np.nan})[BET_COLS]
     bets = pd.concat([bets, nb], ignore_index=True) if len(bets) else nb
     races = pd.concat([races, new_races], ignore_index=True) if len(races) else new_races
     bets.to_csv(BETS_LOG, index=False)
@@ -320,6 +323,39 @@ def _summ(b, rule, price_col):
     return out
 
 
+def _going_num(g):
+    return pd.to_numeric(g.astype(str).str.extract(r"(\d+)")[0], errors="coerce")
+
+
+# segments tracked in the forward test (named after the 4 Nov 2026 backtest cuts; judge them here, not on the 30 days they were found in)
+SEGMENTS = [
+    ("All bets", lambda b: b["v1"].notna()),
+    ("Meeting minimum prize $30k+", lambda b: num(b["meeting_min_prize"]) >= 30000),
+    ("Meeting minimum prize $40k+", lambda b: num(b["meeting_min_prize"]) >= 40000),
+    ("Meeting minimum prize $50k+", lambda b: num(b["meeting_min_prize"]) >= 50000),
+    ("Good or firm going (1 to 4)", lambda b: _going_num(b["going"]) <= 4),
+    ("$30k+ and good/firm", lambda b: (num(b["meeting_min_prize"]) >= 30000) & (_going_num(b["going"]) <= 4)),
+    ("$40k+ and good/firm", lambda b: (num(b["meeting_min_prize"]) >= 40000) & (_going_num(b["going"]) <= 4)),
+    ("Field of 8 or more", lambda b: num(b["field_n"]) >= 8),
+    ("Field of 5 to 7", lambda b: num(b["field_n"]) <= 7),
+    ("$40k+ and field of 8+", lambda b: (num(b["meeting_min_prize"]) >= 40000) & (num(b["field_n"]) >= 8)),
+]
+
+
+def _segments(b):
+    out = []
+    for name, f in SEGMENTS:
+        try:
+            m = f(b).fillna(False)
+        except Exception:
+            continue
+        row = {"segment": name}
+        for rule in ("v1", "v2"):
+            row[rule] = _summ(b[m], rule, "price_logged")
+        out.append(row)
+    return out
+
+
 def build_report(b, races):
     b = b.copy()
     b["price_sp"] = b["sp_final"].fillna(b["price_logged"])
@@ -332,6 +368,7 @@ def build_report(b, races):
             if s["bets"]:
                 by_day.append({"date": dte, **s})
         rep[rule]["by_day"] = by_day
+    rep["segments"] = _segments(b)
     rep["races_checked"] = int(len(races))
     rep["races_with_reason"] = races["reason"].value_counts().to_dict() if len(races) else {}
     rep["open_bets"] = int(b["won"].isna().sum() - b["void"].fillna(0).sum()) if len(b) else 0
@@ -355,6 +392,11 @@ def write_report(rep, path_md=REPORT_MD, path_json=SUMMARY_JSON):
     for dte in sorted(set(d1) | set(d2)):
         a, b2 = d1.get(dte), d2.get(dte)
         L.append(f"| {dte} | {a['bets'] if a else 0} | ${a['profit'] if a else 0:.0f} | {b2['bets'] if b2 else 0} | ${b2['profit'] if b2 else 0:.0f} |")
+    L += ["", "## Segments (at logged price; stake is the full $25 a race rule stake, so segments are cuts of the same bets)", "",
+          "| Segment | v1 bets | v1 profit | v1 ROI | v2 bets | v2 profit | v2 ROI |", "|---|---|---|---|---|---|---|"]
+    for sg in rep.get("segments", []):
+        a, c = sg["v1"], sg["v2"]
+        L.append(f"| {sg['segment']} | {a['bets']} | ${a['profit']:.0f} | {a['roi_pct']}% | {c['bets']} | ${c['profit']:.0f} | {c['roi_pct']}% |")
     L += ["", "## Races checked without a bet, by reason", ""] + [f"- {k}: {v}" for k, v in rep["races_with_reason"].items()]
     open(path_md, "w").write("\n".join(L) + "\n")
 
