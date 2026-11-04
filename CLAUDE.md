@@ -2848,6 +2848,12 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   +18.3/+18.3, ex3 +4.2%, ex6 -4.3%), the most robust single filter found. No combination is positive without the 6 biggest winning races except none (0 of 127
   combinations with 100+ races); walk-forward (pick the top 10 on one half, score on the other) kept about 21% on the second half against 13% for the average
   combination, so the prize and field cuts carry some real signal but the sample is one month. The prize cut includes Hong Kong (HKD prize money always clears it).
+  Meeting bias (4 Nov 2026): the bet log also stores `prev_races`, `prev_win_first_third`, `prev_win_sp` and `prev_top3_sp` (how the EARLIER races at the same meeting
+  ran against the trip map forecast: share of winners from the first third, mean forecast position 0 = leader to 1 = last of the winners and of the first three), and the
+  report has segments for them. Backtest (5 Oct to 3 Nov, 895 races with 3+ earlier races, forecast positions from our own trip map): NO carry-over, corr of the earlier
+  first-third winner share with the next winner being first-third 0.008 (winner mean position 0.03), the rule's win rate is 13.8 / 15.7 / 16.2% against 14.7 / 14.5 / 15.7%
+  implied across the low / mid / high prior-share buckets. ROI differs by bucket (skipping races where the earlier winners averaged 0.55+ would lift v1 from +9.0% to +16.8%)
+  but the pattern is non-monotonic and the win rates do not move, so it is read as noise; no skip rule applied. Logged to be judged forward.
 
 ## What to be careful about
 
