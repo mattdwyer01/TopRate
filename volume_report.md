@@ -2,7 +2,7 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-04; races checked 20; bets still open 11.
+Logged 2026-11-04 to 2026-11-04; races checked 23; bets still open 12.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
@@ -15,7 +15,22 @@ Logged 2026-11-04 to 2026-11-04; races checked 20; bets still open 11.
 |---|---|---|---|---|
 | 2026-11-04 | 9 | $-75 | 9 | $-75 |
 
+## Segments (at logged price; stake is the full $25 a race rule stake, so segments are cuts of the same bets)
+
+| Segment | v1 bets | v1 profit | v1 ROI | v2 bets | v2 profit | v2 ROI |
+|---|---|---|---|---|---|---|
+| All bets | 9 | $-75 | -100.0% | 9 | $-75 | -100.0% |
+| Meeting minimum prize $30k+ | 0 | $0 | None% | 0 | $0 | None% |
+| Meeting minimum prize $40k+ | 0 | $0 | None% | 0 | $0 | None% |
+| Meeting minimum prize $50k+ | 0 | $0 | None% | 0 | $0 | None% |
+| Good or firm going (1 to 4) | 0 | $0 | None% | 0 | $0 | None% |
+| $30k+ and good/firm | 0 | $0 | None% | 0 | $0 | None% |
+| $40k+ and good/firm | 0 | $0 | None% | 0 | $0 | None% |
+| Field of 8 or more | 9 | $-75 | -100.0% | 9 | $-75 | -100.0% |
+| Field of 5 to 7 | 0 | $0 | None% | 0 | $0 | None% |
+| $40k+ and field of 8+ | 0 | $0 | None% | 0 | $0 | None% |
+
 ## Races checked without a bet, by reason
 
-- ok: 14
-- first starter, light-history or no-Proj runner: 6
+- ok: 15
+- first starter, light-history or no-Proj runner: 8
