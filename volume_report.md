@@ -29,6 +29,9 @@ Logged 2026-11-04 to 2026-11-04; races checked 7; bets still open 1.
 | Field of 8 or more | 4 | $-50 | -100.0% | 4 | $-50 | -100.0% |
 | Field of 5 to 7 | 0 | $0 | None% | 0 | $0 | None% |
 | $40k+ and field of 8+ | 0 | $0 | None% | 0 | $0 | None% |
+| 3+ earlier races, 40%+ won from first third | 0 | $0 | None% | 0 | $0 | None% |
+| 3+ earlier races, under 25% won from first third | 0 | $0 | None% | 0 | $0 | None% |
+| 3+ earlier races, winners forecast at the back (mean 0.55+) | 0 | $0 | None% | 0 | $0 | None% |
 
 ## Races checked without a bet, by reason
 

@@ -273,6 +273,69 @@
     "profit": 0.0,
     "roi_pct": null
    }
+  },
+  {
+   "segment": "3+ earlier races, 40%+ won from first third",
+   "v1": {
+    "races": 0,
+    "bets": 0,
+    "wins": 0,
+    "staked": 0.0,
+    "returned": 0.0,
+    "profit": 0.0,
+    "roi_pct": null
+   },
+   "v2": {
+    "races": 0,
+    "bets": 0,
+    "wins": 0,
+    "staked": 0.0,
+    "returned": 0.0,
+    "profit": 0.0,
+    "roi_pct": null
+   }
+  },
+  {
+   "segment": "3+ earlier races, under 25% won from first third",
+   "v1": {
+    "races": 0,
+    "bets": 0,
+    "wins": 0,
+    "staked": 0.0,
+    "returned": 0.0,
+    "profit": 0.0,
+    "roi_pct": null
+   },
+   "v2": {
+    "races": 0,
+    "bets": 0,
+    "wins": 0,
+    "staked": 0.0,
+    "returned": 0.0,
+    "profit": 0.0,
+    "roi_pct": null
+   }
+  },
+  {
+   "segment": "3+ earlier races, winners forecast at the back (mean 0.55+)",
+   "v1": {
+    "races": 0,
+    "bets": 0,
+    "wins": 0,
+    "staked": 0.0,
+    "returned": 0.0,
+    "profit": 0.0,
+    "roi_pct": null
+   },
+   "v2": {
+    "races": 0,
+    "bets": 0,
+    "wins": 0,
+    "staked": 0.0,
+    "returned": 0.0,
+    "profit": 0.0,
+    "roi_pct": null
+   }
   }
  ],
  "races_checked": 7,
