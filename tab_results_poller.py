@@ -1305,6 +1305,32 @@ def patch_data_json_safe(price_patches, result_patches, scratch_patches, time_pa
         return False
 
 
+def backfill_results(day):
+    """One-off: write TAB results (and dividends) for a past meeting date that the live poller missed, e.g. after a
+    runner outage. Reads that date's meeting list (TAB keeps about a day), applies finishing positions to runners.csv
+    and patches the payload. Results only: no prices, conditions or start times. Replay links need no extra step,
+    the dashboard shows a replay once a race has a result and replay_codes.flush() records the venue codes."""
+    results, _c, _p, _tc, unplaced, _st, dividends = fetch_today_results(
+        day, terminal_cache=set(), archive=False, fetch_prices=False, div_done=tab_dividends.done_keys())
+    tab_dividends.append(dividends)
+    replay_codes.flush()
+    print(f"  {day}: TAB gave {len(results)} result rows, {len(unplaced)} races with a top 4, {len(dividends)} dividend rows")
+    if not results and not unplaced:
+        print("  Nothing to write (TAB's meeting list for that date is empty or has no results)")
+        return 0
+    runners_df = td.load_runners()
+    runners_df, n_rows, unmatched, result_patches = apply_results(runners_df, results, unplaced)
+    if unmatched:
+        print(f"  UNMATCHED VENUE(S) for results, skipped (add to VENUE_ALIASES): {sorted(unmatched)}")
+    print(f"  Wrote {n_rows} TAB result rows for {day}")
+    if not n_rows:
+        return 0
+    td.save_runners(runners_df)
+    if not patch_data_json_safe({}, result_patches, {}):
+        rebuild_data_json()
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1317,7 +1343,12 @@ def main():
                     help="seconds between polls in loop mode (default 90)")
     ap.add_argument("--dividends", metavar="YYYY-MM-DD",
                     help="only log TAB dividends for that date's resulted races, or a range A:B (backfill; no other writes)")
+    ap.add_argument("--backfill-date", metavar="YYYY-MM-DD",
+                    help="one-off: write the TAB results of a past meeting date the poller missed (see backfill_results())")
     a = ap.parse_args()
+
+    if a.backfill_date:
+        return backfill_results(date.fromisoformat(a.backfill_date).isoformat())
 
     if a.dividends:
         # one date, or a range "YYYY-MM-DD:YYYY-MM-DD" (inclusive); each date is appended as it finishes, so a

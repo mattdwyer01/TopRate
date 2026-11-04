@@ -59,6 +59,10 @@ on:
         description: 'Optional YYYY-MM-DD or YYYY-MM-DD:YYYY-MM-DD: also log TAB dividends for that date / range (backfill, tab_dividends.py)'
         required: false
         type: string
+      backfill_date:
+        description: 'Optional YYYY-MM-DD: write TAB results for a past meeting date the poller missed (backfill_results(); TAB keeps about a day)'
+        required: false
+        type: string
 
 # Avoid concurrent runs - if a poll is still going when the next one fires,
 # skip rather than queue (matches price_refresh.yml's reasoning: the next
@@ -113,12 +117,17 @@ jobs:
         # as price_refresh.yml's own steps.
         env:
           DIV_DATE: ${{ inputs.dividends_date }}
+          BACKFILL_DATE: ${{ inputs.backfill_date }}
           # lets the poller trigger projection_daily.yml (fast) after a real going change
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Dividend backfill for a past date (manual dispatch input), validated before use
           if [[ "$DIV_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}(:[0-9]{4}-[0-9]{2}-[0-9]{2})?$ ]]; then
             python tab_results_poller.py --dividends "$DIV_DATE"
+          fi
+          # Past-date results backfill (manual dispatch input), validated before use
+          if [[ "$BACKFILL_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            python tab_results_poller.py --backfill-date "$BACKFILL_DATE"
           fi
           python tab_results_poller.py --once --no-push
 
