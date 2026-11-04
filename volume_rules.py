@@ -4,7 +4,7 @@ Two research betting rules, logged side by side so they can be judged on bets ta
 
   Volume v1 (the original rule)
       a runner qualifies when it is forecast to settle in the FIRST THIRD of its field (trip map, rank on forecast gap behind the leader:
-      (rank - 1) / (n - 1) <= 1/3) and its fixed price is over $2; v1 bets every qualifier within 4 Proj points of the top-rated runner.
+      (rank - 1) / (n - 1) <= 1/3) and its fixed price is over $3; v1 bets every qualifier within 4 Proj points of the top-rated runner.
   Volume v2 (v1 with the "top pick" condition)
       A: when the top-rated runner is itself a qualifier, bet the qualifiers within 2 points of the top;
       B: when NO qualifier is within 1 point of the top, bet the qualifiers within 4 points;
@@ -45,7 +45,7 @@ SUMMARY_JSON = "volume_summary.json"
 
 BUSH_MAX_PRIZE = 20000       # same as frontend lib/meetings.ts BUSH_TRACK_THRESHOLD
 MIN_FIELD = 5
-MIN_PRICE = 2.0              # strictly over
+MIN_PRICE = 3.0              # strictly over (raised from 2.0 on 4 Nov 2026)
 FIRST_THIRD = 1 / 3
 V1_MAX_OFF = 4.0
 V2A_MAX_OFF = 2.0            # top pick is a bet: qualifiers under 2 points off the top
