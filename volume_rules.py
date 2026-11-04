@@ -230,8 +230,9 @@ def cmd_log(a):
     bets = _read_csv(BETS_LOG, BET_COLS)
     races = _read_csv(RACES_LOG, RACE_COLS)
     ids = set(rc["race_id"])
-    bets = bets[~bets["race_id"].isin(ids)]
-    races = races[~races["race_id"].isin(ids)]
+    sids = {str(i) for i in ids}  # logs are read as text, runners.csv ids as numbers: compare as text or a re-log never replaces the earlier rows
+    bets = bets[~bets["race_id"].astype(str).isin(sids)]
+    races = races[~races["race_id"].astype(str).isin(sids)]
     stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     mins = rc.set_index("race_id")["mins"]
     new_races = rc.assign(checked_at=stamp, mins_to_jump=rc["mins"].round(1))[RACE_COLS]
