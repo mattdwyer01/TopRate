@@ -41,12 +41,12 @@
   },
   "by_day": []
  },
- "races_checked": 7,
+ "races_checked": 11,
  "races_with_reason": {
-  "ok": 6,
-  "first starter, light-history or no-Proj runner": 1
+  "ok": 9,
+  "first starter, light-history or no-Proj runner": 2
  },
- "open_bets": 10,
+ "open_bets": 15,
  "first_date": "2026-11-04",
  "last_date": "2026-11-04"
 }
