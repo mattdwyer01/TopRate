@@ -98,7 +98,7 @@ function blendNett(own: { runId: string; base: number }[], nettById: Map<string,
 }
 
 // Share of the direct finishing-position model in the Rating. Tests (research/proj_direct_blend.py, 18,583 full 2025 fields and 556 real complete fields): winner log-lik
-// -1.9233 (Proj stand-in) -> -1.8905 at 40%, -1.8818 at 60%, -1.8786 at 80%, -1.8810 at 100%; on the real fields the Proj alone -1.9663 vs 60% -1.8977, 80% -1.8934. Flat above 60%, so 60% keeps the Proj as the larger anchor.
+// -1.9233 (Proj stand-in) -> -1.8905 at 40%, -1.8818 at 60%, -1.8786 at 80%, -1.8810 at 100%; on the real fields the Proj alone -1.9663 vs 60% -1.8977, 80% -1.8934. Flat from 60% to 100%; the owner chose 70% on 5 Nov 2026 (Proj stays the smaller but real part).
 // 5 rating points per ln of win chance is the Proj's own softmax scale (beta 0.20). Not tested live: the direct scores exist from 27 Oct on only where direct_score.py has run.
 // The Proj alone at today's weight (what the WR tiles and the WR rank show), whether or not the direct model is blended into the Rating.
 export function pureProj(runner: Runner, eff: EffectiveRunner | undefined): number | null {
@@ -106,7 +106,7 @@ export function pureProj(runner: Runner, eff: EffectiveRunner | undefined): numb
   return eff?.effectiveProjectedWpr ?? runner.projectedWpr
 }
 
-export const DIRECT_SHARE = 0.6
+export const DIRECT_SHARE = 0.7
 export const DIRECT_PTS_PER_LN = 5
 
 export function computeEffectiveRace(
