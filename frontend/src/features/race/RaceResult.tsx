@@ -1,6 +1,7 @@
 import type { Race, Runner } from '../../types/domain'
 import type { CombinedRank } from '../../lib/combinedRank'
 import type { EffectiveRunner } from '../../lib/raceModel'
+import { pureProj } from '../../lib/raceModel'
 import { fmtInt, fmtPrice } from '../../lib/format'
 import { speedRatingOnScale } from '../../lib/speed'
 
@@ -105,7 +106,7 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
         {placed.map((r) => {
           const win = r.finishPosition === 1
           const c = combo.get(r.runId)
-          const proj = effective[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
+          const proj = pureProj(r, effective[r.runId])
           const m = marginText(r)
           return (
             <li key={r.runId} className="flex flex-1">

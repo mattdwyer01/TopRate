@@ -15,7 +15,7 @@ from . import projlog as plog
 
 ROOT = plog.ROOT
 OLD_COLS = ['wprp_proj', 'wprp_conf', 'wprp_price', 'wprp_rank', 'wprp_peak', 'wprp_desc', 'wprp_proj_alt', 'wprp_conf_alt', 'wprp_base', 'wprp_adj', 'wprp_contrib']
-NEW_COLS = ['wprp_sd', 'wprp_model', 'wprp_made', 'wprp_atwo', 'wprp_scale']   # wprp_made: when the logged projection was made (tab_results_poller refreshes the payload when the log is newer)
+NEW_COLS = ['wprp_sd', 'wprp_model', 'wprp_made', 'wprp_atwo', 'wprp_scale', 'wprp_risk']   # wprp_made: when the logged projection was made (tab_results_poller refreshes the payload when the log is newer)
 
 
 TR_SWITCH = '2026-10-14T12:35'   # first projection run with the TopRate-rating models started 12:34:50Z
@@ -68,6 +68,8 @@ def apply(runners_df, path=None):
     # rating scale of the logged projection: runs made after the switch to TopRate-rating models are on TopRate's scale, earlier ones on ours
     df.loc[idx, 'wprp_scale'] = np.where(m.made.astype(str).values >= TR_SWITCH, 'toprate', 'own')
     df.loc[idx, 'wprp_atwo'] = pd.to_numeric(m.atwo, errors='coerce').values
+    # chance (percent) of a bad run: a rating more than 12 below the formula figure (display only)
+    df.loc[idx, 'wprp_risk'] = pd.to_numeric(m.risk, errors='coerce').values if 'risk' in m.columns else np.nan
     # confidence on the old 0-100 scale, from the error estimate: sd 8 -> 90, sd 12 -> 70 (display only)
     df.loc[idx, 'wprp_conf'] = np.clip(np.round(130 - 5 * m.sd.values), 40, 95)
     df.loc[idx, 'wprp_desc'] = [_describe(r) for r in m.itertuples()]

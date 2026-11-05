@@ -7,6 +7,8 @@ export interface EffectiveRunner {
   // The same figure again (kept so the track-bias note and rankField(..., 'projection') keep working).
   projectionWpr: number | null
   ratingSource: 'projection'
+  // True when the direct finishing-position model is blended into this race's Rating (every rated runner has a direct score)
+  directBlend: boolean
   // The offset included in effectiveProjectedWpr (0 when the horse has none), so the model's own rating is effectiveProjectedWpr - atwOff.
   atwOff: number
   effectivePrice: number | null
@@ -95,6 +97,18 @@ function blendNett(own: { runId: string; base: number }[], nettById: Map<string,
   return out
 }
 
+// Share of the direct finishing-position model in the Rating. Tests (research/proj_direct_blend.py, 18,583 full 2025 fields and 556 real complete fields): winner log-lik
+// -1.9233 (Proj stand-in) -> -1.8905 at 40%, -1.8818 at 60%, -1.8786 at 80%, -1.8810 at 100%; on the real fields the Proj alone -1.9663 vs 60% -1.8977, 80% -1.8934. Flat above 60%, so 60% keeps the Proj as the larger anchor.
+// 5 rating points per ln of win chance is the Proj's own softmax scale (beta 0.20). Not tested live: the direct scores exist from 27 Oct on only where direct_score.py has run.
+// The Proj alone at today's weight (what the WR tiles and the WR rank show), whether or not the direct model is blended into the Rating.
+export function pureProj(runner: Runner, eff: EffectiveRunner | undefined): number | null {
+  if (eff?.directBlend && runner.projectedWpr != null) return runner.projectedWpr + eff.atwOff
+  return eff?.effectiveProjectedWpr ?? runner.projectedWpr
+}
+
+export const DIRECT_SHARE = 0.6
+export const DIRECT_PTS_PER_LN = 5
+
 export function computeEffectiveRace(
   runners: Runner[],
   deltas: Record<string, number>,
@@ -113,6 +127,19 @@ export function computeEffectiveRace(
     if (r.nett != null && Number.isFinite(r.nett)) nettById.set(r.runId, r.nett)
   }
   const blended = blendNett(ownForBlend, nettById)
+  // Direct finishing-position model (5 Nov 2026): when every rated runner has a score, the rating becomes DIRECT_SHARE of the direct model (as rating points,
+  // DIRECT_PTS_PER_LN per ln of its win chance, demeaned in the race) plus the rest of the Proj, on the same race mean. No manual deltas or Nett in the direct part.
+  const directById = new Map<string, number>()
+  for (const r of runners) if (!scratched.has(r.runId) && r.projectedWpr != null && r.directChance != null && r.directChance > 0) directById.set(r.runId, Math.log(r.directChance))
+  const directBlend = ownForBlend.length >= 2 && ownForBlend.every((o) => directById.has(o.runId))
+  if (directBlend) {
+    const lnMean = ownForBlend.reduce((a, o) => a + (directById.get(o.runId) as number), 0) / ownForBlend.length
+    const projMean = ownForBlend.reduce((a, o) => a + (blended.get(o.runId) ?? o.base), 0) / ownForBlend.length
+    for (const o of ownForBlend) {
+      const proj = blended.get(o.runId) ?? o.base
+      blended.set(o.runId, projMean + (1 - DIRECT_SHARE) * (proj - projMean) + DIRECT_SHARE * DIRECT_PTS_PER_LN * ((directById.get(o.runId) as number) - lnMean))
+    }
+  }
 
   const withEffectiveWpr = runners.map((r) => {
     const modelBase = r.projectedWpr ?? (r.runId in bases ? bases[r.runId] : null)
@@ -178,6 +205,7 @@ export function computeEffectiveRace(
       effectiveProjectedWpr: r.wpr != null ? (ratingByRunId.get(r.runId) ?? r.wpr) : null,
       projectionWpr: r.wpr,
       ratingSource: 'projection',
+      directBlend: directBlend && r.wpr != null,
       atwOff: r.atwOff,
       effectivePrice,
       effectivePlacePrice: r.wpr != null ? (placePriceByRunId.get(r.runId) ?? null) : null,

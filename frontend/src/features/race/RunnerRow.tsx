@@ -56,6 +56,9 @@ function Missing({ why }: { why: string }) {
   )
 }
 
+// Bad-run risk (percent) at which the race table marks a runner: about twice the average of 7%, roughly the riskiest decile (held out: predicted 16.5%, actual 18.7%).
+const BAD_RUN_FLAG = 15
+
 export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
@@ -133,7 +136,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}): the WR projection at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}${sd != null ? ` ± ${Math.round(sd)}` : ''}, set from the simulated win chance. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). Base and Spd are shown but not counted. Ranks: Peak ${combo.peakRank ?? '-'}, Base ${combo.ranks[0] ?? '-'}, Spd ${combo.ranks[1] ?? '-'}, WR ${combo.ranks[2] ?? '-'}, WR ${combo.ranks[2] ?? '-'}` : undefined}
+        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}): the WR projection at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}${sd != null ? ` ± ${Math.round(sd)}` : ''}, set from the simulated win chance${effective?.directBlend ? ' (blended with the direct finishing-position model)' : ''}. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). Base and Spd are shown but not counted. Ranks: Peak ${combo.peakRank ?? '-'}, Base ${combo.ranks[0] ?? '-'}, Spd ${combo.ranks[1] ?? '-'}, WR ${combo.ranks[2] ?? '-'}.${runner.badRunRisk != null ? ` Bad-run risk ${runner.badRunRisk.toFixed(0)}% (average runner about 7%): the chance the rating comes in more than 12 below the form figure.` : ''}` : undefined}
       >
         {f.scratched ? null : !combo ? (
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="No WR (no rated form, or a jumps race)">&ndash;</span>
@@ -143,6 +146,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
               {combo.estimated ? '~' : ''}{combo.rating != null ? combo.rating.toFixed(1) : combo.rank}
             </span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
+            {runner.badRunRisk != null && runner.badRunRisk >= BAD_RUN_FLAG && <span className="ml-0.5 hidden text-amber lg:inline" title={`Bad-run risk ${runner.badRunRisk.toFixed(0)}% (average runner about 7%)`}>!</span>}
             <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">
               {[combo.peakRank, combo.ranks[0], combo.ranks[1]].map((x, i) => (
                 <span key={i} className="h-[5px] w-[5px] rounded-[1px] lg:h-[6px] lg:w-[6px]" style={{ background: rankShade(x) }} />

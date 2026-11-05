@@ -37,15 +37,20 @@ export function computeCombinedRank(
 ): Map<string, CombinedRank> {
   const speed = new Map<string, number>() // Spd rating on the Nett / Proj scale
   const nett = new Map<string, number>()
-  const proj = new Map<string, number>()
+  const proj = new Map<string, number>() // the Proj alone (what the WR rank is on)
+  const rate = new Map<string, number>() // the figure the Rating and its rank use: the Proj, or the Proj blended with the direct model
   for (const r of runners) {
     if (scratched.has(r.runId)) continue
     if (r.speedRating != null) speed.set(r.runId, speedRatingOnScale(r.speedRating))
     if (r.nett != null) nett.set(r.runId, r.nett)
     // a first starter's Proj is an estimate from the race level and its price, not a form rating: it takes no part in the Rating
     if (r.projectionModel === 'debut') continue
-    const p = effectiveByRunId[r.runId]?.effectiveProjectedWpr ?? r.projectedWpr
-    if (p != null) proj.set(r.runId, p)
+    const eff = effectiveByRunId[r.runId]
+    const p = eff?.effectiveProjectedWpr ?? r.projectedWpr
+    if (p != null) rate.set(r.runId, p)
+    // the WR rank and tile stay the Proj alone when the direct model is blended into the Rating
+    const pure = eff?.directBlend && r.projectedWpr != null ? r.projectedWpr + eff.atwOff : p
+    if (pure != null) proj.set(r.runId, pure)
   }
   const peak = new Map<string, number>()
   for (const r of runners) if (!scratched.has(r.runId) && r.peakWpr != null) peak.set(r.runId, r.peakWpr)
@@ -57,7 +62,7 @@ export function computeCombinedRank(
   for (const r of runners) {
     if (scratched.has(r.runId)) continue
     const ranks: CombinedRank['ranks'] = [rn.get(r.runId) ?? null, rs.get(r.runId) ?? null, rp.get(r.runId) ?? null]
-    const pr = proj.get(r.runId)
+    const pr = rate.get(r.runId)
     if (pr == null) continue
     scores.set(r.runId, { rating: pr, ranks })
   }
