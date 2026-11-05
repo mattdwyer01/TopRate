@@ -14,9 +14,9 @@
    "bets": 5,
    "wins": 1,
    "staked": 74.99,
-   "returned": 110.0,
-   "profit": 35.01,
-   "roi_pct": 46.7
+   "returned": 115.0,
+   "profit": 40.01,
+   "roi_pct": 53.4
   },
   "by_day": [
    {
@@ -46,9 +46,9 @@
    "bets": 5,
    "wins": 1,
    "staked": 74.99,
-   "returned": 110.0,
-   "profit": 35.01,
-   "roi_pct": 46.7
+   "returned": 115.0,
+   "profit": 40.01,
+   "roi_pct": 53.4
   },
   "by_day": [
    {
@@ -338,12 +338,12 @@
    }
   }
  ],
- "races_checked": 9,
+ "races_checked": 10,
  "races_with_reason": {
-  "ok": 5,
+  "ok": 6,
   "first starter, light-history or no-Proj runner": 4
  },
- "open_bets": 0,
+ "open_bets": 2,
  "first_date": "2026-11-04",
- "last_date": "2026-11-04"
+ "last_date": "2026-11-05"
 }
