@@ -2,32 +2,32 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-05; races checked 51; bets still open 1.
+Logged 2026-11-04 to 2026-11-05; races checked 52; bets still open 0.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
-| Volume v1 | 21 | 45 | 1 | $525 | $110 | $-415 | -79.0% | -78.1% |
-| Volume v2 | 18 | 37 | 1 | $450 | $110 | $-340 | -75.6% | -74.4% |
+| Volume v1 | 22 | 46 | 2 | $550 | $248 | $-302 | -55.0% | -54.1% |
+| Volume v2 | 19 | 38 | 2 | $475 | $248 | $-227 | -47.9% | -46.8% |
 
 ## By day (at logged price)
 
 | Date | v1 bets | v1 profit | v2 bets | v2 profit |
 |---|---|---|---|---|
 | 2026-11-04 | 5 | $35 | 5 | $35 |
-| 2026-11-05 | 40 | $-450 | 32 | $-375 |
+| 2026-11-05 | 41 | $-337 | 33 | $-262 |
 
 ## Segments (at logged price; stake is the full $25 a race rule stake, so segments are cuts of the same bets)
 
 | Segment | v1 bets | v1 profit | v1 ROI | v2 bets | v2 profit | v2 ROI |
 |---|---|---|---|---|---|---|
-| All bets | 45 | $-415 | -79.0% | 37 | $-340 | -75.6% |
+| All bets | 46 | $-302 | -55.0% | 38 | $-227 | -47.9% |
 | Meeting minimum prize $30k+ | 21 | $-225 | -100.0% | 16 | $-175 | -100.0% |
 | Meeting minimum prize $40k+ | 21 | $-225 | -100.0% | 16 | $-175 | -100.0% |
 | Meeting minimum prize $50k+ | 17 | $-175 | -100.0% | 12 | $-125 | -100.0% |
-| Good or firm going (1 to 4) | 32 | $-400 | -100.0% | 24 | $-325 | -100.0% |
+| Good or firm going (1 to 4) | 33 | $-287 | -67.6% | 25 | $-212 | -60.7% |
 | $30k+ and good/firm | 12 | $-150 | -100.0% | 7 | $-100 | -100.0% |
 | $40k+ and good/firm | 12 | $-150 | -100.0% | 7 | $-100 | -100.0% |
-| Field of 8 or more | 36 | $-315 | -74.1% | 31 | $-265 | -70.7% |
+| Field of 8 or more | 37 | $-202 | -45.0% | 32 | $-152 | -38.1% |
 | Field of 5 to 7 | 9 | $-100 | -100.0% | 6 | $-75 | -100.0% |
 | $40k+ and field of 8+ | 18 | $-200 | -100.0% | 13 | $-150 | -100.0% |
 | 3+ earlier races, 40%+ won from first third | 11 | $-125 | -100.0% | 11 | $-125 | -100.0% |
@@ -37,4 +37,4 @@ Logged 2026-11-04 to 2026-11-05; races checked 51; bets still open 1.
 ## Races checked without a bet, by reason
 
 - ok: 29
-- first starter, light-history or no-Proj runner: 22
+- first starter, light-history or no-Proj runner: 23
