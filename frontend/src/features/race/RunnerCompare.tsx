@@ -1,5 +1,6 @@
 import type { Race, Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
+import { pureProj } from '../../lib/raceModel'
 import { fmtInt, fmtPrice, fmtWpr } from '../../lib/format'
 import { spellPosition } from '../../lib/spellPosition'
 
@@ -22,7 +23,7 @@ const signed = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)}`
 export function RunnerCompare({ race, runners, effectiveByRunId, gapByRunId, onRemove, onOpen, onClear }: RunnerCompareProps) {
   const eff = (r: Runner) => effectiveByRunId[r.runId]
   const rows: Row[] = [
-    { label: 'WR', get: (r) => eff(r)?.effectiveProjectedWpr ?? null, fmt: fmtWpr, higher: true },
+    { label: 'WR', get: (r) => (eff(r) ? pureProj(r, eff(r)) : null), fmt: fmtWpr, higher: true },
     { label: 'Behind top', get: (r) => gapByRunId[r.runId] ?? null, fmt: (v) => (v === 0 ? 'top' : v.toFixed(1)), higher: false },
     { label: 'Likely range +/-', get: (r) => r.projectionSd, fmt: (v) => (v * 0.67).toFixed(1), higher: false },
     { label: 'Base', get: (r) => r.baseWpr, fmt: fmtWpr, higher: true },

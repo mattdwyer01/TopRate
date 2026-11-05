@@ -353,7 +353,8 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             import ctx as CTX
             cmeta = json.load(open(os.path.join(M, 'ctx.json')))
             Tc = R[['horse_id', 'date', 'jockey', 'trainer', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading'] + (['prize'] if 'prize' in R.columns else [])].assign(venue=R.track).reset_index(drop=True)
-            f2, corr = CTX.predict(Tc, meta=cmeta)
+            f2, corr, rsk = CTX.predict(Tc, meta=cmeta, want_risk=True)
+            R['risk'] = rsk     # chance of a bad run (display only, projection/train_risk.py)
             use = has & ~np.isnan(corr)
             if CTX_CAP_FEW > 0:
                 # 23 Oct 2026: the context step for a horse with under REL_MIN_RUNS earlier runs is capped (same insurance as speed_model.CAP_FEW)
@@ -484,7 +485,7 @@ def main():
     off = atw_offsets.load_offsets(raw.horse.dropna().unique(), os.path.join(ROOT, 'wpr_form_history.csv.gz'))
     atwo_by_run = dict(zip(raw.run_id.dropna().astype('int64'), raw.loc[raw.run_id.notna(), 'horse'].astype(str).str.strip().str.lower().map(off)))
     rows = pd.DataFrame(dict(run_id=rows.run_id.astype('int64'), race_id=rows.race_id.astype('int64'), date=rows.date, proj=rows.proj, base=rows.p0,
-                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sadj=np.where(rows.routed == 'light', rows.adj, np.nan), badj=(rows.badj if FORMULA_PROJ and DRAW_LEAN else np.where(rows.routed == 'main', rows.badj, np.nan)), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, src='backfill' if a.backfill_days else 'live', made=made,
+                             adj=np.where(rows.routed == 'main', rows.adj, np.nan), sadj=np.where(rows.routed == 'light', rows.adj, np.nan), badj=(rows.badj if FORMULA_PROJ and DRAW_LEAN else np.where(rows.routed == 'main', rows.badj, np.nan)), wtadj=rows.wtadj, sd=rows.sd, model=rows.routed, nruns=rows.nruns, grp=rows.grp, risk=(rows.risk * 100).round(1) if 'risk' in rows.columns else np.nan, src='backfill' if a.backfill_days else 'live', made=made,
                              atwo=rows.run_id.map(atwo_by_run)))
     if len(rows) and not os.environ.get('PROJECTION_NO_LOG'):
         projlog.update(rows)

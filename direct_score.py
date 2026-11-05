@@ -74,6 +74,8 @@ def load_log(dates):
             continue
         R = json.load(gzip.open(f, 'rt'))['rows']
         for x in (R.values() if isinstance(R, dict) else R):
+            if x.get('gone'):
+                continue     # scratched or dropped after logging (direct_log.snapshot flags it): not in the field any more, and a stale nomination would break the field's tab check
             rows.append(dict(x))
     return pd.DataFrame(rows)
 

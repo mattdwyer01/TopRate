@@ -6,6 +6,7 @@ import { fmtPrice, fmtWpr } from '../../lib/format'
 import type { PriceMove } from '../../lib/priceMove'
 import { isVoid } from '../../lib/wprVoid'
 import { speedRatingOnScale } from '../../lib/speed'
+import { lastRunsRating } from '../../lib/formRatings'
 
 // Building blocks for the runner's detail page. Each takes plain values so RunnerDetailModal stays a layout file.
 
@@ -63,6 +64,41 @@ export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: nu
           )}
         </div>
       ))}
+    </section>
+  )
+}
+
+// Form check: how the Proj sits against the horse's own recent ATW ratings, and the bad-run risk. Shown on the runner page under the hero. (5 Nov 2026)
+export function FormCheck({ runner, raceDate }: { runner: Runner; raceDate: string | null }) {
+  const last3 = lastRunsRating(runner.formHistory, raceDate, 3)
+  const last8 = lastRunsRating(runner.formHistory, raceDate, 8)
+  const lastRun = lastRunsRating(runner.formHistory, raceDate, 1)
+  const best = [...runner.formHistory].sort((a, b) => (a.date < b.date ? -1 : 1)).filter((r) => r.wpr != null && (raceDate == null || r.date < raceDate)).slice(-8).reduce((m, r) => Math.max(m, r.wpr as number), -Infinity)
+  const p = runner.projectedWpr
+  const d = p != null && last3 != null ? p - last3.avg : null
+  const risk = runner.badRunRisk
+  if (d == null && risk == null) return null
+  const big = d != null && Math.abs(d) >= 5
+  return (
+    <section className="rounded-lg border border-line bg-panel px-3 py-2 text-xs text-ink-soft sm:px-4" aria-label="Form check">
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+        {d != null && last3 != null && (
+          <span>
+            <span className="font-semibold text-ink">Form check</span>{' '}
+            last 3 average <span className="font-mono text-ink">{last3.avg.toFixed(1)}</span>
+            {lastRun ? <> (last run <span className="font-mono text-ink">{lastRun.avg.toFixed(0)}</span>{Number.isFinite(best) ? <>, best of last 8 <span className="font-mono text-ink">{best.toFixed(0)}</span></> : null}{last8 && last8.n >= 4 ? <>, last 8 average <span className="font-mono text-ink">{last8.avg.toFixed(1)}</span></> : null})</> : null}
+            {'. '}WR <span className="font-mono text-ink">{p!.toFixed(1)}</span> is{' '}
+            <span className={big ? 'font-semibold text-amber' : 'font-semibold text-ink'}>{Math.abs(d).toFixed(1)} {d < 0 ? 'below' : 'above'}</span> that
+            {big ? ': the model is leaning on class, distance, going and the field, not only the recent runs.' : '.'}
+          </span>
+        )}
+        {risk != null && (
+          <span title="Chance the rating comes in more than 12 below the form figure (a bad run). Held out: predicted 16.5% in the riskiest tenth, actual 18.7%; AUC 0.69.">
+            <span className="font-semibold text-ink">Bad-run risk</span>{' '}
+            <span className={`font-mono ${risk >= 15 ? 'font-semibold text-amber' : 'text-ink'}`}>{risk.toFixed(0)}%</span> <span className="text-ink-faint">(average runner about 7%)</span>
+          </span>
+        )}
+      </div>
     </section>
   )
 }
