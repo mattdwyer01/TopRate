@@ -138,6 +138,8 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
 
     actualWpr: r.wpja,
     actualWprRank: r.wpjar,
+    actualAtw: r.wpat ?? null,
+    actualPrelim: r.wpap === 1,
 
     commentsVideo: r.cmtV,
     commentsSteward: r.cmtS,

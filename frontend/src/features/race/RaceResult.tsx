@@ -3,7 +3,7 @@ import type { CombinedRank } from '../../lib/combinedRank'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { pureProj } from '../../lib/raceModel'
 import { fmtInt, fmtPrice } from '../../lib/format'
-import { speedRatingOnScale } from '../../lib/speed'
+import { actualOnRatingScale, ratingMiss } from '../../lib/atw'
 
 interface RaceResultProps {
   race: Race
@@ -108,6 +108,7 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
           const c = combo.get(r.runId)
           const proj = pureProj(r, effective[r.runId])
           const m = marginText(r)
+          const miss = ratingMiss(r, c?.rating)
           return (
             <li key={r.runId} className="flex flex-1">
               <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-3 rounded-md border-t border-line-soft px-2 py-1 text-left hover:bg-bg ${win ? 'bg-emerald-tint' : ''}`}>
@@ -127,13 +128,13 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
                 </span>
                 <span className="hidden shrink-0 gap-3 text-center xl:flex">
                   {[
-                    ['Base', fmtInt(r.nett)],
-                    ['Spd', r.speedRating != null ? fmtInt(speedRatingOnScale(r.speedRating)) : '–'],
-                    ['WR', fmtInt(proj)],
-                  ].map(([label, val]) => (
-                    <span key={label} className="w-9">
+                    ['Rating', c?.rating != null ? c.rating.toFixed(1) : fmtInt(proj), 'text-ink-soft'],
+                    ['Actual', actualOnRatingScale(r) != null ? (actualOnRatingScale(r) as number).toFixed(1) + (r.actualPrelim ? 'p' : '') : '\u2013', 'text-ink'],
+                    ['+/-', miss != null ? `${miss >= 0 ? '+' : '\u2212'}${Math.abs(miss).toFixed(1)}` : '', miss == null ? '' : miss >= 0 ? 'text-blue-700' : 'text-rose'],
+                  ].map(([label, val, tone]) => (
+                    <span key={label} className="w-11">
                       <span className="block text-[10px] uppercase tracking-wide text-ink-faint">{label}</span>
-                      <span className="block font-mono text-[13px] font-semibold text-ink-soft">{val}</span>
+                      <span className={`block font-mono text-[13px] font-semibold ${tone}`}>{val}</span>
                     </span>
                   ))}
                 </span>

@@ -18,6 +18,20 @@ export function projectedAtResultsScale(r: Pick<Runner, 'projectedWpr' | 'result
   return r.projectedWpr + (r.resultsScaleOffset ?? 0)
 }
 
+// The Actual rating on the Rating's scale: TopRate's published ATW for the run (the rating at THIS race's weight). Preliminary until TopRate finalises the race (`actualPrelim`, ratings run
+// about a point low); the final figure replaces it. null until the race page is stored. The pre-race Rating is never changed.
+export function actualOnRatingScale(r: Pick<Runner, 'actualAtw'>): number | null {
+  return r.actualAtw ?? null
+}
+
+// Actual (on the Rating's scale) minus the Rating shown: + = ran above the rating. null until the actual is in.
+export function ratingMiss(r: Pick<Runner, 'projectedWpr' | 'actualAtw'>, rating?: number | null): number | null {
+  const act = actualOnRatingScale(r)
+  const shown = rating ?? r.projectedWpr
+  if (act == null || shown == null) return null
+  return act - shown
+}
+
 // Rank and fair price for every rated, unscratched runner of a finished (or any) race on the ATW scale, the same softmax the race page uses
 // (beta 0.20, the pipeline's own price sharpness). Used by Review and the day results so past races are read the way the race page ranks them.
 export function atwFieldByRunId(runners: Runner[], beta = 0.2): Map<string, { rank: number; price: number }> {

@@ -47,12 +47,13 @@ interface HeroProps {
 // The three ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
 export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null }) {
   const tiles: { label: string; value: number | null; rank: number | null }[] = [
+    { label: 'Peak', value: runner.peakWpr ?? null, rank: ranks?.[3] ?? null },
     { label: 'Base', value: runner.nett ?? null, rank: ranks?.[0] ?? null },
     { label: 'Spd', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[1] ?? null },
     { label: 'WR', value: proj, rank: ranks?.[2] ?? null },
   ]
   return (
-    <section className="grid grid-cols-3 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">
+    <section className="grid grid-cols-4 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">
       {tiles.map((t) => (
         <div key={t.label} className={`flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 ${t.label === 'WR' ? 'bg-emerald-bg' : ''}`}>
           <span className="text-[11px] font-semibold text-ink-mute">{t.label}</span>
@@ -450,7 +451,7 @@ function ResultContext({ runner }: { runner: Runner }) {
 
 // After the race: how it finished, the actual rating it ran (ATW) and what the race itself said.
 export function ResultCard({ runner }: { runner: Runner }) {
-  const actual = runner.actualWpr
+  const actual = runner.actualAtw
   const fin = runner.finishPosition
   if (fin == null && actual == null && !runner.resultKnown) {
     return <p className="text-sm text-ink-mute">The result and the actual rating show here after the race.</p>
@@ -461,14 +462,14 @@ export function ResultCard({ runner }: { runner: Runner }) {
         <Tile label="Finish">
           <span className="font-mono text-xl font-semibold text-ink">{fin != null ? ordinal(fin) : runner.won ? '1st' : runner.resultKnown ? 'Unplaced' : '-'}</span>
         </Tile>
-        <Tile label="Actual rating (ATW)">
+        <Tile label={runner.actualPrelim ? "Actual rating (ATW, preliminary)" : "Actual rating (ATW)"}>
           <span className="font-mono text-xl font-semibold text-emerald-deep">{actual != null ? fmtWpr(actual) : '-'}</span>
         </Tile>
       </div>
       <ResultContext runner={runner} />
       <p className="mt-2 text-sm text-ink-soft">
         {fin != null && runner.marginFinish != null && fin > 1 ? `Beaten ${runner.marginFinish.toFixed(1)}L. ` : ''}
-        {actual == null ? 'The actual rating settles a few days after the race.' : ''}
+        {actual == null ? 'The actual rating comes from TopRate a day or two after the race.' : ''}
       </p>
     </div>
   )

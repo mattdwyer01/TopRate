@@ -63,7 +63,7 @@ def main():
     for d in sorted(ids):
         path = OUT / f"{d}.json.gz"
         have = json.loads(gzip.open(path, "rt").read()).get("races", {}) if path.exists() else {}
-        todo = [r for r in ids[d] if a.refetch or str(r) not in have]
+        todo = [r for r in ids[d] if a.refetch or str(r) not in have or have[str(r)].get('wprStatus') != 'Final']  # a stored Preliminary race is read again until it is Final
         if not todo:
             print(f"{d}: all {len(ids[d])} races stored"); continue
         if session.get("expires_at", 0) - datetime.now().timestamp() < 600:

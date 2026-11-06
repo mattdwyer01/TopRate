@@ -1128,6 +1128,32 @@ def _tr_actual():
     return _TR_ACTUAL["v"]
 
 
+_TR_RESULT_ATW = {}
+
+
+def _tr_result_atw():
+    """TopRate's published ATW rating (this run's rating at the weight carried in that race) by (lowercased horse, date) -> (atw, is_final), from the race pages
+    stored in data/tr_results (toprate_result_fetch.py). Preliminary ratings are used until TopRate finalises the race: the fetch reads a stored race again until it
+    is Final and replaces the record, so a final rating overwrites the preliminary one. {} if nothing is readable."""
+    if "v" not in _TR_RESULT_ATW:
+        out = {}
+        try:
+            for f in sorted(glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "tr_results", "*.json.gz"))):
+                d = os.path.basename(f)[:10]
+                with gzip.open(f, "rt") as fh:
+                    races = json.load(fh).get("races", {})
+                for race in races.values():
+                    final = race.get("wprStatus") == "Final"
+                    for ru in race.get("runners") or []:
+                        a = ru.get("atw")
+                        if a is not None and ru.get("horse"):
+                            out[(str(ru["horse"]).strip().lower(), d)] = (float(a), final)
+        except Exception as e:
+            print(f"  TopRate result ATW lookup unavailable: {e}")
+        _TR_RESULT_ATW["v"] = out
+    return _TR_RESULT_ATW["v"]
+
+
 def _compute_atw_offsets(fh):
     """Moved to atw_offsets.py (shared with projection/run.py)."""
     return _atw_offsets_mod.compute_atw_offsets(fh)
@@ -1311,6 +1337,22 @@ def rebuild_html(runners_df, model_pick_rows=None):
     except Exception as _e:
         print(f"  results-scale offsets skipped: {_e}")
         _rso_lookup = {}
+
+    def _rso_toprate(row):
+        """Shift from the Proj's page ATW scale to TopRate's actual (plain) rating: minus 0.8 x (AR 168 standard weight - weight carried after claim), wfa_scale.py.
+        Measured 6 Nov 2026 on 6,800 resulted runs: actual minus (Proj - c) has sd 8.39 against 8.67 unshifted, slope of the unshifted miss on c -0.89."""
+        try:
+            import wfa_scale
+            age = pd.to_numeric(row.get("horse_age"), errors="coerce")
+            wt = pd.to_numeric(row.get("weight_carried"), errors="coerce")
+            dist = pd.to_numeric(row.get("distance"), errors="coerce")
+            sex = row.get("horse_sex")
+            if pd.isna(age) or pd.isna(wt) or pd.isna(dist) or not isinstance(sex, str):
+                return None
+            c = wfa_scale.atw_offset(int(age), sex, str(row.get("date"))[:10], int(dist), float(wt))
+            return None if c is None else round(-c, 2)
+        except Exception:
+            return None
 
     def _atwo_for_row(row):
         """ATW offset for the payload. The offset frozen in the projection log (wprp_atwo) wins, so a race that has run keeps the weight it ran at.
@@ -1935,7 +1977,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # to the projection and the winning line so they sit on the same scale as the ATW history dots. None = no shift.
                 "atwo": _atwo_for_row(row),
                 # Results-scale offset (Oct 2026): add to the plain projection to compare it with wpr_actual (the results-file atw). See atw_results_scale.py.
-                "rso": None if str(row.get("wprp_scale")) == "toprate" else _rso_lookup.get(si(row.get("run_id"))),  # TopRate-scale actual is the plain rating: no results-scale shift
+                "rso": _rso_toprate(row) if str(row.get("wprp_scale")) == "toprate" else _rso_lookup.get(si(row.get("run_id"))),  # TopRate-scale actual is the plain rating: shift = minus the ATW offset (wfa_scale)
                 # Going performance breakdown - dict by category
                 "gb":   gb_parsed,
                 # Form string: last 4 finishes (e.g. "3-1-7-2")
@@ -2046,6 +2088,10 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # settles (~5 days post-race). Lets the dashboard show how
                 # far the projection and ranking actually missed.
                 "wpja":  sf(_review_actual(row)),
+                # TopRate's published ATW for this run (rating at the weight carried in this race, the Rating's scale); None until the race page is stored
+                "wpat":  sf((_tr_result_atw().get((str(row.get("horse", "")).strip().lower(), str(row.get("date"))[:10])) or (None, True))[0]),
+                # 1 while that ATW is still Preliminary (TopRate has not finalised the race); None when final or absent
+                "wpap":  (1 if (_tr_result_atw().get((str(row.get("horse", "")).strip().lower(), str(row.get("date"))[:10])) or (None, True))[1] is False else None),
                 "wpjar": si(row.get("wpr_actual_rank")),
                 # Running (video) and stewards comments for resulted runners.
                 # Drive the post-race variance subtab's auto-reason + display.

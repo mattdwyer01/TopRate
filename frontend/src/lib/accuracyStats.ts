@@ -1,4 +1,4 @@
-import { atwFieldByRunId, projectedAtResultsScale } from './atw'
+import { atwFieldByRunId } from './atw'
 import type { Race } from '../types/domain'
 import { BUSH_TRACK_THRESHOLD } from './meetings'
 import { isVoid } from './wprVoid'
@@ -32,8 +32,8 @@ export interface AccuracyRow {
   going: string
   horse: string
   predicted: number
-  actual: number
-  miss: number // actual - predicted; negative = overprojected
+  actual: number | null // TopRate's FINAL ATW for the run; null until TopRate finalises the race (win-based stats do not need it)
+  miss: number | null // actual - predicted; negative = overprojected; null with no final actual
   predictedRank: number | null
   actualRank: number | null
   finishPosition: number | null
@@ -78,6 +78,9 @@ export interface AccuracyFilters {
   excludeBush: boolean
 }
 
+// First race date the Review rating miss covers: projections are on the TopRate page ATW scale from 14 Oct 2026 and TopRate final pages are stored from 8 Oct.
+const ATW_REVIEW_FROM = '2026-10-15'
+
 export function distanceBand(distance: number): string {
   if (distance < 1200) return 'Sprint (<1200m)'
   if (distance < 1600) return 'Mile (1200-1599m)'
@@ -92,13 +95,22 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
     if (cutoff != null && new Date(race.date).getTime() < cutoff) continue
     if (filters.excludeBush && (race.prizeMoney ?? 0) <= BUSH_TRACK_THRESHOLD) continue
     // Rank and fair price on the same ATW scale the race page uses (offsets are frozen in the projection log; modelled where none was measured).
+    // The rating miss uses TopRate's FINAL ATW (the rating at this race's weight, payload `wpat`) against the projection on the same ATW scale; a run without
+    // a final figure still counts in the win-based stats, with actual and miss null. Races before ATW_REVIEW_FROM were logged on another scale (the own-ratings
+    // projection), so their misses are left blank.
     const field = atwFieldByRunId(race.runners)
+    const actualRankBy = new Map<string, number>()
+    race.runners
+      .filter((r) => r.actualAtw != null && !r.dataScratched)
+      .sort((a, b) => (b.actualAtw as number) - (a.actualAtw as number))
+      .forEach((r, i, arr) => actualRankBy.set(r.runId, i > 0 && arr[i - 1].actualAtw === r.actualAtw ? (actualRankBy.get(arr[i - 1].runId) as number) : i + 1))
     for (const r of race.runners) {
-      if (r.projectedWpr == null || r.actualWpr == null) continue
+      if (r.projectedWpr == null || (r.actualAtw == null && r.actualWpr == null)) continue
       const live = loggedBeforeRace(race, r)
       if (filters.period === 'live' && !live) continue
-      const projAtActual = projectedAtResultsScale(r) as number
-      const miss = r.actualWpr - projAtActual
+      const projAtActual = r.projectedWpr
+      const finalAtw = race.date >= ATW_REVIEW_FROM ? r.actualAtw : null
+      const miss = finalAtw != null ? finalAtw - projAtActual : null
       const voidResult = isVoid(miss, r.commentsVideo, r.commentsSteward)
       rows.push({
         raceId: race.raceId,
@@ -109,10 +121,10 @@ export function collectAccuracyRows(races: Race[], filters: AccuracyFilters): Ac
         going: race.going,
         horse: r.horse,
         predicted: projAtActual,
-        actual: r.actualWpr,
+        actual: finalAtw,
         miss,
         predictedRank: field.get(r.runId)?.rank ?? r.wprRank,
-        actualRank: r.actualWprRank,
+        actualRank: actualRankBy.get(r.runId) ?? null,
         finishPosition: r.finishPosition,
         won: r.won,
         wprPrice: field.get(r.runId)?.price ?? r.wprPrice,
@@ -146,16 +158,17 @@ export interface AccuracyStats {
   within6Pct: number | null // cumulative: |miss| < 6
 }
 
-export function computeAccuracyStats(rows: AccuracyRow[]): AccuracyStats {
+export function computeAccuracyStats(allRows: AccuracyRow[]): AccuracyStats {
+  const rows = allRows.filter((r) => r.miss != null)
   if (rows.length === 0) return { n: 0, mae: null, bias: null, within3Pct: null, within6Pct: null }
   let absSum = 0
   let signedSum = 0
   let within3 = 0
   let within6 = 0
   for (const r of rows) {
-    const a = Math.abs(r.miss)
+    const a = Math.abs(r.miss as number)
     absSum += a
-    signedSum += r.miss
+    signedSum += r.miss as number
     if (a < 3) within3++
     if (a < 6) within6++
   }
@@ -342,13 +355,14 @@ export interface CalibrationBins {
  * with thousands of runners, one dot per row would just be an overplotted
  * smear. Both axes share one domain (predicted and actual are the same WPR
  * scale) so the y=x "perfect projection" reference line is meaningful. */
-export function computeCalibrationBins(rows: AccuracyRow[], binSize = 5): CalibrationBins {
+export function computeCalibrationBins(allRows: AccuracyRow[], binSize = 5): CalibrationBins {
+  const rows = allRows.filter((r) => r.actual != null)
   if (rows.length === 0) return { binSize, min: 0, max: 100, cells: [], maxCount: 0 }
   let min = Infinity
   let max = -Infinity
   for (const r of rows) {
-    min = Math.min(min, r.predicted, r.actual)
-    max = Math.max(max, r.predicted, r.actual)
+    min = Math.min(min, r.predicted, r.actual as number)
+    max = Math.max(max, r.predicted, r.actual as number)
   }
   min = Math.floor(min / binSize) * binSize
   max = Math.ceil(max / binSize) * binSize
@@ -356,7 +370,7 @@ export function computeCalibrationBins(rows: AccuracyRow[], binSize = 5): Calibr
   const counts = new Map<string, number>()
   for (const r of rows) {
     const predBin = Math.floor((r.predicted - min) / binSize) * binSize + min
-    const actualBin = Math.floor((r.actual - min) / binSize) * binSize + min
+    const actualBin = Math.floor(((r.actual as number) - min) / binSize) * binSize + min
     const key = `${predBin}|${actualBin}`
     counts.set(key, (counts.get(key) ?? 0) + 1)
   }
@@ -496,7 +510,8 @@ export interface MarginStats {
  * top pick's ACTUAL result specifically (not the top actual-WPR horse),
  * since the question is whether the model's implied gap to its own top
  * selection held up, not who really ran best that day. */
-export function computeMarginStats(rows: AccuracyRow[]): MarginStats {
+export function computeMarginStats(allRows: AccuracyRow[]): MarginStats {
+  const rows = allRows.filter((r) => r.actual != null)
   const byRace = new Map<string, AccuracyRow[]>()
   for (const r of rows) {
     const existing = byRace.get(r.raceId)
@@ -511,7 +526,7 @@ export function computeMarginStats(rows: AccuracyRow[]): MarginStats {
     for (const r of raceRows) {
       if (r === top) continue
       const predMargin = top.predicted - r.predicted
-      const actualMargin = top.actual - r.actual
+      const actualMargin = (top.actual as number) - (r.actual as number)
       const miss = actualMargin - predMargin
       absMisses.push(Math.abs(miss))
       signedMisses.push(miss)

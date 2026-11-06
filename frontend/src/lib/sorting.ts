@@ -2,6 +2,7 @@ import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
 import type { CombinedRank } from './combinedRank'
 import { spellPosition } from './spellPosition'
+import { actualOnRatingScale, ratingMiss } from './atw'
 
 export type SortKey =
   | 'tab'
@@ -17,6 +18,8 @@ export type SortKey =
   | 'peakWpr'
   | 'fixedPrice'
   | 'ratedPrice'
+  | 'actual'
+  | 'miss'
   | 'finish'
 
 export type SortDirection = 'asc' | 'desc'
@@ -39,6 +42,8 @@ export const DEFAULT_DIRECTION: Record<SortKey, SortDirection> = {
   peakWpr: 'desc',
   fixedPrice: 'asc',
   ratedPrice: 'asc',
+  actual: 'desc',
+  miss: 'desc',
   finish: 'asc',
 }
 
@@ -80,6 +85,10 @@ function sortValue(
       return runner.fixedWinPrice ?? Infinity
     case 'ratedPrice':
       return effective?.effectivePrice ?? Infinity
+    case 'actual':
+      return actualOnRatingScale(runner) ?? -Infinity
+    case 'miss':
+      return ratingMiss(runner, combo?.rating) ?? -Infinity
     case 'finish':
       return runner.finishPosition ?? Infinity
   }

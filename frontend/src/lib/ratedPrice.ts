@@ -5,7 +5,7 @@
 // halved the longshot over-statement. It is the projection's view, not a betting price.
 
 const REF_SD = 7.0       // projection sd that gets the base noise
-const BASE_SD = 6.6      // noise sd at beta 0.20: fitted 15 Oct 2026 on 3,997 logged races (4 Jul to 8 Oct), winner log-lik -1.8837 vs -1.8919 at 7.9; refit once the live log has weeks of rows
+const BASE_SD = 5.5      // noise sd at beta 0.20. 6.6 (fitted 15 Oct 2026) under-rated the top rated runner: on 937 priced races the top pick was rated 25.1% against 28.9% actual (market 26.2%). 6 Nov 2026, 900 races: winner log-lik -1.9196 (6.6), -1.9124 (5.5), -1.9141 (5.0); top pick rated 25.1% / 27.9% / 29.6% vs 29.1% actual. Refit once the live log has weeks of rows
 const RATIO_MIN = 0.8
 const RATIO_MAX = 1.8
 const QUAD_POINTS = 121
