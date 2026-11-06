@@ -22,11 +22,27 @@ KEEP = ["runId", "horseId", "horse", "tabNumber", "barrier", "atw", "wpr", "weig
 
 
 def race_ids_by_date(dates):
+    """TopRate race ids to read per date: those in runners.csv plus those in TopRate's own field files (data/tr_fields/<date>.json). runners.csv can keep a
+    stale id for a race (6 Nov 2026: the Melbourne Cup was 1760592 there and 1829348 on TopRate, Port Lincoln R5 1829207 vs 1829431, Gold Coast 24 Oct
+    R1 2 4 5 7 on the ids of a duplicated card), and a stale id returns an empty page, so the race never reached data/tr_results."""
     import runners_io
     df = runners_io.read_runners()
     df["date"] = df["date"].astype(str).str[:10]
     df = df[df.date.isin(dates) & (df.race_id < PLACEHOLDER_MIN)]
-    return {d: sorted({int(x) for x in g.race_id.dropna()}) for d, g in df.groupby("date")}
+    out = {d: {int(x) for x in g.race_id.dropna()} for d, g in df.groupby("date")}
+    for d in dates:
+        f = Path(__file__).parent / "data" / "tr_fields" / f"{d}.json"
+        if not f.exists():
+            continue
+        try:
+            rows = json.loads(f.read_text()).get("rows") or []
+        except (OSError, ValueError):
+            continue
+        for r in rows:
+            rid = r.get("race_id")
+            if rid is not None and int(rid) < PLACEHOLDER_MIN:
+                out.setdefault(d, set()).add(int(rid))
+    return {d: sorted(v) for d, v in out.items()}
 
 
 def pack(page):
