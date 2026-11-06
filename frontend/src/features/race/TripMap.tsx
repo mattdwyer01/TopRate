@@ -295,19 +295,15 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
                   strokeWidth={on || c ? 2 : 1}
                 />
                 {r.pft != null && (() => {
-                  // Chance of settling in the first third: a gauge along the chip's bottom edge (faint track, filled share), clipped to the chip's
-                  // rounded corners; green from FT_LIKELY up, soft grey below. On wide layouts the percentage sits at the right end of the chip.
+                  // Chance of settling in the first third: a gauge along the chip's bottom edge, right of the silk (faint track, filled share); green from FT_LIKELY up, soft grey below. On wide layouts the percentage sits at the right end of the chip.
                   const likely = r.pft >= FT_LIKELY
-                  const cid = `tm-clip-${r.rid}`
+                  const gx0 = x + SILK + 6
+                  const gw = 2 * hw - SILK - 11
                   return (
                     <g>
-                      <clipPath id={cid}>
-                        <rect x={x} y={y} width={2 * hw} height={CHIP_H} rx={5} />
-                      </clipPath>
-                      <g clipPath={`url(#${cid})`}>
-                        <rect x={x} y={y + CHIP_H - 4} width={2 * hw} height={4} fill="var(--color-line)" />
-                        <rect x={x} y={y + CHIP_H - 4} width={Math.max(3, 2 * hw * r.pft)} height={4} fill={likely ? 'var(--color-emerald-deep)' : 'var(--color-ink-mute)'} opacity={likely ? 1 : 0.45} />
-                      </g>
+                      {/* starts right of the silk so it never cuts into it; sits under the number and name */}
+                      <rect x={gx0} y={y + CHIP_H - 4.5} width={gw} height={2.5} rx={1.25} fill="var(--color-line)" />
+                      <rect x={gx0} y={y + CHIP_H - 4.5} width={Math.max(2.5, gw * r.pft)} height={2.5} rx={1.25} fill={likely ? 'var(--color-emerald-deep)' : 'var(--color-ink-mute)'} opacity={likely ? 1 : 0.45} />
                       {!narrow && (
                         <text x={x + 2 * hw - 5} y={r.py + 3} textAnchor="end" fontSize={9} fontWeight={likely ? 700 : 500} fill={likely ? 'var(--color-emerald-deep)' : 'var(--color-ink-faint)'}>
                           {Math.round(r.pft * 100)}%
