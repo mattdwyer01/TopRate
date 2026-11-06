@@ -617,12 +617,12 @@
    }
   }
  ],
- "races_checked": 65,
+ "races_checked": 66,
  "races_with_reason": {
-  "ok": 33,
+  "ok": 34,
   "first starter, light-history or no-Proj runner": 32
  },
- "open_bets": 0,
+ "open_bets": 1,
  "first_date": "2026-11-04",
  "last_date": "2026-11-06"
 }
