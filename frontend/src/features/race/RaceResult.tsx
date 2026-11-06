@@ -131,7 +131,10 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
                     ['Rating', c?.rating != null ? c.rating.toFixed(1) : fmtInt(proj), 'text-ink-soft'],
                     ['Actual', actualOnRatingScale(r) != null ? (actualOnRatingScale(r) as number).toFixed(1) + (r.actualPrelim ? 'p' : '') : '\u2013', 'text-ink'],
                     ['+/-', miss != null ? `${miss >= 0 ? '+' : '\u2212'}${Math.abs(miss).toFixed(1)}` : '', miss == null ? '' : miss >= 0 ? 'text-blue-700' : 'text-rose'],
-                  ].map(([label, val, tone]) => (
+                  ]
+                    // Actual and +/- only once TopRate has published a rating for some runner in the race (as in the runners table)
+                    .filter(([label]) => label === 'Rating' || race.runners.some((x) => x.actualAtw != null))
+                    .map(([label, val, tone]) => (
                     <span key={label} className="w-11">
                       <span className="block text-[10px] uppercase tracking-wide text-ink-faint">{label}</span>
                       <span className={`block font-mono text-[13px] font-semibold ${tone}`}>{val}</span>
