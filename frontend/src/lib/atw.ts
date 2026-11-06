@@ -18,17 +18,14 @@ export function projectedAtResultsScale(r: Pick<Runner, 'projectedWpr' | 'result
   return r.projectedWpr + (r.resultsScaleOffset ?? 0)
 }
 
-// The Actual rating on the Rating's scale: the rating the horse ran at THIS race's weight. TopRate's published actual is the plain rating; the Rating
-// (and Peak, Base, Spd, Recent runs) are weight-adjusted, so the actual is moved by the run's shift `resultsScaleOffset` (minus 0.8 x (AR 168 standard
-// weight - weight carried), toprate_daily `_rso_toprate`): shown = published - shift. No shift known = the published figure. The pre-race Rating is never changed
-// (fully converting it to the plain scale costs winner log-lik: -1.9445 against -1.917, 1,134 races).
-export function actualOnRatingScale(r: Pick<Runner, 'actualWpr' | 'resultsScaleOffset' | 'actualAtw'>): number | null {
-  if (r.actualAtw != null) return r.actualAtw // TopRate's own ATW for this run: exactly the rating at this race's weight
-  return r.actualWpr == null ? null : r.actualWpr - (r.resultsScaleOffset ?? 0)
+// The Actual rating on the Rating's scale: TopRate's published ATW for the run (the rating at THIS race's weight), FINAL ratings only. null until TopRate
+// finalises the race (a few days): no preliminary or estimated figure is shown. The pre-race Rating is never changed.
+export function actualOnRatingScale(r: Pick<Runner, 'actualAtw'>): number | null {
+  return r.actualAtw ?? null
 }
 
 // Actual (on the Rating's scale) minus the Rating shown: + = ran above the rating. null until the actual is in.
-export function ratingMiss(r: Pick<Runner, 'projectedWpr' | 'resultsScaleOffset' | 'actualWpr' | 'actualAtw'>, rating?: number | null): number | null {
+export function ratingMiss(r: Pick<Runner, 'projectedWpr' | 'actualAtw'>, rating?: number | null): number | null {
   const act = actualOnRatingScale(r)
   const shown = rating ?? r.projectedWpr
   if (act == null || shown == null) return null

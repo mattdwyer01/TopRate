@@ -49,7 +49,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today. The table is sorted by it. A first starter shows an estimate. Peak, Base and Spd are on the runner page." },
-  { key: 'actual', label: 'Actual', align: 'right', resultOnly: true, title: "The rating the horse ran at this race's weight, on the same scale as the Rating. TopRate publishes the plain rating; this is that figure moved for weight, age, sex and month. Blank until published, usually within a few days; early figures can be preliminary." },
+  { key: 'actual', label: 'Actual', align: 'right', resultOnly: true, title: "The rating the horse ran at this race's weight, on the same scale as the Rating: TopRate's published ATW, final ratings only. Blank until TopRate finalises the race, a few days after it runs." },
   { key: 'miss', label: '+/-', align: 'right', resultOnly: true, title: "Actual minus Rating, same scale: blue = ran above the rating, red = below." },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Rated price: the model's win chance turned into a price (1 / chance). The model's view only, not a value claim." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right', hideOnPhoneWithResult: true },

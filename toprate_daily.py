@@ -1133,7 +1133,8 @@ _TR_RESULT_ATW = {}
 
 def _tr_result_atw():
     """TopRate's published ATW rating (this run's rating at the weight carried in that race) by (lowercased horse, date), from the race pages stored in
-    data/tr_results (toprate_result_fetch.py). Final or Preliminary as stored. {} if nothing is readable."""
+    data/tr_results (toprate_result_fetch.py). FINAL ratings only (wprStatus 'Final'): a Preliminary race gives nothing, so the dashboard shows no Actual
+    until TopRate finalises it. {} if nothing is readable."""
     if "v" not in _TR_RESULT_ATW:
         out = {}
         try:
@@ -1142,6 +1143,8 @@ def _tr_result_atw():
                 with gzip.open(f, "rt") as fh:
                     races = json.load(fh).get("races", {})
                 for race in races.values():
+                    if race.get("wprStatus") != "Final":
+                        continue
                     for ru in race.get("runners") or []:
                         a = ru.get("atw")
                         if a is not None and ru.get("horse"):

@@ -134,8 +134,8 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
         )}
       </span>
       {showFp && (
-        <span className="text-right font-mono text-[12px] text-ink lg:text-[13px]" title={runner.actualAtw != null ? `TopRate's published ATW for this run, the rating at this race's weight. Plain rating ${runner.actualWpr != null ? runner.actualWpr.toFixed(1) : 'not in'}.` : runner.actualWpr != null ? `Estimated: TopRate's plain rating ${runner.actualWpr.toFixed(1)} moved to this race's weight (published ATW not stored yet).` : undefined}>
-          {f.scratched ? '' : actualShown == null ? <Missing why="Actual rating not published yet (usually within a few days)" /> : actualShown.toFixed(1)}
+        <span className="text-right font-mono text-[12px] text-ink lg:text-[13px]" title={runner.actualAtw != null ? `TopRate's final ATW rating for this run: the rating at this race's weight. Plain rating ${runner.actualWpr != null ? runner.actualWpr.toFixed(1) : 'not in'}.` : 'Shown once TopRate has finalised the ratings (a few days after the race).'}>
+          {f.scratched ? '' : actualShown == null ? <Missing why="Final rating not out yet (TopRate finalises a few days after the race)" /> : actualShown.toFixed(1)}
         </span>
       )}
       {showFp && (
