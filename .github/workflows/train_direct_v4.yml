@@ -1,0 +1,40 @@
+name: "Direct model v4: bagging + sequence model (train and test)"
+
+# 6 Nov 2026: research/train_direct_v4.py trains 5-seed bagged direct models with and without the GRU sequence input, reports paired winner
+# log-likelihood against a single-seed control on 2025 full fields and live complete fields, and commits direct_model/v4/ to the branch it ran on.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/keen-ramanujan-ypf0fj]
+    paths: [research/train_direct_v4.trigger]
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Context features
+        run: python -W ignore research/direct_ctx_features.py
+      - name: Train and test
+        run: python -u -W ignore research/train_direct_v4.py
+      - name: Commit models to this branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add direct_model/v4
+          git commit -m "Direct model v4 trained: bagged, bagged + sequence model" || echo nothing to commit
+          for i in 1 2 3 4 5; do git pull --rebase -q origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && break; sleep 10; done
