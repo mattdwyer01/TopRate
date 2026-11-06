@@ -109,8 +109,9 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
             </span>
           )}
           {runner.weightCarried != null && <span className="flex-none font-mono text-[10px] text-ink-faint lg:hidden" title="Weight carried">{runner.weightCarried}kg</span>}
-          <span className="max-w-[65%] flex-none truncate text-ink-mute">{runner.jockey}</span>
-          <span className="min-w-0 truncate">/ {runner.trainer}</span>
+          {/* the jockey shrinks and truncates instead of spilling into the Rating column; on a narrow phone the trainer (only a fragment fits) waits for the runner page */}
+          <span className="min-w-0 max-w-full shrink truncate text-ink-mute min-[480px]:max-w-[65%] min-[480px]:flex-none">{runner.jockey}</span>
+          <span className="hidden min-w-0 truncate min-[480px]:inline">/ {runner.trainer}</span>
           {runner.weightCarried != null && <span className="hidden flex-none font-mono lg:inline">&middot; {runner.weightCarried}kg</span>}
         </span>
       </span>

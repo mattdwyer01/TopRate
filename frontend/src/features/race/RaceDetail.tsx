@@ -1,12 +1,10 @@
 import { useMemo, useRef, useState } from 'react'
-import { useNow } from '../../hooks/useNow'
 import type { Race } from '../../types/domain'
 import { Pill } from '../../components/Pill'
 import { useShowScratched } from '../../lib/scratchedVisibility'
 import { computeGapsFromTop, computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, CORE_GAP_FROM_TOP } from '../../lib/raceModel'
 import { DEFAULT_DIRECTION, sortRunners, type SortDirection, type SortKey } from '../../lib/sorting'
 import { useTripMap } from '../../lib/tripMap'
-import { raceStatus, STATUS_PILL_TONE } from '../../lib/raceStatus'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
 import { BiasNote } from './BiasNote'
 import { MeetingLeanNote } from './MeetingLeanNote'
@@ -74,7 +72,6 @@ export function RaceDetail({
   onSelectRace,
 }: RaceDetailProps) {
   const { showScratched, setShowScratched } = useShowScratched()
-  const now = useNow(30_000)
   // Sorted by the combined Rating (best first) unless the user picks another column.
   const [sortKey, setSortKey] = useState<SortKey>('comboRank')
   const [sortDir, setSortDir] = useState<SortDirection>(DEFAULT_DIRECTION.comboRank)
@@ -203,21 +200,8 @@ export function RaceDetail({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <button type="button" onClick={onBack} className="w-fit text-sm text-emerald hover:underline">
-          &larr; Back to meetings
-        </button>
-        <div className="-mx-1 flex max-w-full flex-nowrap gap-1.5 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
-          {meetingRaces.map((r) => (
-            <Pill key={r.raceId} active={r.raceId === race.raceId} tone={STATUS_PILL_TONE[raceStatus(r, now)]} onClick={() => onSelectRace(r.raceId, r.date)}>
-              R{r.raceNumber}
-            </Pill>
-          ))}
-        </div>
-      </div>
-
       <div ref={headerRef}>
-        <RaceHeader race={race} meeting={meetingRaces} scratchedInRace={scratchedInRace} hasAnyResult={hasAnyResult} activeRunners={activeRunners} />
+        <RaceHeader race={race} meeting={meetingRaces} scratchedInRace={scratchedInRace} hasAnyResult={hasAnyResult} activeRunners={activeRunners} onBack={onBack} onSelectRace={onSelectRace} />
       </div>
       <RaceMiniBar race={race} meeting={meetingRaces} activeRunners={activeRunners} anchorRef={headerRef} onSelectRace={onSelectRace} />
 
@@ -309,8 +293,8 @@ export function RaceDetail({
         )}
 
         </div>
-        {/* Right column from xl (below it, after the runners): pace, trip map and speed map, no inner scrolling. Scratched runners are left off the maps, not just dimmed. */}
-        <div className="order-2 flex min-w-0 flex-col gap-4">
+        {/* Right column from xl (below it, after the runners): pace, trip map and speed map. From xl it sticks under the header while the runners scroll (6 Nov 2026), scrolling on its own only on a short screen. Scratched runners are left off the maps, not just dimmed. */}
+        <div className="order-2 flex min-w-0 flex-col gap-4 xl:sticky xl:top-[168px] xl:max-h-[calc(100vh-176px)] xl:overflow-y-auto xl:overscroll-contain xl:pb-1 [scrollbar-width:thin]">
           <PaceStrip race={race} ranked={ranked} active={activeRunners} trip={tripRace} />
           {/* One map at a time: the to-scale trip map (default when this race has one) or the column speed map. */}
           {hasTrip && (
