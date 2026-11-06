@@ -151,11 +151,14 @@ def build(res, a_gps, TODAY, up, cats_note=None):
     te = R[(R.date >= '2025-01-01') & (R.fs >= 8) & (~R.track.isin(gps_tracks))].copy()
     m, ms, tab = fit(tr)
     sc = place(te, m, ms, tab)
+    mf_tr = B.fit_ft(tr, FEATS)
+    sc['pft'] = mf_tr.predict(sc[FEATS])
     ok = sc.gap.notna()
     yc = te.gap800 - te.groupby('race_id').gap800.transform('mean')
     rawc = sc.raw_gap - sc.groupby('race_id').raw_gap.transform('mean')
     err = dict(gap=round(float(np.sqrt(((sc.gap800 - sc.gap)[ok] ** 2).mean())), 2), gap_corr=round(float(np.corrcoef(rawc[ok], yc[ok])[0, 1]), 2),
                n_races=int(te.race_id.nunique()))
+    err.update(B.ft_eval(sc))
     print('non-GPS held-out 2025+ (gap):', err, flush=True)
 
     # width estimate: fit on QLD GPS runs using the results-based forecasts (out-of-fold would be cleaner; pred_* here come from a model that
@@ -182,6 +185,7 @@ def build(res, a_gps, TODAY, up, cats_note=None):
 
     # live models on everything before today
     m, ms, tab = fit(train)
+    mf = B.fit_ft(train, FEATS)
     qd_all = qd[qd.date < TODAY].copy()
     qd_all['pred_gap'] = m.predict(qd_all[FEATS])
     qd_all['pred_settle'] = ms.predict(qd_all[FEATS])
@@ -205,6 +209,7 @@ def build(res, a_gps, TODAY, up, cats_note=None):
     u = u.merge(feat, on=['race_id', 'horse_id'], how='left')
     u['trk'] = pd.Categorical(u.track, categories=cats)
     sc = place(u, m, ms, tab)
+    sc['pft'] = mf.predict(sc[FEATS])
     sc['lane'] = lm.predict(sc.assign(settle_h3=sc.settle_h3, gap800_h3=sc.gap800_h3)[LANE_FEATS])
     sc['lane'] = pull_front_to_rail(sc, shift_to_rail(respread_lane(sc, lane_q, lane_q_all, lane_cal)))
     last = hist.sort_values('date').drop_duplicates('horse_id', keep='last').set_index('horse_id')
@@ -218,6 +223,7 @@ def build(res, a_gps, TODAY, up, cats_note=None):
             state='OTHER', laneKind='est', fs=int(len(z)), err=err,
             runners=[dict(rid=str(int(r.run_id)), name=r.horse, barrier=int(r.barrier),
                           gap=None if pd.isna(r.gap) else round(float(r.gap), 1), lane=round(float(r.lane), 1),
+                          pft=None if pd.isna(r.pft) else round(float(r.pft), 3),
                           nHist=int(r.n_hist) if pd.notna(r.n_hist) else 0,
                           last=(dict(date=str(last.loc[r.horse_id, 'date'].date()), track=last.loc[r.horse_id, 'track'], lane=None) if r.horse_id in last.index else None))
                      for r in z.sort_values('barrier').itertuples()])

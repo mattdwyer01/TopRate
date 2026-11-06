@@ -24,6 +24,7 @@ interface TripMapProps {
 export const TRIP_CONTENDER_GAP = 4
 
 const LEADER_ZONE_L = 1.5 // runners this close to the front are the likely leaders
+const FT_LIKELY = 0.6 // chance of the first third at or above this is drawn green (the same cut as Volume v3 in volume_rules.py)
 // Horses side by side keep their barrier order more often than not (Queensland GPS, 432k pairs at 800m from home: 78% in order when level,
 // 66 to 70% otherwise), so this is a nudge for horses level with each other, not a hard rule: others can drop in behind or cross in front.
 const LEVEL_L = 1.0 // horses within this many lengths of each other lengthwise count as level
@@ -208,6 +209,11 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
           {t2Gx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-ink-soft" />Second third ({t2N} of {nField})</span>}
         </div>
       )}
+      {items.some((r) => r.pft != null) && (
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-[3px] w-5 rounded-full bg-emerald-deep" />Bar under each runner: chance of settling in the first third ({Math.round(FT_LIKELY * 100)}%+ in green, {items.filter((r) => (r.pft ?? 0) >= FT_LIKELY).length} of {nField})</span>
+        </div>
+      )}
       {hasCont && (
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
           <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-emerald-deep text-center text-[8px] font-bold leading-3 text-white">1</span>Rating rank (contenders within {innerGap} of the top)</span>
@@ -293,6 +299,9 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
                   stroke={on ? 'var(--color-amber)' : c ? 'var(--color-emerald)' : 'var(--color-ink-faint)'}
                   strokeWidth={on || c ? 2 : 1}
                 />
+                {r.pft != null && (
+                  <rect x={x + 2} y={y + CHIP_H - 5} width={Math.max(2, (2 * hw - 4) * r.pft)} height={3} rx={1.5} fill={r.pft >= FT_LIKELY ? 'var(--color-emerald-deep)' : 'var(--color-ink-faint)'} opacity={r.pft >= FT_LIKELY ? 0.9 : 0.6} />
+                )}
                 {r.silk && <image href={r.silk} x={x + 3} y={y + (CHIP_H - SILK) / 2} width={SILK} height={SILK} preserveAspectRatio="xMidYMid meet" />}
                 <text x={tx} y={r.py + 4} fontSize={11} fontWeight={700} fill="var(--color-ink)">
                   {r.num}
@@ -330,6 +339,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             <div>
               Barrier {hov.barrier} · projected {hov.gx.toFixed(1)}L behind the leader, {hov.lane.toFixed(1)}m off the rail
             </div>
+            {hov.pft != null && <div>Chance of settling in the first third: {Math.round(hov.pft * 100)}%</div>}
             <div>
               Forecast order {orderOf.get(hov.rid)} of {nField}
               {nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t1N ? ' (first third)' : nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t2N ? ' (second third)' : ''}

@@ -1,6 +1,6 @@
 """Volume rules tracker (4 Nov 2026).
 
-Two research betting rules, logged side by side so they can be judged on bets taken before the jump (not on the 30 days they were tuned on):
+Three research betting rules, logged side by side so they can be judged on bets taken before the jump (not on the 30 days they were tuned on):
 
   Volume v1 (the original rule)
       a runner qualifies when it is forecast to settle in the FIRST THIRD of its field (trip map, rank on forecast gap behind the leader:
@@ -10,7 +10,12 @@ Two research betting rules, logged side by side so they can be judged on bets ta
       B: when NO qualifier is within 1 point of the top, bet the qualifiers within 4 points;
       otherwise no bet in the race.
 
-Both skip a race when: the field has under 5 live runners, any live runner is a first starter / light-history / has no Proj, any live runner has no trip map
+  Volume v3 (v1 with a probability cut, added 6 Nov 2026)
+      the same as v1 except that "first third" is the trip map's classifier probability, pft (P(settles in the first third)), at or above PFT_MIN (0.6)
+      instead of the hard rank cut. On 29k results-file races the classifier was right more often than the rank cut at the same number of picks
+      (precision 64.0% vs 63.4%) and a threshold of 0.6 selects 74% right (0.7: 81%) for fewer runners, but nobody has tested it on bets. Judge it here.
+
+All rules skip a race when: the field has under 5 live runners, any live runner is a first starter / light-history / has no Proj, any live runner has no trip map
 forecast, or the meeting is bush (biggest single race prize $20,000 or less, same rule as the dashboard). Stake is $25 a race per rule, split equally across the
 bets the rule makes in that race. Prices are the fixed prices in runners.csv (TAB, updated every few minutes) at logging time.
 
@@ -47,6 +52,7 @@ BUSH_MAX_PRIZE = 20000       # same as frontend lib/meetings.ts BUSH_TRACK_THRES
 MIN_FIELD = 5
 MIN_PRICE = 3.0              # strictly over (raised from 2.0 on 4 Nov 2026)
 FIRST_THIRD = 1 / 3
+PFT_MIN = 0.6                # v3: trip map P(first third) at or above this
 V1_MAX_OFF = 4.0
 V2A_MAX_OFF = 2.0            # top pick is a bet: qualifiers under 2 points off the top
 V2B_NEAR = 1.0               # nobody within this many points of the top qualifies ...
@@ -61,7 +67,7 @@ RUNNER_COLS = ["date", "venue", "race", "race_id", "run_id", "horse", "tab_numbe
                "field_source"]
 
 BET_COLS = ["logged_at", "mins_to_jump", "date", "venue", "race", "race_id", "run_id", "start_time", "horse", "tab_number", "barrier", "price_logged",
-            "v1", "v2", "stake_v1", "stake_v2", "proj", "top_proj", "off_top", "gap", "gap_rank", "field_n", "sp_frac", "top_is_bet", "n_qual_within1",
+            "v1", "v2", "v3", "stake_v1", "stake_v2", "stake_v3", "pft", "proj", "top_proj", "off_top", "gap", "gap_rank", "field_n", "sp_frac", "top_is_bet", "n_qual_within1",
             "going", "rs_label", "meeting_min_prize", "race_prize", "prev_races", "prev_win_first_third", "prev_win_sp", "prev_top3_sp", "won", "finish_position", "sp_final", "void", "settled_at"]
 RACE_COLS = ["checked_at", "mins_to_jump", "date", "venue", "race", "race_id", "start_time", "field_n", "reason", "v1_bets", "v2_bets"]
 
@@ -91,6 +97,17 @@ def read_gaps(path=TRIP_MAP):
     return out, t.get("generated")
 
 
+def read_pft(path=TRIP_MAP):
+    """run_id (as text) -> trip map P(first third); empty for a trip map built before 6 Nov 2026."""
+    t = json.load(open(path))
+    out = {}
+    for v in t.get("races", {}).values():
+        for r in v.get("runners", []):
+            if r.get("pft") is not None:
+                out[str(r["rid"])] = float(r["pft"])
+    return out
+
+
 def read_overrides():
     if not os.path.exists(OVERRIDES):
         return []
@@ -100,7 +117,7 @@ def read_overrides():
 # ----------------------------------------------------------------------------------------------------------------------------------------------
 # the rules
 
-def evaluate(df, gaps, price_mode="fixed", overrides=None):
+def evaluate(df, gaps, price_mode="fixed", overrides=None, pft=None):
     """Apply both rules to every race in df (rows of one or more dates). Returns (runners, races): live runners with rule flags, and one row per race
     with the reason it was or was not eligible."""
     d = df.copy()
@@ -119,6 +136,7 @@ def evaluate(df, gaps, price_mode="fixed", overrides=None):
     d = d[num(d["run_id"]).notna()].copy()
     d["rid"] = num(d["run_id"]).astype("int64").astype(str)
     d["gap"] = d["rid"].map(gaps)
+    d["pft"] = d["rid"].map(pft) if pft else np.nan
     d["proj"] = num(d["wprp_proj"])
     fixed = num(d["fixed_win_price"])
     d["price"] = num(d["starting_price_sp"]).fillna(fixed) if price_mode == "sp" else fixed
@@ -150,6 +168,7 @@ def evaluate(df, gaps, price_mode="fixed", overrides=None):
     d["race_ok"] = d["race_id"].isin(ok)
     d["qual"] = d["race_ok"] & (d["sp"] <= FIRST_THIRD + 1e-9) & (d["price"] > MIN_PRICE)
     d["v1"] = d["qual"] & (d["off"] <= V1_MAX_OFF + 1e-9)
+    d["v3"] = d["race_ok"] & (d["pft"] >= PFT_MIN) & (d["price"] > MIN_PRICE) & (d["off"] <= V1_MAX_OFF + 1e-9)
     d["is_top_bet"] = d["qual"] & (d["off"] <= 1e-9)
     g = d.groupby("race_id")
     d["top_is_bet"] = g["is_top_bet"].transform("any")
@@ -158,7 +177,7 @@ def evaluate(df, gaps, price_mode="fixed", overrides=None):
     a = d["top_is_bet"] & d["qual"] & (d["off"] < V2A_MAX_OFF)
     b = (d["n_qual_within1"] == 0) & d["qual"] & (d["off"] <= V2B_MAX_OFF + 1e-9)
     d["v2"] = a | b
-    for r in ("v1", "v2"):
+    for r in ("v1", "v2", "v3"):
         cnt = d.groupby("race_id")[r].transform("sum")
         d[f"stake_{r}"] = np.where(d[r], STAKE_PER_RACE / cnt.replace(0, np.nan), 0.0)
     rc["v1_bets"] = rc["race_id"].map(d.groupby("race_id")["v1"].sum()).fillna(0).astype(int)
@@ -184,15 +203,15 @@ def cmd_list(a):
     now = now_utc(a.now)
     date = a.date or melb(now).strftime("%Y-%m-%d")
     gaps, gen = read_gaps(a.trip_map)
-    d, rc = evaluate(read_runners(date), gaps, "fixed", read_overrides())
+    d, rc = evaluate(read_runners(date), gaps, "fixed", read_overrides(), read_pft(a.trip_map))
     print(f"{date}: now {melb(now).strftime('%a %H:%M')} Melbourne, trip map generated {gen}")
-    b = d[d["v1"] | d["v2"]].copy()
+    b = d[d["v1"] | d["v2"] | d["v3"]].copy()
     b["st"] = pd.to_datetime(b["start_time"])
     b["time"] = b["st"].dt.tz_convert("Australia/Melbourne").dt.strftime("%-I:%M%p")
-    b["rule"] = np.where(b["v1"] & b["v2"], "v1+v2", np.where(b["v1"], "v1", "v2"))
+    b["rule"] = b.apply(lambda r: "+".join(k for k in ("v1", "v2", "v3") if r[k]), axis=1)
     b = b.sort_values(["st", "race_id", "price"])
-    print(b[["time", "venue", "race", "horse", "tab_number", "price", "rule", "stake_v1", "stake_v2", "off", "going"]].round(2).to_string(index=False))
-    for r in ("v1", "v2"):
+    print(b[["time", "venue", "race", "horse", "tab_number", "price", "pft", "rule", "stake_v1", "stake_v2", "stake_v3", "off", "going"]].round(2).to_string(index=False))
+    for r in ("v1", "v2", "v3"):
         x = b[b[r]]
         print(f"{r}: {x['race_id'].nunique()} races, {len(x)} runners, ${x['stake_' + r].sum():.2f} staked")
     print("races skipped:", rc["reason"].value_counts().to_dict())
@@ -242,7 +261,7 @@ def cmd_log(a):
     if rn.empty:
         print("no runners for", date)
         return
-    d, rc = evaluate(rn, gaps, "fixed", read_overrides())
+    d, rc = evaluate(rn, gaps, "fixed", read_overrides(), read_pft(a.trip_map))
     ran = rn.assign(ran=(num(rn["interim_resulted"]).fillna(0) == 1) | (num(rn["resulted"]).fillna(0) == 1)).groupby("race_id")["ran"].any()
     rc["st"] = pd.to_datetime(rc["start_time"], utc=True, errors="coerce")
     rc["mins"] = (rc["st"] - now).dt.total_seconds() / 60
@@ -259,12 +278,13 @@ def cmd_log(a):
     stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     mins = rc.set_index("race_id")["mins"]
     new_races = rc.assign(checked_at=stamp, mins_to_jump=rc["mins"].round(1))[RACE_COLS]
-    x = d[d["race_id"].isin(ids) & (d["v1"] | d["v2"])]
+    x = d[d["race_id"].isin(ids) & (d["v1"] | d["v2"] | d["v3"])]
     mb = meeting_bias(d)
     nb = pd.DataFrame({
         "logged_at": stamp, "mins_to_jump": x["race_id"].map(mins).round(1), "date": x["date"], "venue": x["venue"], "race": x["race"], "race_id": x["race_id"],
         "run_id": x["rid"], "start_time": x["start_time"], "horse": x["horse"], "tab_number": x["tab_number"], "barrier": x["barrier"], "price_logged": x["price"],
-        "v1": x["v1"].astype(int), "v2": x["v2"].astype(int), "stake_v1": x["stake_v1"].round(2), "stake_v2": x["stake_v2"].round(2), "proj": x["proj"],
+        "v1": x["v1"].astype(int), "v2": x["v2"].astype(int), "v3": x["v3"].astype(int), "stake_v1": x["stake_v1"].round(2), "stake_v2": x["stake_v2"].round(2),
+        "stake_v3": x["stake_v3"].round(2), "pft": x["pft"].round(3), "proj": x["proj"],
         "top_proj": x["top"], "off_top": x["off"].round(2), "gap": x["gap"], "gap_rank": x["rk"], "field_n": x["n"], "sp_frac": x["sp"].round(3),
         "top_is_bet": x["top_is_bet"].astype(int), "n_qual_within1": x["n_qual_within1"], "going": x["going"], "rs_label": x["rs_label"],
         "meeting_min_prize": x["meet_min"], "race_prize": x["prize_money"],
@@ -275,7 +295,7 @@ def cmd_log(a):
     races = pd.concat([races, new_races], ignore_index=True) if len(races) else new_races
     bets.to_csv(BETS_LOG, index=False)
     races.to_csv(RACES_LOG, index=False)
-    print(f"logged {len(ids)} race(s): v1 {int(nb['v1'].sum())} bets, v2 {int(nb['v2'].sum())} bets (trip map {gen})")
+    print(f"logged {len(ids)} race(s): v1 {int(nb['v1'].sum())} bets, v2 {int(nb['v2'].sum())} bets, v3 {int(nb['v3'].sum())} bets (trip map {gen})")
 
 
 def cmd_settle(a):
@@ -368,6 +388,10 @@ SEGMENTS = [
     ("Field of 5 to 7", lambda b: num(b["field_n"]) <= 7),
     ("$40k+ and field of 8+", lambda b: (num(b["meeting_min_prize"]) >= 40000) & (num(b["field_n"]) >= 8)),
     # meeting bias: did earlier winners at the meeting come from the first third of the forecast? (no carry-over in the 4 Nov backtest)
+    # classifier probability of settling in the first third (v1 / v2 bets are hard-cut first third; v3 is the probability cut itself)
+    ("P(first third) 0.7+", lambda b: num(b["pft"]) >= 0.7),
+    ("P(first third) 0.5 to 0.7", lambda b: (num(b["pft"]) >= 0.5) & (num(b["pft"]) < 0.7)),
+    ("P(first third) under 0.5", lambda b: num(b["pft"]) < 0.5),
     ("3+ earlier races, 40%+ won from first third", lambda b: (num(b["prev_races"]) >= 3) & (num(b["prev_win_first_third"]) >= 0.4)),
     ("3+ earlier races, under 25% won from first third", lambda b: (num(b["prev_races"]) >= 3) & (num(b["prev_win_first_third"]) < 0.25)),
     ("3+ earlier races, winners forecast at the back (mean 0.55+)", lambda b: (num(b["prev_races"]) >= 3) & (num(b["prev_win_sp"]) >= 0.55)),
@@ -382,7 +406,7 @@ def _segments(b):
         except Exception:
             continue
         row = {"segment": name}
-        for rule in ("v1", "v2"):
+        for rule in ("v1", "v2", "v3"):
             row[rule] = _summ(b[m], rule, "price_logged")
         out.append(row)
     return out
@@ -392,7 +416,7 @@ def build_report(b, races):
     b = b.copy()
     b["price_sp"] = b["sp_final"].fillna(b["price_logged"])
     rep = {}
-    for rule in ("v1", "v2"):
+    for rule in ("v1", "v2", "v3"):
         rep[rule] = {"at_logged_price": _summ(b, rule, "price_logged"), "at_starting_price": _summ(b, rule, "price_sp")}
         by_day = []
         for dte, g in b.groupby("date"):
@@ -415,20 +439,21 @@ def write_report(rep, path_md=REPORT_MD, path_json=SUMMARY_JSON):
          "Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.", "",
          f"Logged {rep['first_date']} to {rep['last_date']}; races checked {rep['races_checked']}; bets still open {rep['open_bets']}.", "",
          "| Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |", "|---|---|---|---|---|---|---|---|---|"]
-    for rule, name in (("v1", "Volume v1"), ("v2", "Volume v2")):
+    for rule, name in (("v1", "Volume v1"), ("v2", "Volume v2"), ("v3", "Volume v3 (P cut)")):
         a, s = rep[rule]["at_logged_price"], rep[rule]["at_starting_price"]
         L.append(f"| {name} | {a['races']} | {a['bets']} | {a['wins']} | ${a['staked']:.0f} | ${a['returned']:.0f} | ${a['profit']:.0f} | {a['roi_pct']}% | {s['roi_pct']}% |")
-    L += ["", "## By day (at logged price)", "", "| Date | v1 bets | v1 profit | v2 bets | v2 profit |", "|---|---|---|---|---|"]
+    L += ["", "## By day (at logged price)", "", "| Date | v1 bets | v1 profit | v2 bets | v2 profit | v3 bets | v3 profit |", "|---|---|---|---|---|---|---|"]
     d1 = {x["date"]: x for x in rep["v1"]["by_day"]}
     d2 = {x["date"]: x for x in rep["v2"]["by_day"]}
-    for dte in sorted(set(d1) | set(d2)):
-        a, b2 = d1.get(dte), d2.get(dte)
-        L.append(f"| {dte} | {a['bets'] if a else 0} | ${a['profit'] if a else 0:.0f} | {b2['bets'] if b2 else 0} | ${b2['profit'] if b2 else 0:.0f} |")
+    d3 = {x["date"]: x for x in rep["v3"]["by_day"]}
+    for dte in sorted(set(d1) | set(d2) | set(d3)):
+        a, b2, b3 = d1.get(dte), d2.get(dte), d3.get(dte)
+        L.append(f"| {dte} | {a['bets'] if a else 0} | ${a['profit'] if a else 0:.0f} | {b2['bets'] if b2 else 0} | ${b2['profit'] if b2 else 0:.0f} | {b3['bets'] if b3 else 0} | ${b3['profit'] if b3 else 0:.0f} |")
     L += ["", "## Segments (at logged price; stake is the full $25 a race rule stake, so segments are cuts of the same bets)", "",
-          "| Segment | v1 bets | v1 profit | v1 ROI | v2 bets | v2 profit | v2 ROI |", "|---|---|---|---|---|---|---|"]
+          "| Segment | v1 bets | v1 profit | v1 ROI | v2 bets | v2 profit | v2 ROI | v3 bets | v3 profit | v3 ROI |", "|---|---|---|---|---|---|---|---|---|---|"]
     for sg in rep.get("segments", []):
-        a, c = sg["v1"], sg["v2"]
-        L.append(f"| {sg['segment']} | {a['bets']} | ${a['profit']:.0f} | {a['roi_pct']}% | {c['bets']} | ${c['profit']:.0f} | {c['roi_pct']}% |")
+        a, c, e = sg["v1"], sg["v2"], sg["v3"]
+        L.append(f"| {sg['segment']} | {a['bets']} | ${a['profit']:.0f} | {a['roi_pct']}% | {c['bets']} | ${c['profit']:.0f} | {c['roi_pct']}% | {e['bets']} | ${e['profit']:.0f} | {e['roi_pct']}% |")
     L += ["", "## Races checked without a bet, by reason", ""] + [f"- {k}: {v}" for k, v in rep["races_with_reason"].items()]
     open(path_md, "w").write("\n".join(L) + "\n")
 
