@@ -112,7 +112,7 @@ export function ProjBreakdown({ runner }: { runner: Runner }) {
         <span className="border-t border-line-soft pt-0.5 text-right font-mono font-semibold text-emerald-deep">{proj.toFixed(1)}</span>
       </div>
       {b.junk.length > 0 && <p className="mt-1 text-ink-faint">Left out as junk runs (more than 12 below the median of the last 6): {b.junk.map((j) => j.toFixed(0)).join(', ')}.</p>}
-      {big && <p className="mt-1">The model step is {Math.abs(b.mc).toFixed(1)} points {b.mc < 0 ? 'below' : 'above'} the form-only figure of {b.tf.toFixed(1)}: jockey, field strength and venue are doing most of the work here.</p>}
+      {big && <p className="mt-1">The model step is {Math.abs(b.mc).toFixed(1)} points {b.mc < 0 ? 'below' : 'above'} the form-only figure of {b.tf.toFixed(1)}. That step bundles the model's jockey, trainer, field strength, venue and similar-run weighting, so it is the place to look if your own figure is far from the Proj.</p>}
     </section>
   )
 }
