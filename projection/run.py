@@ -36,6 +36,8 @@ SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', '
 
 
 FORMULA_PROJ = os.environ.get('PROJECTION_FORMULA', '1') == '1'
+TF_ANCHOR = os.environ.get('PROJECTION_TF_ANCHOR', '1') == '1'    # 6 Nov 2026: Proj = capped formula + a limited model step (see below); 0 = the unanchored model figure
+TF_CAP = float(os.environ.get('PROJECTION_TF_CAP', '3.0'))        # rating points the model may move the formula figure
 CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '2.0'))   # rating points; 0 = no cap
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
@@ -362,6 +364,15 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             if use.any():
                 assert np.nanmax(np.abs(f2[use] - fp[use])) < 1e-6, 'ctx formula differs from features.formula_projection'
             fp = np.where(use, fp + np.nan_to_num(corr), fp)
+            if TF_ANCHOR:
+                # 6 Nov 2026 (owner's request): the Proj is anchored on the hand-checkable formula (projection/breakdown.py: weighted last 6 clean ATW ratings, regression, days,
+                # distance and going, class, last run; capped terms) and the model may move it at most TF_CAP points. Held-out 2026 (64,610 runs): formula 8.695 RMSE, with a +-3 model step
+                # 8.412, uncapped model 8.375. Runners with under 3 earlier runs keep the model figure.
+                import breakdown as BK
+                tfa = BK.tf_array(pd.DataFrame({'horse_id': R.horse_id.values, 'date': R.date.values, 'distance': R.distance.values, 'going': R.going.values,
+                                                'weight_carried': np.nan, 'prize_money': (R.prize.values if 'prize' in R.columns else np.nan)}))
+                okt = use & ~np.isnan(tfa)
+                fp = np.where(okt, tfa + np.clip(fp - tfa, -TF_CAP, TF_CAP), fp)
             fs = np.where(use, [cmeta['sd'].get(str(int(min(max(n, 1), CTX.K))), s0) for n, s0 in zip(np.nan_to_num(fn), fs)], fs)
         R['p0'] = np.where(has, fp, np.nan)
         R['proj'] = R.p0
