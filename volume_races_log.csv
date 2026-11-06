@@ -78,6 +78,7 @@ checked_at,mins_to_jump,date,venue,race,race_id,start_time,field_n,reason,v1_bet
 2026-11-06T06:05:59Z,9.0,2026-11-06,Albury,5,1829440,2026-11-06T06:15:00+00:00,12,"first starter, light-history or no-Proj runner",0,0
 2026-11-06T06:16:00Z,19.0,2026-11-06,Kempsey,8,1829450,2026-11-06T06:35:00+00:00,11,ok,2,2
 2026-11-06T06:16:00Z,14.0,2026-11-06,Warrnambool,8,1829515,2026-11-06T06:30:00+00:00,11,ok,1,1
-2026-11-06T06:35:52Z,19.1,2026-11-06,Albury,6,1829444,2026-11-06T06:55:00+00:00,13,"first starter, light-history or no-Proj runner",0,0
-2026-11-06T06:35:52Z,39.1,2026-11-06,Cranbourne,1,1829520,2026-11-06T07:15:00+00:00,9,"first starter, light-history or no-Proj runner",0,0
 2026-11-06T06:35:52Z,6.1,2026-11-06,Gatton,7,1829766,2026-11-06T06:42:00+00:00,9,ok,2,2
+2026-11-06T06:41:01Z,14.0,2026-11-06,Albury,6,1829444,2026-11-06T06:55:00+00:00,13,"first starter, light-history or no-Proj runner",0,0
+2026-11-06T06:41:01Z,39.0,2026-11-06,Gatton,8,1829497,2026-11-06T07:20:00+00:00,8,ok,1,1
+2026-11-06T06:41:01Z,34.0,2026-11-06,Cranbourne,1,1829520,2026-11-06T07:15:00+00:00,9,"first starter, light-history or no-Proj runner",0,0
