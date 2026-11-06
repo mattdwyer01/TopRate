@@ -40,12 +40,9 @@ FLD_BASE = ['f', 'mean3', 'jw', 'jw90', 'tw', 'tw90', 'jock_eff']
 FLD_FEATS = [p + c for c in FLD_BASE for p in ('r_', 'k_')]
 FLD_REL_BASE = ['c_ewm3', 'sim_all']
 FLD_REL_FEATS = [p + c for c in FLD_REL_BASE for p in ('r_', 'k_')]
-# 6 Nov 2026 (owner's request after Defiantly, Flemington R3: a lightly raced horse on a steady rise was projected 7 below its last-3 average): explicit momentum inputs.
-# The single formula weights one fixed set of lags for every horse, so a rising horse's old low runs keep their average weight; on the page store the weight on the last run roughly
-# doubles (0.26 to 0.54) for horses that rose three runs in a row with 9 to 12 runs. rise3 = last run minus the run three back, rise_old = last run minus the mean of runs 4 to 8,
-# up3 = the last three ratings strictly rising, step1 = last run minus the one before. Added to the Proj's option 2 list only (FEATS stays as is for the speed model).
-MOM_FEATS = ['rise3', 'rise_old', 'up3', 'step1']
-FEATS2 = FEATS + RATE_FEATS + FLD_FEATS + MOM_FEATS
+# 6 Nov 2026: momentum inputs (rise3, rise_old, up3, step1) were tested for rising, lightly raced horses (research/momentum_ab.py) and did NOT help held-out: overall RMSE 8.486 to 8.495
+# (paired gain -0.155, se 0.024), rising-light group 8.405 to 8.396, no bias in that group to correct. The columns are still built in context_columns but not used.
+FEATS2 = FEATS + RATE_FEATS + FLD_FEATS
 
 
 LAG_NAMES = [f'{nm}{k}' for k in range(1, LAGS + 1) for nm in ('dd', 'gd', 'trk', 'jk', 'cl', 'wd', 'dg', 'mg', 'pf', 'dev')]

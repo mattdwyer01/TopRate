@@ -13,9 +13,10 @@ classes = sorted(pg.cls.dropna().unique().tolist())
 pg['cls_c'] = C._cls(pg.cls, classes)
 cut, es = pd.Timestamp('2026-01-01'), pd.Timestamp('2025-10-01')
 tr, va, te = pg[pg.date < es], pg[(pg.date >= es) & (pg.date < cut)], pg[pg.date >= cut].copy()
-base = [f for f in C.FEATS2 if f not in C.MOM_FEATS]
-F = {'old': base, 'mom': base + C.MOM_FEATS}
-FR = {'old': base + C.REL_FEATS2, 'mom': base + C.MOM_FEATS + C.REL_FEATS2}
+MOM = ['rise3', 'rise_old', 'up3', 'step1']
+base = list(C.FEATS2)
+F = {'old': base, 'mom': base + MOM}
+FR = {'old': base + C.REL_FEATS2, 'mom': base + MOM + C.REL_FEATS2}
 rel = lambda d: d[d.n >= C.REL_MIN_RUNS]
 r = lambda x: float(np.sqrt((x ** 2).mean()))
 use = (te.n >= C.REL_MIN_RUNS).values
