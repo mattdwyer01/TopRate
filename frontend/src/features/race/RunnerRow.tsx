@@ -134,8 +134,8 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
         )}
       </span>
       {showFp && (
-        <span className="text-right font-mono text-[12px] text-ink lg:text-[13px]" title={runner.actualAtw != null ? `TopRate's final ATW rating for this run: the rating at this race's weight. Plain rating ${runner.actualWpr != null ? runner.actualWpr.toFixed(1) : 'not in'}.` : 'Shown once TopRate has finalised the ratings (a few days after the race).'}>
-          {f.scratched ? '' : actualShown == null ? <Missing why="Final rating not out yet (TopRate finalises a few days after the race)" /> : actualShown.toFixed(1)}
+        <span className={`text-right font-mono text-[12px] lg:text-[13px] ${runner.actualPrelim ? 'italic text-ink-soft' : 'text-ink'}`} title={runner.actualAtw != null ? `TopRate's ${runner.actualPrelim ? 'PRELIMINARY' : 'final'} ATW rating for this run: the rating at this race's weight${runner.actualPrelim ? '. Preliminary ratings run about a point low and are replaced by the final rating when TopRate publishes it' : ''}. Plain rating ${runner.actualWpr != null ? runner.actualWpr.toFixed(1) : 'not in'}.` : 'Shown once TopRate publishes the rating (a day or two after the race).'}>
+          {f.scratched ? '' : actualShown == null ? <Missing why="Rating not out yet (TopRate publishes a day or two after the race)" /> : actualShown.toFixed(1)}{runner.actualPrelim && actualShown != null ? <sup className="ml-px text-[9px]">p</sup> : null}
         </span>
       )}
       {showFp && (

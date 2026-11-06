@@ -1132,9 +1132,9 @@ _TR_RESULT_ATW = {}
 
 
 def _tr_result_atw():
-    """TopRate's published ATW rating (this run's rating at the weight carried in that race) by (lowercased horse, date), from the race pages stored in
-    data/tr_results (toprate_result_fetch.py). FINAL ratings only (wprStatus 'Final'): a Preliminary race gives nothing, so the dashboard shows no Actual
-    until TopRate finalises it. {} if nothing is readable."""
+    """TopRate's published ATW rating (this run's rating at the weight carried in that race) by (lowercased horse, date) -> (atw, is_final), from the race pages
+    stored in data/tr_results (toprate_result_fetch.py). Preliminary ratings are used until TopRate finalises the race: the fetch reads a stored race again until it
+    is Final and replaces the record, so a final rating overwrites the preliminary one. {} if nothing is readable."""
     if "v" not in _TR_RESULT_ATW:
         out = {}
         try:
@@ -1143,12 +1143,11 @@ def _tr_result_atw():
                 with gzip.open(f, "rt") as fh:
                     races = json.load(fh).get("races", {})
                 for race in races.values():
-                    if race.get("wprStatus") != "Final":
-                        continue
+                    final = race.get("wprStatus") == "Final"
                     for ru in race.get("runners") or []:
                         a = ru.get("atw")
                         if a is not None and ru.get("horse"):
-                            out[(str(ru["horse"]).strip().lower(), d)] = float(a)
+                            out[(str(ru["horse"]).strip().lower(), d)] = (float(a), final)
         except Exception as e:
             print(f"  TopRate result ATW lookup unavailable: {e}")
         _TR_RESULT_ATW["v"] = out
@@ -2090,7 +2089,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # far the projection and ranking actually missed.
                 "wpja":  sf(_review_actual(row)),
                 # TopRate's published ATW for this run (rating at the weight carried in this race, the Rating's scale); None until the race page is stored
-                "wpat":  sf(_tr_result_atw().get((str(row.get("horse", "")).strip().lower(), str(row.get("date"))[:10]))),
+                "wpat":  sf((_tr_result_atw().get((str(row.get("horse", "")).strip().lower(), str(row.get("date"))[:10])) or (None, True))[0]),
+                # 1 while that ATW is still Preliminary (TopRate has not finalised the race); None when final or absent
+                "wpap":  (1 if (_tr_result_atw().get((str(row.get("horse", "")).strip().lower(), str(row.get("date"))[:10])) or (None, True))[1] is False else None),
                 "wpjar": si(row.get("wpr_actual_rank")),
                 # Running (video) and stewards comments for resulted runners.
                 # Drive the post-race variance subtab's auto-reason + display.

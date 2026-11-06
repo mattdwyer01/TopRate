@@ -462,14 +462,14 @@ export function ResultCard({ runner }: { runner: Runner }) {
         <Tile label="Finish">
           <span className="font-mono text-xl font-semibold text-ink">{fin != null ? ordinal(fin) : runner.won ? '1st' : runner.resultKnown ? 'Unplaced' : '-'}</span>
         </Tile>
-        <Tile label="Actual rating (ATW)">
+        <Tile label={runner.actualPrelim ? "Actual rating (ATW, preliminary)" : "Actual rating (ATW)"}>
           <span className="font-mono text-xl font-semibold text-emerald-deep">{actual != null ? fmtWpr(actual) : '-'}</span>
         </Tile>
       </div>
       <ResultContext runner={runner} />
       <p className="mt-2 text-sm text-ink-soft">
         {fin != null && runner.marginFinish != null && fin > 1 ? `Beaten ${runner.marginFinish.toFixed(1)}L. ` : ''}
-        {actual == null ? 'The final actual rating comes from TopRate a few days after the race.' : ''}
+        {actual == null ? 'The actual rating comes from TopRate a day or two after the race.' : ''}
       </p>
     </div>
   )

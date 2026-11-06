@@ -18,8 +18,8 @@ export function projectedAtResultsScale(r: Pick<Runner, 'projectedWpr' | 'result
   return r.projectedWpr + (r.resultsScaleOffset ?? 0)
 }
 
-// The Actual rating on the Rating's scale: TopRate's published ATW for the run (the rating at THIS race's weight), FINAL ratings only. null until TopRate
-// finalises the race (a few days): no preliminary or estimated figure is shown. The pre-race Rating is never changed.
+// The Actual rating on the Rating's scale: TopRate's published ATW for the run (the rating at THIS race's weight). Preliminary until TopRate finalises the race (`actualPrelim`, ratings run
+// about a point low); the final figure replaces it. null until the race page is stored. The pre-race Rating is never changed.
 export function actualOnRatingScale(r: Pick<Runner, 'actualAtw'>): number | null {
   return r.actualAtw ?? null
 }

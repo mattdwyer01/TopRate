@@ -113,6 +113,7 @@ export interface RawRunner {
   wpje: number | null
   wpjd: string | null
   wpja: number | null
+  wpap?: number | null // 1 while wpat is still a Preliminary rating
   wpat?: number | null // TopRate's published ATW for the run (rating at this race's weight)
   wpjar: number | null
   cmtV: string | null
