@@ -47,11 +47,11 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today. The table is sorted by it. A first starter shows an estimate. Peak, Base and Spd are on the runner page." },
-  { key: 'actual', label: 'Actual', align: 'right', resultOnly: true, title: "The rating the horse ran at this race's weight, on the same scale as the Rating: TopRate's published ATW. A small p marks a preliminary rating (about a point low), replaced by the final one when TopRate publishes it. Blank until TopRate publishes, a day or two after the race." },
-  { key: 'miss', label: '+/-', align: 'right', resultOnly: true, title: "Actual minus Rating, same scale: blue = ran above the rating, red = below." },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Rated price: the model's win chance turned into a price (1 / chance). The model's view only, not a value claim." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right', hideOnPhoneWithResult: true },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
+  { key: 'actual', label: 'Actual', align: 'right', resultOnly: true, title: "The rating the horse ran at this race's weight, on the same scale as the Rating: TopRate's published ATW. A small p marks a preliminary rating (about a point low), replaced by the final one when TopRate publishes it. Blank until TopRate publishes, a day or two after the race." },
+  { key: 'miss', label: '+/-', align: 'right', resultOnly: true, title: "Actual minus Rating, same scale: blue = ran above the rating, red = below." },
 ]
 
 // Compare runners hidden at the user's request (11 Oct 2026); the feature is intact. Set true to show the pill again.
