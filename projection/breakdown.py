@@ -9,10 +9,10 @@ Splits a runner's Proj into steps a person can follow, all on the runner-page AT
   dg     distance and going: change since last run, plus the horse's own record at this distance (+-200m) and this wet/dry going (capped at +-3)
   cls    class: prize money against the horse's usual
   trend  last run against the run before, and few clean runs (capped at +-1.5)
-  bounce beaten 8+ lengths last start (a rebound flag)
+  (the bounce-back term was removed 6 Nov 2026 at the owner's request)
   mc     everything else the Proj model adds (jockey, trainer, field strength, venue, similar-run weighting, calibration): Proj minus the formula
 
-l3 + wt + reg + days + dg + cls + trend + bounce = the transparent formula `tf`; tf + mc = Proj exactly.
+l3 + wt + reg + days + dg + cls + trend = the transparent formula `tf`; tf + mc = Proj exactly.
 The formula is a Huber linear fit (models_tr/transparent.json). Held out (fit before 2026, 64,610 runs of 2026): RMSE 8.69 against 8.93 for
 the clean last-3 average and 8.38 for the model, so the model step `mc` is usually small but not always (mean |mc| 1.6, 14% of runners above 3).
 One row builder (`row_features`) serves training and the live path, so they cannot drift apart.
@@ -25,13 +25,12 @@ import numpy as np, pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL = os.path.join(HERE, 'models_tr', 'transparent.json')
 LAGS = [f'c{k}' for k in range(1, 7)]
-FE = LAGS + ['dlog', 'dist_chg', 'dist_chg_abs', 'gn_chg', 'lp_vs_usual', 'dist_rec', 'going_rec', 'trend', 'big_beat', 'few']   # weight change dropped 6 Nov 2026 (positive sign is a class proxy)
+FE = LAGS + ['dlog', 'dist_chg', 'dist_chg_abs', 'gn_chg', 'lp_vs_usual', 'dist_rec', 'going_rec', 'trend', 'few']   # weight change dropped 6 Nov 2026 (positive sign is a class proxy)
 GROUPS = {
     'days': ['dlog'],
     'dg': ['dist_chg', 'dist_chg_abs', 'gn_chg', 'dist_rec', 'going_rec'],
     'cls': ['lp_vs_usual'],
     'trend': ['trend', 'few'],
-    'bounce': ['big_beat'],      # shown as its own flag: beaten 8+ lengths last start
 }
 CAPS = {'dg': 3.0, 'trend': 1.5}   # a group cannot move a rating more than this (owner's review 6 Nov 2026: the nudges were too big); the rest goes to the model step
 JUNK_GAP = 12.0
@@ -75,8 +74,6 @@ def row_features(h, t):
     f['dist_rec'] = float((ww[sd] - base).sum() / (sd.sum() + 3))
     f['going_rec'] = float((ww[sw] - base).sum() / (sw.sum() + 3))
     f['trend'] = float(np.clip(w[-1] - w[-6:-1].mean(), -10, 10)) if len(w) >= 2 else 0.0
-    m = h['mar'][-1]
-    f['big_beat'] = 1.0 if (np.isfinite(m) and np.clip(m, 0, 20) >= 8) else 0.0
     f['few'] = 1.0 if len(clean) < 4 else 0.0
     f['_l3'] = float(clean[:3].mean())
     f['_junk'] = [round(float(x), 1) for x in lag if x < med - JUNK_GAP]
@@ -168,6 +165,35 @@ def compute(rows, proj_col='wprp_proj'):
             steps = dict(l3=round(l3, 1), wt=round(wa - l3, 1), reg=round(lag_part + b0 - wa, 1), **{k: round(v, 1) for k, v in parts.items()})
             tf1 = round(sum(steps.values()), 1)     # sum of the rounded steps, so what is shown adds up
             out[int(float(r.run_id))] = dict(**steps, tf=tf1, mc=round(proj - tf1, 1), junk=f['_junk'], n=n)
+        except Exception:
+            continue
+    return out
+
+
+def tf_array(rows):
+    """Capped transparent formula for each row (columns horse_id, date, distance, going, weight_carried, prize_money), aligned to the input; NaN with under 3 earlier page runs."""
+    if not os.path.exists(MODEL):
+        return np.full(len(rows), np.nan)
+    if 'arr' not in _CACHE:
+        _CACHE['arr'] = _page_arrays(); _CACHE['m'] = json.load(open(MODEL))
+    arr, mdl = _CACHE['arr'], _CACHE['m']
+    co = np.array([mdl['coef'][f] for f in FE]); b0 = mdl['intercept']
+    out = np.full(len(rows), np.nan)
+    for i, r in enumerate(rows.itertuples(index=False)):
+        try:
+            h = arr.get(int(float(r.horse_id)))
+            if h is None:
+                continue
+            day = _day(r.date)
+            n = int(np.searchsorted(h['day'], day, side='left'))
+            if n < 3:
+                continue
+            t = dict(day=day, dist=float(r.distance), gn=going_num(r.going), lp=float(np.log(max(float(r.prize_money), 1000))) if pd.notna(r.prize_money) else np.nan, wt=np.nan)
+            f = row_features(_slice(h, n), t)
+            x = np.array([f[k] for k in FE])
+            parts = {g: float(sum(mdl['coef'][k] * f[k] for k in ks)) for g, ks in GROUPS.items()}
+            parts = {g: (float(np.clip(v, -CAPS[g], CAPS[g])) if g in CAPS else v) for g, v in parts.items()}
+            out[i] = float((co[:6] * x[:6]).sum()) + b0 + sum(parts.values())
         except Exception:
             continue
     return out

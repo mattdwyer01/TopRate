@@ -1856,17 +1856,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 return row.get("wpr_actual")
             return _tr_actual().get((str(row.get("horse", "")).strip().lower(), str(row.get("date"))[:10]))
 
-        # Proj breakdown (6 Nov 2026, projection/breakdown.py): upcoming and just-run races only (the table is slow per row); best effort
-        try:
-            import sys as _sys
-            _sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "projection"))
-            import breakdown as _bk
-            _recent = rdf[(rdf["date"].astype(str).str[:10] >= (date.today() - timedelta(days=1)).isoformat()) & rdf["wprp_proj"].notna()]
-            _bk_map = _bk.compute(_recent[["run_id", "horse_id", "date", "distance", "going", "weight_carried", "prize_money", "wprp_proj"]].rename(columns={"wprp_proj": "wprp_proj"}))
-        except Exception as _e:
-            print(f"  proj breakdown skipped: {_e}")
-            _bk_map = {}
-
         # Build runner list with all the fields the template needs
         runners = []
         for _, row in rdf.iterrows():
@@ -2025,7 +2014,6 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpjc":  si(row.get("wprp_conf")),    # confidence 0-100
                 "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
                 "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
-                "wpjbk": _bk_map.get(int(float(row.get("run_id")))) if pd.notna(row.get("run_id")) else None,    # Proj breakdown steps (projection/breakdown.py), None when under 3 earlier runs or out of the recent window
                 "wpjpk": peak_last_year(row.get("horse_id"), row.get("date")),    # peak runner-page rating in the 365 days before the race (23 Oct 2026; was the career peak)
                 "dm":   direct_chance(row.get("race_id"), row.get("tab_number"), row.get("date")),    # direct finishing-position model win chance (direct_score.py), None until scored
                 # Blend score (Step 2c2): the PRIMARY ranking as of Aug

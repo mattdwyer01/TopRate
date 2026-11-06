@@ -68,55 +68,6 @@ export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: nu
   )
 }
 
-// Proj breakdown (6 Nov 2026): the steps from the clean last-3 average (the by-hand start) to the Proj. Steps add up to the Proj exactly. (projection/breakdown.py)
-const BK_STEPS: { key: 'wt' | 'reg' | 'days' | 'dg' | 'cls' | 'trend' | 'bounce' | 'mc'; label: string; tip: string }[] = [
-  { key: 'wt', label: 'Longer memory', tip: 'Weighted average of the last six clean runs (newest counts most) against the plain last 3.' },
-  { key: 'reg', label: 'Pull to typical', tip: 'Ratings regress toward the typical level: the weights sum to about 0.94, so a very high or low average is pulled in a little.' },
-  { key: 'days', label: 'Days since run', tip: 'Longer between runs lowers the figure slightly.' },
-  { key: 'dg', label: 'Distance and going', tip: 'Change in distance and going since last start, plus the horse\'s own record at this distance and on this wet or dry going. Capped at 3 points.' },
-  { key: 'cls', label: 'Class', tip: 'Prize money of today\'s race against the horse\'s usual.' },
-  { key: 'trend', label: 'Last run', tip: 'Last run against the runs before it, and a small lift for few clean runs. Capped at 1.5 points.' },
-  { key: 'bounce', label: 'Bounce-back', tip: 'Beaten 8+ lengths last start: such runs tend to be followed by a better one.' },
-  { key: 'mc', label: 'Model: jockey, field, venue', tip: 'Everything else the Proj model adds: jockey and trainer form, strength of this field, venue, how similar each past run was to today. This step is where the Proj and a by-hand figure disagree most.' },
-]
-
-export function ProjBreakdown({ runner }: { runner: Runner }) {
-  const b = runner.projBreakdown
-  const proj = runner.projectedWpr
-  if (!b || proj == null) return null
-  let run = b.l3
-  const rows = BK_STEPS.map((s) => {
-    const v = b[s.key]
-    run += v
-    return { ...s, v, run }
-  }).filter((r) => Math.abs(r.v) >= 0.05 || r.key === 'mc')
-  const sgn = (v: number) => (v > 0 ? '+' : v < 0 ? '\u2212' : '') + Math.abs(v).toFixed(1)
-  const big = Math.abs(b.mc) >= 3
-  return (
-    <section className="rounded-lg border border-line bg-panel px-3 py-2 text-xs text-ink-soft sm:px-4" aria-label="How the Proj is built">
-      <div className="mb-1 flex flex-wrap items-baseline gap-x-3">
-        <span className="font-semibold text-ink">How the Proj is built</span>
-        <span className="text-ink-faint">from the clean last 3 ATW average to the Proj ({b.n} earlier runs)</span>
-      </div>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-x-4 gap-y-0.5 sm:max-w-md">
-        <span>Clean last 3 average</span><span className="text-right font-mono text-ink">{b.l3.toFixed(1)}</span><span />
-        {rows.map((r) => (
-          <div key={r.key} className="contents" title={r.tip}>
-            <span className={r.key === 'mc' && big ? 'font-semibold text-amber' : ''}>{r.label}</span>
-            <span className={`text-right font-mono ${r.key === 'mc' && big ? 'font-semibold text-amber' : 'text-ink'}`}>{sgn(r.v)}</span>
-            <span className="text-right font-mono text-ink-faint">{r.run.toFixed(1)}</span>
-          </div>
-        ))}
-        <span className="border-t border-line-soft pt-0.5 font-semibold text-ink">Proj (WR)</span>
-        <span className="border-t border-line-soft pt-0.5" />
-        <span className="border-t border-line-soft pt-0.5 text-right font-mono font-semibold text-emerald-deep">{proj.toFixed(1)}</span>
-      </div>
-      {b.junk.length > 0 && <p className="mt-1 text-ink-faint">Left out as junk runs (more than 12 below the median of the last 6): {b.junk.map((j) => j.toFixed(0)).join(', ')}.</p>}
-      {big && <p className="mt-1">The model step is {Math.abs(b.mc).toFixed(1)} points {b.mc < 0 ? 'below' : 'above'} the form-only figure of {b.tf.toFixed(1)}. That step bundles the model's jockey, trainer, field strength, venue and similar-run weighting, so it is the place to look if your own figure is far from the Proj.</p>}
-    </section>
-  )
-}
-
 // Form check: how the Proj sits against the horse's own recent ATW ratings, and the bad-run risk. Shown on the runner page under the hero. (5 Nov 2026)
 export function FormCheck({ runner, raceDate }: { runner: Runner; raceDate: string | null }) {
   const last3 = lastRunsRating(runner.formHistory, raceDate, 3)

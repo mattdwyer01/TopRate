@@ -72,7 +72,6 @@ export interface Runner {
   styleAvg: number | null // average 800m position over the last 6 runs as a share of the field (0 = led, 1 = last), null with under 2 such runs (draw and style card)
   speedRating: number | null // pre-race speed rating, lengths vs par (higher = faster), null with no earlier time-based figure
   projectionSd: number | null // typical error of the projection (WPR points), from the new model
-  projBreakdown: { l3: number; wt: number; reg: number; days: number; dg: number; cls: number; trend: number; bounce: number; tf: number; mc: number; junk: number[]; n: number } | null // steps from the clean last-3 average to the Proj, null with under 3 earlier runs
   badRunRisk: number | null // chance (percent) of a bad run, a rating more than 12 below the formula figure; the average runner is about 7 (display only)
   directChance: number | null // win chance from the direct finishing-position model (over the logged field), null until scored; blended into the Rating when every runner has one
   projectionMade: string | null // when the logged projection was made (ISO), null on older payloads

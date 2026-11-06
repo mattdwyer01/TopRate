@@ -126,7 +126,6 @@ function toRunner(r: RawRunner, priceHist: RawDashboardPayload['PRICE_HIST'] | u
     styleAvg: r.dst ?? null,
     speedRating: r.sr ?? null,
     projectionSd: r.wpjsd ?? null,
-    projBreakdown: r.wpjbk ?? null,
     badRunRisk: r.wpjrk ?? null,
     directChance: r.dm != null && r.dm > 0 ? r.dm : null,
     projectionMade: r.wpjmd ?? null,
