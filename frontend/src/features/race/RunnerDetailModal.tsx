@@ -8,7 +8,7 @@ import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { CareerStats } from './CareerStats'
-import { ConditionsScorecard, FormCheck, HorseHero, SignalsPanel, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
+import { ConditionsScorecard, FormCheck, ProjBreakdown, HorseHero, SignalsPanel, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -211,6 +211,7 @@ export function RunnerDetailModal({
           {!scratched && (
             <div className="lg:order-3 lg:col-span-12">
               <FormCheck runner={runner} raceDate={race.date} />
+              <ProjBreakdown runner={runner} />
             </div>
           )}
 

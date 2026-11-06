@@ -6,13 +6,13 @@ Splits a runner's Proj into steps a person can follow, all on the runner-page AT
   wt     recency weighting: weighted average of the last six clean runs minus l3
   reg    regression to the typical level (the weights sum to about 0.94 and there is an intercept)
   days   days since the last run
-  dg     distance and going: change since last run, plus the horse's own record at this distance (+-200m) and this wet/dry going
-  wgt    weight carried against last start
+  dg     distance and going: change since last run, plus the horse's own record at this distance (+-200m) and this wet/dry going (capped at +-3)
   cls    class: prize money against the horse's usual
-  trend  trend and last run: last run against the run before, a big beating (8+ lengths) last start, few clean runs
+  trend  last run against the run before, and few clean runs (capped at +-1.5)
+  bounce beaten 8+ lengths last start (a rebound flag)
   mc     everything else the Proj model adds (jockey, trainer, field strength, venue, similar-run weighting, calibration): Proj minus the formula
 
-l3 + wt + reg + days + dg + wgt + cls + trend = the transparent formula `tf`; tf + mc = Proj exactly.
+l3 + wt + reg + days + dg + cls + trend + bounce = the transparent formula `tf`; tf + mc = Proj exactly.
 The formula is a Huber linear fit (models_tr/transparent.json). Held out (fit before 2026, 64,610 runs of 2026): RMSE 8.69 against 8.93 for
 the clean last-3 average and 8.38 for the model, so the model step `mc` is usually small but not always (mean |mc| 1.6, 14% of runners above 3).
 One row builder (`row_features`) serves training and the live path, so they cannot drift apart.
@@ -25,14 +25,15 @@ import numpy as np, pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 MODEL = os.path.join(HERE, 'models_tr', 'transparent.json')
 LAGS = [f'c{k}' for k in range(1, 7)]
-FE = LAGS + ['dlog', 'dist_chg', 'dist_chg_abs', 'wt_chg', 'gn_chg', 'lp_vs_usual', 'dist_rec', 'going_rec', 'trend', 'big_beat', 'few']
+FE = LAGS + ['dlog', 'dist_chg', 'dist_chg_abs', 'gn_chg', 'lp_vs_usual', 'dist_rec', 'going_rec', 'trend', 'big_beat', 'few']   # weight change dropped 6 Nov 2026 (positive sign is a class proxy)
 GROUPS = {
     'days': ['dlog'],
     'dg': ['dist_chg', 'dist_chg_abs', 'gn_chg', 'dist_rec', 'going_rec'],
-    'wgt': ['wt_chg'],
     'cls': ['lp_vs_usual'],
-    'trend': ['trend', 'big_beat', 'few'],
+    'trend': ['trend', 'few'],
+    'bounce': ['big_beat'],      # shown as its own flag: beaten 8+ lengths last start
 }
+CAPS = {'dg': 3.0, 'trend': 1.5}   # a group cannot move a rating more than this (owner's review 6 Nov 2026: the nudges were too big); the rest goes to the model step
 JUNK_GAP = 12.0
 
 
@@ -60,8 +61,6 @@ def row_features(h, t):
     dc = np.clip((t['dist'] - h['dist'][-1]) / 100.0, -8, 8) if np.isfinite(t['dist']) else 0.0
     f['dist_chg'] = float(dc)
     f['dist_chg_abs'] = float(abs(dc))
-    d = t['wt'] - h['wt'][-1]
-    f['wt_chg'] = float(np.clip(d, -6, 6)) if np.isfinite(d) else 0.0
     d = t['gn'] - h['gn'][-1]
     f['gn_chg'] = float(np.clip(d, -4, 4)) if np.isfinite(d) else 0.0
     lp6 = h['lp'][-6:]
@@ -75,7 +74,7 @@ def row_features(h, t):
     sw = (h['gn'][-12:] >= 5).astype(float) == wet_t
     f['dist_rec'] = float((ww[sd] - base).sum() / (sd.sum() + 3))
     f['going_rec'] = float((ww[sw] - base).sum() / (sw.sum() + 3))
-    f['trend'] = float(np.clip(w[-1] - w[-6:-1].mean(), -25, 25)) if len(w) >= 2 else 0.0
+    f['trend'] = float(np.clip(w[-1] - w[-6:-1].mean(), -10, 10)) if len(w) >= 2 else 0.0
     m = h['mar'][-1]
     f['big_beat'] = 1.0 if (np.isfinite(m) and np.clip(m, 0, 20) >= 8) else 0.0
     f['few'] = 1.0 if len(clean) < 4 else 0.0
@@ -123,7 +122,10 @@ def train(holdout=False):
     m = HuberRegressor(epsilon=1.35, alpha=1e-4, max_iter=800).fit(tr[FE], tr.y)
     meta = dict(intercept=float(m.intercept_), coef={f: float(c) for f, c in zip(FE, m.coef_)}, n_train=int(len(tr)), trained_to=str(pd.Timestamp(tr.date.max()).date()))
     if holdout:
-        te = X[X.date >= cut].copy(); te['tf'] = m.predict(te[FE]); e = te.y - te.tf; e3 = te.y - te._l3
+        te = X[X.date >= cut].copy(); te['tf'] = m.predict(te[FE])
+        for g, cap in CAPS.items():
+            raw = sum(meta['coef'][k] * te[k] for k in GROUPS[g]); te['tf'] += raw.clip(-cap, cap) - raw
+        e = te.y - te.tf; e3 = te.y - te._l3
         print(f'2026 held-out {len(te):,} runs: formula RMSE {np.sqrt((e**2).mean()):.3f} MAE {e.abs().mean():.3f} | clean last-3 RMSE {np.sqrt((e3**2).mean()):.3f} MAE {e3.abs().mean():.3f}')
     else:
         json.dump(meta, open(MODEL, 'w'), indent=1); print('wrote', MODEL, meta['n_train'], 'runs to', meta['trained_to'])
@@ -160,10 +162,12 @@ def compute(rows, proj_col='wprp_proj'):
             lag_part = float((co[:6] * x[:6]).sum()); wsum = float(co[:6].sum())
             wa = lag_part / wsum
             parts = {g: float(sum(mdl['coef'][k] * f[k] for k in ks)) for g, ks in GROUPS.items()}
-            tf = b0 + float((co * x).sum())
+            parts = {g: (float(np.clip(v, -CAPS[g], CAPS[g])) if g in CAPS else v) for g, v in parts.items()}
+            tf = lag_part + b0 + sum(parts.values())
             l3 = f['_l3']
-            out[int(float(r.run_id))] = dict(l3=round(l3, 1), wt=round(wa - l3, 1), reg=round(lag_part + b0 - wa, 1), **{k: round(v, 1) for k, v in parts.items()},
-                                           tf=round(tf, 1), mc=round(proj - tf, 1), junk=f['_junk'], n=n)
+            steps = dict(l3=round(l3, 1), wt=round(wa - l3, 1), reg=round(lag_part + b0 - wa, 1), **{k: round(v, 1) for k, v in parts.items()})
+            tf1 = round(sum(steps.values()), 1)     # sum of the rounded steps, so what is shown adds up
+            out[int(float(r.run_id))] = dict(**steps, tf=tf1, mc=round(proj - tf1, 1), junk=f['_junk'], n=n)
         except Exception:
             continue
     return out
