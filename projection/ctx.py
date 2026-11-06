@@ -40,7 +40,12 @@ FLD_BASE = ['f', 'mean3', 'jw', 'jw90', 'tw', 'tw90', 'jock_eff']
 FLD_FEATS = [p + c for c in FLD_BASE for p in ('r_', 'k_')]
 FLD_REL_BASE = ['c_ewm3', 'sim_all']
 FLD_REL_FEATS = [p + c for c in FLD_REL_BASE for p in ('r_', 'k_')]
-FEATS2 = FEATS + RATE_FEATS + FLD_FEATS
+# 6 Nov 2026 (owner's request after Defiantly, Flemington R3: a lightly raced horse on a steady rise was projected 7 below its last-3 average): explicit momentum inputs.
+# The single formula weights one fixed set of lags for every horse, so a rising horse's old low runs keep their average weight; on the page store the weight on the last run roughly
+# doubles (0.26 to 0.54) for horses that rose three runs in a row with 9 to 12 runs. rise3 = last run minus the run three back, rise_old = last run minus the mean of runs 4 to 8,
+# up3 = the last three ratings strictly rising, step1 = last run minus the one before. Added to the Proj's option 2 list only (FEATS stays as is for the speed model).
+MOM_FEATS = ['rise3', 'rise_old', 'up3', 'step1']
+FEATS2 = FEATS + RATE_FEATS + FLD_FEATS + MOM_FEATS
 
 
 LAG_NAMES = [f'{nm}{k}' for k in range(1, LAGS + 1) for nm in ('dd', 'gd', 'trk', 'jk', 'cl', 'wd', 'dg', 'mg', 'pf', 'dev')]
@@ -235,6 +240,12 @@ def context_columns(df):
         df['max4'] = np.nanmax(np.where(np.isnan(r[:, :4]), -1e9, r[:, :4]), axis=1)
         df['std4'] = np.nanstd(r[:, :4], axis=1)
     df.loc[df.max4 < -1e8, 'max4'] = np.nan
+    with np.errstate(all='ignore'):
+        df['rise3'] = r[:, 0] - r[:, 2]
+        df['step1'] = r[:, 0] - r[:, 1]
+        df['rise_old'] = r[:, 0] - np.nanmean(r[:, 3:8], axis=1)
+        df['up3'] = ((r[:, 0] > r[:, 1]) & (r[:, 1] > r[:, 2])).astype(float)
+    df.loc[np.isnan(r[:, 2]), 'up3'] = np.nan
     df['dist_chg'] = df.distance - df.l_dist
     df['going_chg'] = df.going_n - df.l_going
     df['wt_chg'] = df.weightCarried - df.l_wt
