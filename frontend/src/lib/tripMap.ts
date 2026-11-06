@@ -10,6 +10,7 @@ export interface TripRunner {
   barrier: number
   gap: number | null // projected lengths behind the leader (0 = leader)
   lane: number // projected metres from the inside rail
+  pft?: number | null // chance (0 to 1) the runner settles in the first third of the field at about 800m from home (classifier, from 6 Nov 2026; absent in older files)
   nHist: number // how many earlier GPS runs the horse has (0 = forecast from barrier and track alone)
   last: { date: string; track: string; lane: number | null } | null
 }
