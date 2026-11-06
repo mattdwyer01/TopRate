@@ -195,10 +195,48 @@ def build_features(L, meta):
     return pd.concat([Lf, pd.DataFrame(rel, index=Lf.index)], axis=1)
 
 
+V4_DIR = MODEL_DIR / 'v4'
+
+
+def v4_variant():
+    """direct_model/v4/meta.json `use` names the shipped v4 variant ('bag' = 5 seeds, 'bagseq' = 5 seeds + sequence model); DIRECT_V4=0 falls back to V3a."""
+    f = V4_DIR / 'meta.json'
+    if os.environ.get('DIRECT_V4', '1') == '0' or not f.exists():
+        return None, None
+    m = json.loads(f.read_text())
+    use = m.get('use')
+    return (use, m) if use in m else (None, None)
+
+
+def add_seq(Lf, meta):
+    import direct_seq as DS
+    W = np.load(V4_DIR / 'gru.npz')
+    Wf = [{k[3:]: W[k] for k in W.files if k.startswith(f'f{f}.')} for f in (0, 1)]
+    sq = DS.live_sequences(Lf, meta['classes'], C.class_code)
+    hs = sq[:, -1, -1] == 1
+    cx = DS.ctx_matrix(Lf)
+    v = np.full(len(Lf), np.nan)
+    if hs.any():
+        v[hs] = (DS.gru_forward(Wf[0], sq[hs], cx[hs]) + DS.gru_forward(Wf[1], sq[hs], cx[hs])) / 2
+    Lf = Lf.assign(seqp=v)
+    g = Lf.groupby('rk').seqp
+    Lf['r_seqp'] = Lf.seqp - g.transform('mean')
+    Lf['k_seqp'] = g.rank(pct=True)
+    return Lf
+
+
 def score(Lf, meta):
     import lightgbm as lgb
-    m = lgb.Booster(model_file=str(MODEL_DIR / 'V3a.txt'))
-    s = pd.Series(m.predict(Lf[meta['feats']]) * meta['T'], index=Lf.index)
+    use, m4 = v4_variant()
+    if use:
+        cfg = m4[use]
+        if 'seqp' in cfg['feats']:
+            Lf = add_seq(Lf, m4)
+        raw = np.mean([lgb.Booster(model_file=str(V4_DIR / f'{use}_seed{i}.txt')).predict(Lf[cfg['feats']]) for i in range(1, cfg['n_models'] + 1)], axis=0)
+        s = pd.Series(raw * cfg['T'], index=Lf.index)
+    else:
+        m = lgb.Booster(model_file=str(MODEL_DIR / 'V3a.txt'))
+        s = pd.Series(m.predict(Lf[meta['feats']]) * meta['T'], index=Lf.index)
     e = np.exp(s - s.groupby(Lf.race_id).transform('max'))
     return e / e.groupby(Lf.race_id).transform('sum')
 
