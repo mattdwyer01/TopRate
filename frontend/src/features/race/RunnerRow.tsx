@@ -4,7 +4,7 @@ import { fmtPrice } from '../../lib/format'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { FinishBadge, PriceCell, useRowFacts } from './rowParts'
 import type { CombinedRank } from '../../lib/combinedRank'
-import { speedRatingOnScale } from '../../lib/speed'
+import { ratingMiss } from '../../lib/atw'
 
 interface RunnerRowProps {
   runner: Runner
@@ -21,30 +21,26 @@ interface RunnerRowProps {
   onClick: () => void
 }
 
-// Table row, same columns on every screen: Peak | Base | Spd | Rating (whole numbers), then Fixed $ and FP. Below lg the RTS column drops out (its track collapses to
-// nothing via `hidden`) so everything else fits a phone without sideways scrolling; RTS moves into the detail line instead.
+// Table row: Rating | (Actual | +/- once the race has a result) | Rated $ | Fixed $ | FP. Peak, Base and Spd live on the runner page only.
+// Below lg the RTS column drops out (its track collapses to nothing via `hidden`) so everything else fits a phone without sideways scrolling; RTS moves into the detail line instead.
 
-// Strip under the rank: one square per column (Peak, Base, Spd), darker green = better rank, outline-grey = no value.
-const rankShade = (x: number | null) => (x == null ? '#e5e7eb' : x === 1 ? '#047857' : x === 2 ? '#34d399' : x === 3 ? '#a7f3d0' : '#d1d5db')
-
-const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_40px_40px_40px_62px_84px_30px]'
-// The FP column only takes room on a phone once there is a result to show, and the Fixed $ column only once a price is out.
+// Desktop tracks: silk | # | Horse | RTS | Rating | (Actual | +/-) | Rated $ | Fixed $ | FP.
+const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_70px_84px_30px]'
+const DESKTOP_GRID_RESULT = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_56px_52px_70px_84px_30px]'
+// The FP, Actual and +/- columns only take room once there is a result; the Fixed $ column only once a price is out, and not on phones once the race has a result.
 export const rowGrid = (showFp: boolean, showPrice = true) =>
-  // Phone: [silk] | # | Horse | Peak | Base | Spd | Rating (| Fixed $) (| FP), everything on screen at once. The silk column joins from 380px up,
-  // or from 430px up in the densest state (result and prices both shown) so horse names keep some room on a 390px phone.
+  // Phone: [silk] | # | Horse | Rating | (Actual | +/-) | Rated $ | (Fixed $) | (FP). The silk column joins from 380px up.
   // The # track is 20px so a two-digit tab number clears the badge beside it.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
-      ? showPrice
-        ? 'grid-cols-[20px_minmax(0,1fr)_26px_24px_24px_44px_60px_18px] min-[430px]:grid-cols-[24px_20px_minmax(0,1fr)_26px_24px_28px_44px_60px_18px]'
-        : 'grid-cols-[20px_minmax(0,1fr)_26px_24px_28px_44px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_26px_24px_28px_44px_18px]'
+      ? 'grid-cols-[20px_minmax(0,1fr)_44px_38px_36px_46px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_38px_36px_46px_18px]'
       : showPrice
-        ? 'grid-cols-[20px_minmax(0,1fr)_26px_24px_28px_44px_60px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_26px_24px_28px_44px_60px]'
-        : 'grid-cols-[20px_minmax(0,1fr)_26px_24px_28px_44px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_26px_24px_28px_44px]'
-  } ${DESKTOP_GRID}`
+        ? 'grid-cols-[20px_minmax(0,1fr)_44px_46px_60px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_46px_60px]'
+        : 'grid-cols-[20px_minmax(0,1fr)_44px_46px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_46px]'
+  } ${showFp ? DESKTOP_GRID_RESULT : DESKTOP_GRID}`
 // Where the silk column starts showing on a phone (matches rowGrid).
-export const silkFrom = (showFp: boolean, showPrice = true) => (showFp && showPrice ? 'min-[430px]:block' : 'min-[380px]:block')
+export const silkFrom = (_showFp: boolean, _showPrice = true) => 'min-[380px]:block'
 const LG_ONLY = 'hidden lg:block'
 
 // A cell with no value: a faint dash whose tooltip says why, so "not rated" is not mistaken for a blank rendering glitch.
@@ -62,6 +58,7 @@ const BAD_RUN_FLAG = 15
 export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
+  const miss = ratingMiss(runner)
   return (
     <div
       role="button"
@@ -120,23 +117,8 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
         {f.spell.label}
       </span>
       <span
-        className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
-        title={runner.peakWpr != null ? `Peak ${runner.peakWpr.toFixed(1)}: the highest rating this horse has run in the 12 months before this race (runner-page ratings, same scale as WR)` : undefined}
-      >
-        {f.scratched ? '' : runner.peakWpr == null ? <Missing why="No rated run in the 12 months before this race" /> : Math.round(runner.peakWpr)}
-      </span>
-      <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title="TopRate's own forward rating (wpr_nett)">
-        {f.scratched ? '' : runner.nett == null ? <Missing why="No Base from TopRate for this runner (first starters usually have none)" /> : Math.round(runner.nett)}
-      </span>
-      <span
-        className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]"
-        title={runner.speedRating != null ? `Spd ${speedRatingOnScale(runner.speedRating).toFixed(1)} (${runner.speedRating.toFixed(1)} lengths against par; 79 = par, higher is faster, about 1.3 points a length, same scale as Base and WR): recency-weighted mean of the horse's earlier time-based figures` : undefined}
-      >
-        {f.scratched ? '' : runner.speedRating == null ? <Missing why="No Spd: needs an earlier time-based figure (overseas runs have none)" /> : Math.round(speedRatingOnScale(runner.speedRating))}
-      </span>
-      <span
         className="text-right font-mono leading-tight"
-        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}): the WR projection at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}${sd != null ? ` ± ${Math.round(sd)}` : ''}, set from the simulated win chance${effective?.directBlend ? ' (blended with the direct finishing-position model)' : ''}. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim). Base and Spd are shown but not counted. Ranks: Peak ${combo.peakRank ?? '-'}, Base ${combo.ranks[0] ?? '-'}, Spd ${combo.ranks[1] ?? '-'}, WR ${combo.ranks[2] ?? '-'}.${runner.badRunRisk != null ? ` Bad-run risk ${runner.badRunRisk.toFixed(0)}% (average runner about 7%): the chance the rating comes in more than 12 below the form figure.` : ''}` : undefined}
+        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}): the WR projection at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}${sd != null ? ` ± ${Math.round(sd)}` : ''}, set from the simulated win chance${effective?.directBlend ? ' (blended with the direct finishing-position model)' : ''}. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim).${runner.badRunRisk != null ? ` Bad-run risk ${runner.badRunRisk.toFixed(0)}% (average runner about 7%): the chance the rating comes in more than 12 below the form figure.` : ''}` : undefined}
       >
         {f.scratched ? null : !combo ? (
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="No WR (no rated form, or a jumps race)">&ndash;</span>
@@ -147,15 +129,23 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
             </span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
             {runner.badRunRisk != null && runner.badRunRisk >= BAD_RUN_FLAG && <span className="ml-0.5 hidden text-amber lg:inline" title={`Bad-run risk ${runner.badRunRisk.toFixed(0)}% (average runner about 7%)`}>!</span>}
-            <span className="mt-[2px] flex justify-end gap-[2px]" aria-hidden="true">
-              {[combo.peakRank, combo.ranks[0], combo.ranks[1]].map((x, i) => (
-                <span key={i} className="h-[5px] w-[5px] rounded-[1px] lg:h-[6px] lg:w-[6px]" style={{ background: rankShade(x) }} />
-              ))}
-            </span>
           </>
         )}
       </span>
-      <span className={`text-right text-ink-mute ${showPrice ? '' : LG_ONLY}`}>
+      {showFp && (
+        <span className="text-right font-mono text-[12px] text-ink lg:text-[13px]" title="The rating the horse actually ran">
+          {f.scratched ? '' : runner.actualWpr == null ? <Missing why="Actual rating not published yet (usually within a few days)" /> : runner.actualWpr.toFixed(1)}
+        </span>
+      )}
+      {showFp && (
+        <span className={`text-right font-mono text-[12px] font-medium lg:text-[13px] ${miss == null ? '' : miss >= 0 ? 'text-blue-700' : 'text-rose'}`} title="Actual minus the rating, on the same scale (blue = ran above the rating, red = below)">
+          {f.scratched || miss == null ? '' : `${miss >= 0 ? '+' : '\u2212'}${Math.abs(miss).toFixed(1)}`}
+        </span>
+      )}
+      <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title={effective?.effectivePlacePrice != null ? `Rated price (model view). Place ${fmtPrice(effective.effectivePlacePrice)}` : 'Rated price (model view)'}>
+        {f.scratched ? '' : effective?.effectivePrice != null ? fmtPrice(effective.effectivePrice) : <Missing why="No rated price (no rating for this runner)" />}
+      </span>
+      <span className={`text-right text-ink-mute ${showPrice && !showFp ? '' : LG_ONLY}`}>
         <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
       </span>
       <span className={`text-right ${showFp ? '' : LG_ONLY}`}>

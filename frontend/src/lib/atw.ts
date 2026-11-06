@@ -18,6 +18,13 @@ export function projectedAtResultsScale(r: Pick<Runner, 'projectedWpr' | 'result
   return r.projectedWpr + (r.resultsScaleOffset ?? 0)
 }
 
+// Actual rating minus the projection on the results scale (the Review tab's rating miss): + = ran above the rating. null until the actual is in.
+export function ratingMiss(r: Pick<Runner, 'projectedWpr' | 'resultsScaleOffset' | 'actualWpr'>): number | null {
+  const proj = projectedAtResultsScale(r)
+  if (proj == null || r.actualWpr == null) return null
+  return r.actualWpr - proj
+}
+
 // Rank and fair price for every rated, unscratched runner of a finished (or any) race on the ATW scale, the same softmax the race page uses
 // (beta 0.20, the pipeline's own price sharpness). Used by Review and the day results so past races are read the way the race page ranks them.
 export function atwFieldByRunId(runners: Runner[], beta = 0.2): Map<string, { rank: number; price: number }> {

@@ -47,12 +47,13 @@ interface HeroProps {
 // The three ratings side by side with where each ranks the field, so a horse's standing on every signal reads at a glance.
 export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: number | null; ranks: (number | null)[] | null }) {
   const tiles: { label: string; value: number | null; rank: number | null }[] = [
+    { label: 'Peak', value: runner.peakWpr ?? null, rank: ranks?.[3] ?? null },
     { label: 'Base', value: runner.nett ?? null, rank: ranks?.[0] ?? null },
     { label: 'Spd', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[1] ?? null },
     { label: 'WR', value: proj, rank: ranks?.[2] ?? null },
   ]
   return (
-    <section className="grid grid-cols-3 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">
+    <section className="grid grid-cols-4 overflow-hidden rounded-lg border border-line bg-panel" aria-label="Ratings">
       {tiles.map((t) => (
         <div key={t.label} className={`flex flex-col gap-0.5 px-2.5 py-1.5 sm:px-3 ${t.label === 'WR' ? 'bg-emerald-bg' : ''}`}>
           <span className="text-[11px] font-semibold text-ink-mute">{t.label}</span>

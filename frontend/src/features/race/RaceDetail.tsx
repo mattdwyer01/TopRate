@@ -43,16 +43,16 @@ interface RaceDetailProps {
 const MAX_COMPARE = 6
 
 // Column headers (lgOnly ones drop out below lg), in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
-const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean; phoneOnly?: boolean; label2?: string }[] = [
+const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean; phoneOnly?: boolean; resultOnly?: boolean; hideOnPhoneWithResult?: boolean; label2?: string }[] = [
   { key: null, label: '', align: 'left' },
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
-  { key: 'peakWpr', label: 'Peak', align: 'right', title: "Highest rating the horse has run in the 12 months before this race (runner-page ratings, the same scale as WR). Blank when it has no rated run in that time." },
-  { key: 'nett', label: 'Base', align: 'right', title: "TopRate's own forward rating (wpr_nett). Weight adjusted to today's weight. Shown beside Peak and Spd, not blended into the Rating." },
-  { key: 'speed', label: 'Spd', align: 'right', title: "Pre-race speed rating: recency-weighted mean of the horse's earlier time-based speed figures, in lengths against par (higher is faster). Needs one earlier figure; with 1 to 5 figures it is pulled toward the average." },
-  { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today (WR alone since 23 Oct 2026; Base and Spd are shown beside it but not counted). The three small squares under it show the runner's rank in the field on Peak, Base and Spd, in that order. The table is sorted by it. A first starter shows an estimate." },
-  { key: 'fixedPrice', label: 'Fixed $', align: 'right' },
+  { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today. The table is sorted by it. A first starter shows an estimate. Peak, Base and Spd are on the runner page." },
+  { key: 'actual', label: 'Actual', align: 'right', resultOnly: true, title: "The rating the horse actually ran (TopRate's result rating). Blank until it is published, usually within a few days; early figures can be preliminary." },
+  { key: 'miss', label: '+/-', align: 'right', resultOnly: true, title: "Actual minus the rating on the same scale: blue = ran above the rating, red = below. Measured the way the Review tab measures its rating miss, so it can differ a little from Actual minus Rating." },
+  { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Rated price: the model's win chance turned into a price (1 / chance). The model's view only, not a value claim." },
+  { key: 'fixedPrice', label: 'Fixed $', align: 'right', hideOnPhoneWithResult: true },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
 ]
 
@@ -254,7 +254,7 @@ export function RaceDetail({
 
           <div className="overflow-hidden rounded-lg border border-line bg-panel">
             <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult, hasAnyPrice)}`}>
-              {COLUMNS.map((c, i) =>
+              {COLUMNS.filter((c) => !c.resultOnly || hasAnyResult).map((c, i) =>
                 c.key == null ? (
                   <span key={i} className={`hidden ${silkFrom(hasAnyResult, hasAnyPrice)}`} />
                 ) : (
@@ -264,7 +264,7 @@ export function RaceDetail({
                     title={c.title}
                     aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
                     onClick={() => onSort(c.key as SortKey)}
-                    className={`transition-colors hover:text-ink ${c.phoneOnly ? 'lg:hidden ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) || (c.key === 'fixedPrice' && !hasAnyPrice) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
+                    className={`transition-colors hover:text-ink ${c.phoneOnly ? 'lg:hidden ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) || (c.key === 'fixedPrice' && (!hasAnyPrice || hasAnyResult)) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                   >
                     {c.label}
                     {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
@@ -350,7 +350,7 @@ export function RaceDetail({
           onToggleScratch={() => setScratched(selectedRunner.runId, !scratched.has(selectedRunner.runId))}
           onClose={() => setSelectedRunId(null)}
           position={{ index: selectedIndex + 1, total: sortedRunners.length }}
-          ranks={comboByRunId.get(selectedRunner.runId)?.ranks ?? null}
+          ranks={(() => { const c = comboByRunId.get(selectedRunner.runId); return c ? [...c.ranks, c.peakRank ?? null] : null })()}
           onPrev={() => step(-1)}
           onNext={() => step(1)}
         />
