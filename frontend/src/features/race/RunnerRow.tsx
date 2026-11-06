@@ -1,7 +1,6 @@
 import type { Runner } from '../../types/domain'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice } from '../../lib/format'
-import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { FinishBadge, PriceCell, useRowFacts } from './rowParts'
 import type { CombinedRank } from '../../lib/combinedRank'
 import { actualOnRatingScale, ratingMiss } from '../../lib/atw'
@@ -16,8 +15,6 @@ interface RunnerRowProps {
   showActual?: boolean
   // False before any price is out: the Fixed $ cell drops out on phones (desktop keeps the column).
   showPrice?: boolean
-  // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
-  showBias?: boolean
   combo?: CombinedRank
   // Lowest and highest Proj in the field, for the bar under the Proj figure (desktop).
   onClick: () => void
@@ -64,7 +61,7 @@ function Missing({ why }: { why: string }) {
 // Bad-run risk (percent) at which the race table marks a runner: about twice the average of 7%, roughly the riskiest decile (held out: predicted 16.5%, actual 18.7%).
 const BAD_RUN_FLAG = 15
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showActual = false, showBias = true, combo, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showActual = false, combo, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   const actualShown = actualOnRatingScale(runner)
@@ -90,15 +87,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
         <span className="flex items-center gap-1.5">
           <span className={`truncate font-medium text-ink ${f.scratched ? 'line-through' : ''}`}>{runner.horse}</span>
           {runner.dataScratched && <span className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white">SCR</span>}
-          {showBias && hasRunnerBias(runner) && !f.scratched && (
-            <span
-              className={`flex-none rounded border px-1 font-mono text-[10px] font-semibold ${showFp ? 'hidden lg:inline' : ''} ${runnerBias(runner) >= 0 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-rose-line bg-rose-bg text-rose'}`}
-              title="Draw lean read from earlier races at this meeting would move this runner by this much. Display only: it is not inside Proj."
-            >
-              <span className="lg:hidden">{runnerBias(runner) >= 0 ? '\u25B2' : '\u25BC'}{Math.abs(runnerBias(runner)).toFixed(1)}</span>
-              <span className="hidden lg:inline">bias {fmtBias(runnerBias(runner))}</span>
-            </span>
-          )}
           {runner.projectionModel === 'debut' && !f.scratched && (
             <span className="hidden flex-none rounded border border-amber-line bg-amber-bg px-1 text-[10px] text-amber lg:inline" title="First starter: no form to rate. The Proj is an estimate from the race's level and this runner's price against the field, not a form rating. It is kept out of the Rating, the gap lines and the quaddie pools.">
               est
