@@ -38,7 +38,6 @@ SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', '
 FORMULA_PROJ = os.environ.get('PROJECTION_FORMULA', '1') == '1'
 TF_ANCHOR = os.environ.get('PROJECTION_TF_ANCHOR', '1') == '1'    # 6 Nov 2026: Proj = capped formula + a limited model step (see below); 0 = the unanchored model figure
 TF_CAP = float(os.environ.get('PROJECTION_TF_CAP', '3.0'))        # rating points the model may move the formula figure
-RECENT_FORM = os.environ.get('PROJECTION_RECENT_FORM', '0') == '1'  # 6 Nov 2026 (owner's method, OFF: worse than the live Proj held out, RMSE 8.76 vs about 8.38): Proj = recent form minus days and distance steps (breakdown.rf_parts); 1 = use it
 CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '2.0'))   # rating points; 0 = no cap
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
@@ -374,16 +373,6 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
                                                 'weight_carried': np.nan, 'prize_money': (R.prize.values if 'prize' in R.columns else np.nan)}))
                 okt = use & ~np.isnan(tfa)
                 fp = np.where(okt, tfa + np.clip(fp - tfa, -TF_CAP, TF_CAP), fp)
-            if RECENT_FORM:
-                # 6 Nov 2026 (owner's call after Defiantly, Flemington R3: 93.0 against 99-103 by hand). Proj = the last three clean runs weighted 50/30/20, minus the fitted days step
-                # (against a normal 21-day gap) and the distance and going step (capped +-3); no older-run weighting, regression or model step. Held-out 2026 (64,610 runs): RMSE 8.76
-                # against 8.67 for the transparent formula and about 8.38 for the model; improvers (last run 10+ above runs 4-6) median miss -0.9 against +1.1 for the formula.
-                # Runners with under 3 earlier runs keep the model figure. research/recent_form_proj_eval.py.
-                import breakdown as BK
-                rfa = BK.rf_array(pd.DataFrame({'horse_id': R.horse_id.values, 'date': R.date.values, 'distance': R.distance.values, 'going': R.going.values,
-                                                'prize_money': (R.prize.values if 'prize' in R.columns else np.nan)}))
-                okr = use & ~np.isnan(rfa)
-                fp = np.where(okr, rfa, fp)
             fs = np.where(use, [cmeta['sd'].get(str(int(min(max(n, 1), CTX.K))), s0) for n, s0 in zip(np.nan_to_num(fn), fs)], fs)
         R['p0'] = np.where(has, fp, np.nan)
         R['proj'] = R.p0

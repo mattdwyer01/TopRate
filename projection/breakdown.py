@@ -199,45 +199,6 @@ def tf_array(rows):
     return out
 
 
-# Recent-form Proj (6 Nov 2026, owner's method: "recent form, with a reduction for a drop in distance and days since the last run"; Defiantly, Flemington R3, is a 99-103 horse by hand
-# and the model said 93.0). Recent form = the last three CLEAN runs (a run more than 12 below the median of the last six is dropped, as above) weighted 50/30/20, newest first; then the fitted days
-# step measured against a normal 21-day gap, and the distance and going step (capped at +-3) from models_tr/transparent.json. No older-run weighting, no regression and no model step.
-RF_W = (0.5, 0.3, 0.2)
-RF_DAYS_REF = float(np.log1p(21))
-
-
-def rf_parts(f, mdl):
-    """Recent-form Proj pieces from row_features output f: (recent form, days, distance and going, total)."""
-    form = RF_W[0] * f['c1'] + RF_W[1] * f['c2'] + RF_W[2] * f['c3']
-    days = mdl['coef']['dlog'] * (f['dlog'] - RF_DAYS_REF)
-    dg = float(np.clip(sum(mdl['coef'][k] * f[k] for k in GROUPS['dg']), -CAPS['dg'], CAPS['dg']))
-    return form, days, dg, form + days + dg
-
-
-def rf_array(rows):
-    """Recent-form Proj for each row (columns horse_id, date, distance, going, prize_money), aligned to the input; NaN with under 3 earlier page runs."""
-    if not os.path.exists(MODEL):
-        return np.full(len(rows), np.nan)
-    if 'arr' not in _CACHE:
-        _CACHE['arr'] = _page_arrays(); _CACHE['m'] = json.load(open(MODEL))
-    arr, mdl = _CACHE['arr'], _CACHE['m']
-    out = np.full(len(rows), np.nan)
-    for i, r in enumerate(rows.itertuples(index=False)):
-        try:
-            h = arr.get(int(float(r.horse_id)))
-            if h is None:
-                continue
-            day = _day(r.date)
-            n = int(np.searchsorted(h['day'], day, side='left'))
-            if n < 3:
-                continue
-            t = dict(day=day, dist=float(r.distance), gn=going_num(r.going), lp=float(np.log(max(float(r.prize_money), 1000))) if pd.notna(r.prize_money) else np.nan, wt=np.nan)
-            out[i] = rf_parts(row_features(_slice(h, n), t), mdl)[3]
-        except Exception:
-            continue
-    return out
-
-
 if __name__ == '__main__':
     if '--train' in sys.argv:
         train(holdout='--holdout' in sys.argv)
