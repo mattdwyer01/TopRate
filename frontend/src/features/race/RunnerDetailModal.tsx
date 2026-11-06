@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Race, Runner } from '../../types/domain'
 import type { TripRunner } from '../../lib/tripMap'
-import type { EffectiveRunner } from '../../lib/raceModel'
+import { pureProj, type EffectiveRunner } from '../../lib/raceModel'
 import { fmtPrice, fmtWpr } from '../../lib/format'
 import { formatTimeOfDay } from '../../lib/countdown'
 import { computePriceMove } from '../../lib/priceMove'
 import { useBodyScrollLock, useFocusTrap } from '../../lib/modalA11y'
 import { RecentRunsTable } from './RecentRunsTable'
 import { CareerStats } from './CareerStats'
-import { ConditionsScorecard, HorseHero, SignalsPanel, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
+import { ConditionsScorecard, FormCheck, HorseHero, SignalsPanel, PriceVsFair, ResultCard, RunTimeline, TimelineLegend } from './horseParts'
 
 interface RunnerDetailModalProps {
   runner: Runner
@@ -189,7 +189,7 @@ export function RunnerDetailModal({
           )}
 
           <div className="lg:order-2 lg:col-span-7">
-            <SignalsPanel runner={runner} proj={effectiveWpr} ranks={ranks} />
+            <SignalsPanel runner={runner} proj={scratched ? null : pureProj(runner, effective)} ranks={ranks} />
           </div>
 
           <div className="lg:order-1 lg:col-span-5">
@@ -207,6 +207,12 @@ export function RunnerDetailModal({
             hasOverride={hasOverride}
           />
           </div>
+
+          {!scratched && (
+            <div className="lg:order-3 lg:col-span-12">
+              <FormCheck runner={runner} raceDate={race.date} />
+            </div>
+          )}
 
           {!scratched && runner.jockey === '' && runner.projectedWpr != null && !(runner.resultKnown || runner.finishPosition != null) && (
             <div className="rounded-lg border border-line bg-panel px-3 py-2 text-sm text-ink-soft lg:col-span-12" role="note">

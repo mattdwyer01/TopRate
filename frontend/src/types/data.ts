@@ -99,6 +99,8 @@ export interface RawRunner {
   wpjadj: number | null
   wpjcb: Record<string, number> | null
   wpjsd?: number | null // typical error of the projection (new model)
+  wpjrk?: number | null // chance (percent) of a bad run: a rating more than 12 below the formula figure (display only)
+  dm?: number | null // direct finishing-position model win chance over the runners in the complete-field log (direct_score.py), null until scored
   wpjmd?: string | null // when the logged projection was made (ISO); after the race start means back-filled
   wpjm?: string | null // main / light / debut
   wpjpr: number | null
