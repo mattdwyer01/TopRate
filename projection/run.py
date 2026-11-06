@@ -38,7 +38,7 @@ SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', '
 FORMULA_PROJ = os.environ.get('PROJECTION_FORMULA', '1') == '1'
 TF_ANCHOR = os.environ.get('PROJECTION_TF_ANCHOR', '1') == '1'    # 6 Nov 2026: Proj = capped formula + a limited model step (see below); 0 = the unanchored model figure
 TF_CAP = float(os.environ.get('PROJECTION_TF_CAP', '3.0'))        # rating points the model may move the formula figure
-RECENT_FORM = os.environ.get('PROJECTION_RECENT_FORM', '1') == '1'  # 6 Nov 2026 (owner's method): Proj = recent form minus days and distance steps (breakdown.rf_parts); 0 = the anchored model figure
+RECENT_FORM = os.environ.get('PROJECTION_RECENT_FORM', '0') == '1'  # 6 Nov 2026 (owner's method, OFF: worse than the live Proj held out, RMSE 8.76 vs about 8.38): Proj = recent form minus days and distance steps (breakdown.rf_parts); 1 = use it
 CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '2.0'))   # rating points; 0 = no cap
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
