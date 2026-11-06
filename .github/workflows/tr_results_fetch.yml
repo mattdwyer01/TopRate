@@ -13,6 +13,9 @@ on:
       refetch:
         description: "Fetch races already stored again (rating status moves on from Preliminary)"
         default: "false"
+      probe_ids:
+        description: "Optional comma separated race ids: only probe those pages (prints status, nothing is fetched into data or committed)"
+        default: ""
 
 permissions:
   contents: write
@@ -52,11 +55,16 @@ jobs:
             echo "::add-mask::$KEY"
             echo "TOPRATE_ANON_KEY=$KEY" >> "$GITHUB_ENV"
           fi
+      - name: Probe race pages
+        if: ${{ inputs.probe_ids != '' }}
+        run: python toprate_result_probe.py "${{ inputs.probe_ids }}"
       - name: Fetch
+        if: ${{ inputs.probe_ids == '' }}
         run: |
           flag=""; [ "${{ inputs.refetch }}" = "true" ] && flag="--refetch"
           python toprate_result_fetch.py --days "${{ inputs.days }}" $flag
       - name: Commit data/tr_results to this branch
+        if: ${{ inputs.probe_ids == '' }}
         run: |
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/tr_results
