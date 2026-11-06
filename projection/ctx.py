@@ -40,6 +40,8 @@ FLD_BASE = ['f', 'mean3', 'jw', 'jw90', 'tw', 'tw90', 'jock_eff']
 FLD_FEATS = [p + c for c in FLD_BASE for p in ('r_', 'k_')]
 FLD_REL_BASE = ['c_ewm3', 'sim_all']
 FLD_REL_FEATS = [p + c for c in FLD_REL_BASE for p in ('r_', 'k_')]
+# 6 Nov 2026: momentum inputs (rise3, rise_old, up3, step1) were tested for rising, lightly raced horses (research/momentum_ab.py) and did NOT help held-out: overall RMSE 8.486 to 8.495
+# (paired gain -0.155, se 0.024), rising-light group 8.405 to 8.396, no bias in that group to correct. The columns are still built in context_columns but not used.
 FEATS2 = FEATS + RATE_FEATS + FLD_FEATS
 
 
@@ -235,6 +237,12 @@ def context_columns(df):
         df['max4'] = np.nanmax(np.where(np.isnan(r[:, :4]), -1e9, r[:, :4]), axis=1)
         df['std4'] = np.nanstd(r[:, :4], axis=1)
     df.loc[df.max4 < -1e8, 'max4'] = np.nan
+    with np.errstate(all='ignore'):
+        df['rise3'] = r[:, 0] - r[:, 2]
+        df['step1'] = r[:, 0] - r[:, 1]
+        df['rise_old'] = r[:, 0] - np.nanmean(r[:, 3:8], axis=1)
+        df['up3'] = ((r[:, 0] > r[:, 1]) & (r[:, 1] > r[:, 2])).astype(float)
+    df.loc[np.isnan(r[:, 2]), 'up3'] = np.nan
     df['dist_chg'] = df.distance - df.l_dist
     df['going_chg'] = df.going_n - df.l_going
     df['wt_chg'] = df.weightCarried - df.l_wt

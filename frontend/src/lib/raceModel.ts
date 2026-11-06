@@ -1,5 +1,5 @@
 import type { Runner } from '../types/domain'
-import { simulateRace } from './ratedPrice'
+import { simulateRace, PRICE_SHARPEN } from './ratedPrice'
 
 export interface EffectiveRunner {
   // The rating shown and used for ranking and gaps: the WPR projection at the weight carried today (ATW) with any manual delta.
@@ -173,9 +173,14 @@ export function computeEffectiveRace(
   const ratingByRunId = new Map<string, number>()
   if (rated.length >= 2) {
     const sim = simulateRace(rated.map((r) => ({ runId: r.runId, wpr: r.wpr, sd: r.sd })), beta)
+    // Rated $ only: chances sharpened by PRICE_SHARPEN (owner's call, 6 Nov 2026) so top picks price shorter. The rating below still uses
+    // the unsharpened chances, so rating gaps do not stretch.
+    const sharp = sim.map((x) => Math.pow(Math.max(x.win, 1e-12), PRICE_SHARPEN))
+    const sharpTot = sharp.reduce((a, b) => a + b, 0) || 1
     rated.forEach((r, i) => {
-      priceByRunId.set(r.runId, Math.min(1 / Math.max(sim[i].win, 1e-9), PRICE_CAP))
-      if (sim[i].place != null) placePriceByRunId.set(r.runId, Math.min(1 / Math.max(sim[i].place as number, 1e-9), PRICE_CAP))
+      const w = sharp[i] / sharpTot
+      priceByRunId.set(r.runId, Math.min(1 / Math.max(w, 1e-9), PRICE_CAP))
+      if (sim[i].place != null) placePriceByRunId.set(r.runId, Math.min(1 / Math.max(Math.max(sim[i].place as number, w), 1e-9), PRICE_CAP))
     })
     const lnP = sim.map((x) => Math.log(Math.max(x.win, 1e-9)))
     const meanLn = lnP.reduce((a, b) => a + b, 0) / lnP.length

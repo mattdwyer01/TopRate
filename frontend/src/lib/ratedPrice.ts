@@ -6,6 +6,10 @@
 
 const REF_SD = 7.0       // projection sd that gets the base noise
 const BASE_SD = 5.0      // noise sd at beta 0.20. 6 Nov 2026 refit on 1,164 live races (current model): 5.0 / 5.5 / 6.0 log-lik -1.9205 / -1.9193 / -1.9217 (flat), top pick rated 29.4% / 27.7% / 26.3% vs 30.3% actual, longshots (<5%) rated 2.33% / 2.47% / 2.60% vs 2.65% / 2.19% / 1.94%; 5.0 chosen for the top pick. Power sharpening (p^g) and field-spread-scaled noise did not help. Refit again at about 3,000 live races. Earlier: 5.5 (900 races). 6.6 (fitted 15 Oct 2026) under-rated the top rated runner: on 937 priced races the top pick was rated 25.1% against 28.9% actual (market 26.2%). 6 Nov 2026, 900 races: winner log-lik -1.9196 (6.6), -1.9124 (5.5), -1.9141 (5.0); top pick rated 25.1% / 27.9% / 29.6% vs 29.1% actual. Refit once the live log has weeks of rows
+// Rated $ sharpening (owner's call, 6 Nov 2026): win chances raised to this power and renormalised before turning into prices, so top picks
+// price shorter. Costs accuracy: 1,216 live races since 16 Oct, winner log-lik -1.905 (1.0) vs -1.911 (1.1), top pick rated 29.7% / 31.6% vs
+// 29.6% actual. Applied in raceModel.ts to prices only, not to the rating. Set to 1 to undo.
+export const PRICE_SHARPEN = 1.1
 const RATIO_MIN = 0.8
 const RATIO_MAX = 1.8
 const QUAD_POINTS = 121
