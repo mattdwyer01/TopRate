@@ -451,7 +451,7 @@ function ResultContext({ runner }: { runner: Runner }) {
 
 // After the race: how it finished, the actual rating it ran (ATW) and what the race itself said.
 export function ResultCard({ runner }: { runner: Runner }) {
-  const actual = runner.actualWpr
+  const actual = runner.actualAtw
   const fin = runner.finishPosition
   if (fin == null && actual == null && !runner.resultKnown) {
     return <p className="text-sm text-ink-mute">The result and the actual rating show here after the race.</p>
@@ -469,7 +469,7 @@ export function ResultCard({ runner }: { runner: Runner }) {
       <ResultContext runner={runner} />
       <p className="mt-2 text-sm text-ink-soft">
         {fin != null && runner.marginFinish != null && fin > 1 ? `Beaten ${runner.marginFinish.toFixed(1)}L. ` : ''}
-        {actual == null ? 'The actual rating settles a few days after the race.' : ''}
+        {actual == null ? 'The final actual rating comes from TopRate a few days after the race.' : ''}
       </p>
     </div>
   )

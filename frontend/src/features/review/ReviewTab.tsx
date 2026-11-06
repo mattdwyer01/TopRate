@@ -149,7 +149,7 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
   const filteredRows = scoped
   const detailRows = useMemo(() => {
     const sorted = [...filteredRows]
-    if (sortBy === 'miss') sorted.sort((a, b) => Math.abs(b.miss) - Math.abs(a.miss))
+    if (sortBy === 'miss') sorted.sort((a, b) => Math.abs(b.miss ?? 0) - Math.abs(a.miss ?? 0))
     else sorted.sort((a, b) => b.date.localeCompare(a.date))
     return sorted.slice(0, MAX_DETAIL_ROWS)
   }, [filteredRows, sortBy])
@@ -576,14 +576,14 @@ export function ReviewTab({ races, onSelectRace }: ReviewTabProps) {
                           )}
                         </td>
                         <td className="px-3 py-1.5 text-right font-mono">{fmtWpr(r.predicted)}</td>
-                        <td className="px-3 py-1.5 text-right font-mono">{fmtWpr(r.actual)}</td>
+                        <td className="px-3 py-1.5 text-right font-mono">{r.actual != null ? fmtWpr(r.actual) : '-'}</td>
                         <td
                           className={
                             'px-3 py-1.5 text-right font-mono font-medium ' +
-                            (r.miss > 0 ? 'text-emerald-deep' : r.miss < 0 ? 'text-rose' : 'text-ink-mute')
+                            (r.miss == null ? 'text-ink-faint' : r.miss > 0 ? 'text-emerald-deep' : r.miss < 0 ? 'text-rose' : 'text-ink-mute')
                           }
                         >
-                          {fmtSigned(r.miss)}
+                          {r.miss != null ? fmtSigned(r.miss) : '-'}
                         </td>
                         <td className="px-3 py-1.5 text-right text-ink-mute">{r.predictedRank ?? '-'}</td>
                         <td className="px-3 py-1.5 text-right text-ink-mute">
