@@ -6,7 +6,6 @@ import { computeGapsFromTop, computeEffectiveRace, INNER_GAP_FROM_TOP, OUTER_GAP
 import { DEFAULT_DIRECTION, sortRunners, type SortDirection, type SortKey } from '../../lib/sorting'
 import { useTripMap } from '../../lib/tripMap'
 import { RaceHeader, RaceMiniBar } from './RaceHeader'
-import { BiasNote } from './BiasNote'
 import { MeetingLeanNote } from './MeetingLeanNote'
 import { RunnerCompare } from './RunnerCompare'
 import { RaceResult } from './RaceResult'
@@ -47,7 +46,7 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'daysSince', label: 'RTS', align: 'right', title: 'Runs this spell (FU first-up, 2U second-up...)', lgOnly: true },
   { key: 'comboRank', label: 'Rating', align: 'right', title: "Rating: the WR projection at the weight carried today. The table is sorted by it. A first starter shows an estimate. Peak, Base and Spd are on the runner page." },
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Rated price: the model's win chance turned into a price (1 / chance). The model's view only, not a value claim." },
-  { key: 'fixedPrice', label: 'Fixed $', align: 'right', hideOnPhoneWithResult: true },
+  { key: 'fixedPrice', label: 'Fixed $', align: 'right', hideOnPhoneWithResult: true, title: 'Fixed price. On a narrow phone (under 420px) once the race has a result it shows under the Rated $.' },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
   { key: 'actual', label: 'Actual', align: 'right', resultOnly: true, actualOnly: true, title: "The rating the horse ran at this race's weight, on the same scale as the Rating: TopRate's published ATW. A small p marks a preliminary rating (about a point low), replaced by the final one when TopRate publishes it. Blank until TopRate publishes, a day or two after the race." },
   { key: 'miss', label: '+/-', align: 'right', resultOnly: true, actualOnly: true, title: "Actual minus Rating, same scale: blue = ran above the rating, red = below." },
@@ -148,11 +147,6 @@ export function RaceDetail({
     () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP),
     [race.runners, effectiveByRunId, effectiveScratched],
   )
-  // The track-bias note ranks on the WPR projection and shows what the draw lean would add (display only, not inside Proj).
-  const rankedProjection = useMemo(
-    () => rankField(race.runners, effectiveByRunId, effectiveScratched, INNER_GAP_FROM_TOP, OUTER_GAP_FROM_TOP, CORE_GAP_FROM_TOP, 'projection'),
-    [race.runners, effectiveByRunId, effectiveScratched],
-  )
   // Scratched runners always sort to the bottom: a horse that can no longer win shouldn't sit at the top of a Proj-sorted list.
   const sortedRunners = useMemo(() => {
     const sorted = sortRunners(race.runners, sortKey, sortDir, effectiveByRunId, race.date, comboByRunId)
@@ -205,7 +199,6 @@ export function RaceDetail({
       </div>
       <RaceMiniBar race={race} meeting={meetingRaces} activeRunners={activeRunners} anchorRef={headerRef} onSelectRace={onSelectRace} />
 
-      <BiasNote ranked={rankedProjection} race={race} allRaces={allRaces} />
       <MeetingLeanNote race={race} />
 
       {hasAnyResult && (
@@ -240,7 +233,7 @@ export function RaceDetail({
             <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult, hasAnyPrice, hasAnyActual)}`}>
               {COLUMNS.filter((c) => (!c.resultOnly || hasAnyResult) && (!c.actualOnly || hasAnyActual)).map((c, i) =>
                 c.key == null ? (
-                  <span key={i} className={`hidden ${silkFrom(hasAnyResult, hasAnyPrice)}`} />
+                  <span key={i} className={`hidden ${silkFrom(hasAnyResult, hasAnyPrice, hasAnyActual)}`} />
                 ) : (
                   <button
                     key={c.key + (c.phoneOnly ? '-phone' : '')}
@@ -248,12 +241,12 @@ export function RaceDetail({
                     title={c.title}
                     aria-sort={sortKey === c.key ? (sortDir === 'asc' ? 'ascending' : 'descending') : undefined}
                     onClick={() => onSort(c.key as SortKey)}
-                    className={`transition-colors hover:text-ink ${c.phoneOnly ? 'lg:hidden ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) || (c.key === 'fixedPrice' && (!hasAnyPrice || hasAnyResult)) ? 'hidden lg:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
+                    className={`transition-colors hover:text-ink ${c.phoneOnly ? 'lg:hidden ' : c.lgOnly || (c.key === 'finish' && !hasAnyResult) || (c.key === 'fixedPrice' && !hasAnyPrice) ? 'hidden lg:block ' : c.key === 'fixedPrice' && hasAnyResult ? 'hidden min-[420px]:block ' : ''}${c.align === 'right' ? 'text-right' : 'text-left'} ${sortKey === c.key ? 'text-emerald-deep' : ''}`}
                   >
                     {c.label}
                     {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
                     {c.label2 && <span className="block font-normal text-ink-faint">{c.label2}</span>}
-                    {c.key === 'ratedPrice' && hasAnyResult && hasAnyPrice && <span className="block font-normal text-ink-faint lg:hidden">Fixed $</span>}
+                    {c.key === 'ratedPrice' && hasAnyResult && hasAnyPrice && <span className="block font-normal text-ink-faint min-[420px]:hidden">Fixed $</span>}
                   </button>
                 ),
               )}

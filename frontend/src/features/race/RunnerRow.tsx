@@ -28,22 +28,26 @@ const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_76px_9
 const DESKTOP_GRID_RESULT = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_76px_90px_30px_56px_52px]'
 // The FP column only takes room once there is a result, Actual and +/- once TopRate has published a rating, the Fixed $ column once a price is out.
 export const rowGrid = (showFp: boolean, showPrice = true, showActual = false) =>
-  // Phone: [silk] | # | Horse | Rating | Rated $ | (Fixed $) | (FP) | (Actual | +/-). The silk column joins from 380px up.
-  // Once the race has a result the Fixed $ sits under the Rated $ in the same cell on phones (a separate track left the horse name about 30px).
-  // Actual and +/- only take room once TopRate has published a rating for the race (showActual).
-  // The # track is 20px so a two-digit tab number clears the badge beside it.
+  // Phone: [silk] | # | Horse | Rating | Rated $ | (Fixed $) | (FP) | (Actual | +/-). Actual and +/- only take room once TopRate has published a rating (showActual).
+  // Once the race has a result, a narrow phone (under 420px) puts the Fixed $ under the Rated $ in one cell (a separate track left the horse name about
+  // 30px); from 420px the Fixed $ has its own track again. With every column shown the silk joins from 480px (420 to 479 needs its width for the name),
+  // otherwise from 380px. The # track is 20px so a two-digit tab number clears the badge beside it.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
-      ? showActual
-        ? 'grid-cols-[20px_minmax(0,1fr)_44px_52px_18px_38px_36px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_18px_38px_36px]'
-        : 'grid-cols-[20px_minmax(0,1fr)_44px_52px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_18px]'
+      ? showPrice
+        ? showActual
+          ? 'grid-cols-[20px_minmax(0,1fr)_44px_52px_18px_38px_36px] min-[420px]:grid-cols-[20px_minmax(0,1fr)_44px_52px_60px_18px_38px_36px] min-[480px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_60px_18px_38px_36px]'
+          : 'grid-cols-[20px_minmax(0,1fr)_44px_52px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_18px] min-[420px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_60px_18px]'
+        : showActual
+          ? 'grid-cols-[20px_minmax(0,1fr)_44px_52px_18px_38px_36px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_18px_38px_36px]'
+          : 'grid-cols-[20px_minmax(0,1fr)_44px_52px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_18px]'
       : showPrice
         ? 'grid-cols-[20px_minmax(0,1fr)_44px_52px_64px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_64px]'
         : 'grid-cols-[20px_minmax(0,1fr)_44px_52px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px]'
   } ${showFp && showActual ? DESKTOP_GRID_RESULT : DESKTOP_GRID}`
 // Where the silk column starts showing on a phone (matches rowGrid).
-export const silkFrom = (_showFp: boolean, _showPrice = true) => 'min-[380px]:block'
+export const silkFrom = (showFp: boolean, showPrice = true, showActual = false) => (showFp && showPrice && showActual ? 'min-[480px]:block' : 'min-[380px]:block')
 const LG_ONLY = 'hidden lg:block'
 
 // Prices of $100 or more drop the cents so they fit the column (same as the Fixed $ cell).
@@ -81,7 +85,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : runner.finishPosition === 1 ? 'bg-amber-bg/40 hover:bg-amber-bg/70' : 'hover:bg-bg'
       }`}
     >
-      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className={`hidden h-6 w-6 rounded-sm object-contain ${silkFrom(showFp, showPrice)} lg:h-8 lg:w-8`} /> : <span className={`hidden h-6 w-6 ${silkFrom(showFp, showPrice)} lg:h-8 lg:w-8`} />}
+      {runner.silkUrl ? <img src={runner.silkUrl} alt="" className={`hidden h-6 w-6 rounded-sm object-contain ${silkFrom(showFp, showPrice, showActual)} lg:h-8 lg:w-8`} /> : <span className={`hidden h-6 w-6 ${silkFrom(showFp, showPrice, showActual)} lg:h-8 lg:w-8`} />}
       <span className="font-mono text-ink-mute">{runner.tabNumber}</span>
       <span className="min-w-0">
         <span className="flex items-center gap-1.5">
@@ -134,12 +138,12 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       <span className="text-right font-mono text-[13px] leading-tight text-ink-mute lg:text-[14px]" title={effective?.effectivePlacePrice != null ? `Rated price (model view). Place ${fmtPrice(effective.effectivePlacePrice)}` : 'Rated price (model view)'}>
         {f.scratched ? '' : effective?.effectivePrice != null ? fmtPriceShort(effective.effectivePrice) : <Missing why="No rated price (no rating for this runner)" />}
         {showFp && showPrice && !f.scratched && (
-          <span className="block lg:hidden" title="Fixed price">
+          <span className="block min-[420px]:hidden" title="Fixed price">
             <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
           </span>
         )}
       </span>
-      <span className={`text-right text-[13px] text-ink-mute lg:text-[14px] ${showPrice && !showFp ? '' : LG_ONLY}`}>
+      <span className={`text-right text-[13px] text-ink-mute lg:text-[14px] ${!showPrice ? LG_ONLY : showFp ? 'hidden min-[420px]:block' : ''}`}>
         <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
       </span>
       <span className={`text-right ${showFp ? '' : LG_ONLY}`}>
