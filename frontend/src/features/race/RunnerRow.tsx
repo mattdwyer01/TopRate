@@ -21,20 +21,20 @@ interface RunnerRowProps {
   onClick: () => void
 }
 
-// Table row: Rating | (Actual | +/- once the race has a result) | Rated $ | Fixed $ | FP. Peak, Base and Spd live on the runner page only.
+// Table row: Rating | Rated $ | Fixed $ | FP | (Actual | +/- once the race has a result, on the far right). Peak, Base and Spd live on the runner page only.
 // Below lg the RTS column drops out (its track collapses to nothing via `hidden`) so everything else fits a phone without sideways scrolling; RTS moves into the detail line instead.
 
-// Desktop tracks: silk | # | Horse | RTS | Rating | (Actual | +/-) | Rated $ | Fixed $ | FP.
+// Desktop tracks: silk | # | Horse | RTS | Rating | Rated $ | Fixed $ | FP | (Actual | +/-).
 const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_70px_84px_30px]'
-const DESKTOP_GRID_RESULT = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_56px_52px_70px_84px_30px]'
+const DESKTOP_GRID_RESULT = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_70px_84px_30px_56px_52px]'
 // The FP, Actual and +/- columns only take room once there is a result; the Fixed $ column only once a price is out, and not on phones once the race has a result.
 export const rowGrid = (showFp: boolean, showPrice = true) =>
-  // Phone: [silk] | # | Horse | Rating | (Actual | +/-) | Rated $ | (Fixed $) | (FP). The silk column joins from 380px up.
+  // Phone: [silk] | # | Horse | Rating | Rated $ | (Fixed $) | (FP | Actual | +/-). The silk column joins from 380px up.
   // The # track is 20px so a two-digit tab number clears the badge beside it.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
-      ? 'grid-cols-[20px_minmax(0,1fr)_44px_38px_36px_46px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_38px_36px_46px_18px]'
+      ? 'grid-cols-[20px_minmax(0,1fr)_44px_46px_18px_38px_36px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_46px_18px_38px_36px]'
       : showPrice
         ? 'grid-cols-[20px_minmax(0,1fr)_44px_46px_60px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_46px_60px]'
         : 'grid-cols-[20px_minmax(0,1fr)_44px_46px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_46px]'
@@ -109,8 +109,9 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
             </span>
           )}
           {runner.weightCarried != null && <span className="flex-none font-mono text-[10px] text-ink-faint lg:hidden" title="Weight carried">{runner.weightCarried}kg</span>}
-          <span className="max-w-[65%] flex-none truncate text-ink-mute">{runner.jockey}</span>
-          <span className="min-w-0 truncate">/ {runner.trainer}</span>
+          {/* the jockey shrinks and truncates instead of spilling into the Rating column; on a narrow phone the trainer (only a fragment fits) waits for the runner page */}
+          <span className="min-w-0 max-w-full shrink truncate text-ink-mute min-[480px]:max-w-[65%] min-[480px]:flex-none">{runner.jockey}</span>
+          <span className="hidden min-w-0 truncate min-[480px]:inline">/ {runner.trainer}</span>
           {runner.weightCarried != null && <span className="hidden flex-none font-mono lg:inline">&middot; {runner.weightCarried}kg</span>}
         </span>
       </span>
@@ -133,6 +134,15 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
           </>
         )}
       </span>
+      <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title={effective?.effectivePlacePrice != null ? `Rated price (model view). Place ${fmtPrice(effective.effectivePlacePrice)}` : 'Rated price (model view)'}>
+        {f.scratched ? '' : effective?.effectivePrice != null ? fmtPrice(effective.effectivePrice) : <Missing why="No rated price (no rating for this runner)" />}
+      </span>
+      <span className={`text-right text-[12px] text-ink-mute lg:text-[13px] ${showPrice && !showFp ? '' : LG_ONLY}`}>
+        <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
+      </span>
+      <span className={`text-right ${showFp ? '' : LG_ONLY}`}>
+        <FinishBadge pos={runner.finishPosition} />
+      </span>
       {showFp && (
         <span className={`text-right font-mono text-[12px] lg:text-[13px] ${runner.actualPrelim ? 'italic text-ink-soft' : 'text-ink'}`} title={runner.actualAtw != null ? `TopRate's ${runner.actualPrelim ? 'PRELIMINARY' : 'final'} ATW rating for this run: the rating at this race's weight${runner.actualPrelim ? '. Preliminary ratings run about a point low and are replaced by the final rating when TopRate publishes it' : ''}. Plain rating ${runner.actualWpr != null ? runner.actualWpr.toFixed(1) : 'not in'}.` : 'Shown once TopRate publishes the rating (a day or two after the race).'}>
           {f.scratched ? '' : actualShown == null ? <Missing why="Rating not out yet (TopRate publishes a day or two after the race)" /> : actualShown.toFixed(1)}{runner.actualPrelim && actualShown != null ? <sup className="ml-px text-[9px]">p</sup> : null}
@@ -143,15 +153,6 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
           {f.scratched || miss == null ? '' : `${miss >= 0 ? '+' : '\u2212'}${Math.abs(miss).toFixed(1)}`}
         </span>
       )}
-      <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title={effective?.effectivePlacePrice != null ? `Rated price (model view). Place ${fmtPrice(effective.effectivePlacePrice)}` : 'Rated price (model view)'}>
-        {f.scratched ? '' : effective?.effectivePrice != null ? fmtPrice(effective.effectivePrice) : <Missing why="No rated price (no rating for this runner)" />}
-      </span>
-      <span className={`text-right text-ink-mute ${showPrice && !showFp ? '' : LG_ONLY}`}>
-        <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
-      </span>
-      <span className={`text-right ${showFp ? '' : LG_ONLY}`}>
-        <FinishBadge pos={runner.finishPosition} />
-      </span>
     </div>
   )
 }

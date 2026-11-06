@@ -70,7 +70,7 @@ export function SignalsPanel({ runner, proj, ranks }: { runner: Runner; proj: nu
 }
 
 // Form check: how the Proj sits against the horse's own recent ATW ratings, and the bad-run risk. Shown on the runner page under the hero. (5 Nov 2026)
-export function FormCheck({ runner, raceDate }: { runner: Runner; raceDate: string | null }) {
+export function FormCheck({ runner, raceDate, bare = false }: { runner: Runner; raceDate: string | null; bare?: boolean }) {
   const last3 = lastRunsRating(runner.formHistory, raceDate, 3)
   const last8 = lastRunsRating(runner.formHistory, raceDate, 8)
   const lastRun = lastRunsRating(runner.formHistory, raceDate, 1)
@@ -81,7 +81,7 @@ export function FormCheck({ runner, raceDate }: { runner: Runner; raceDate: stri
   if (d == null && risk == null) return null
   const big = d != null && Math.abs(d) >= 5
   return (
-    <section className="rounded-lg border border-line bg-panel px-3 py-2 text-xs text-ink-soft sm:px-4" aria-label="Form check">
+    <section className={bare ? 'text-xs text-ink-soft' : 'rounded-lg border border-line bg-panel px-3 py-2 text-xs text-ink-soft sm:px-4'} aria-label="Form check">
       <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
         {d != null && last3 != null && (
           <span>
@@ -149,6 +149,89 @@ export function HorseHero({ runner, race, proj, scratched, rank, fieldSize, fiel
           {runner.weightCarried != null && <> &middot; {runner.weightCarried}kg</>}
           {race.distance ? <span className="font-normal text-ink-mute"> &middot; {race.distance}m</span> : null}
         </span>
+      </div>
+    </section>
+  )
+}
+
+/* ------------------------------------------------------------- hero band */
+
+interface HeroBandProps extends HeroProps {
+  wr: number | null // the WR projection on its own (the Rating can be a blend)
+  ranks: (number | null)[] | null // Base, Spd, WR, Peak ranks (as RaceDetail passes them)
+}
+
+// One summary band at the top of the runner page (6 Nov 2026): the Rating and where it ranks, the four ratings with their ranks, the market
+// against the rated price, then the basics and the form check on one strip underneath. Replaces three separate cards.
+export function HeroBand({ runner, race, proj, wr, scratched, rank, fieldSize, fieldTop, fair, market, fixedMove, hasOverride, ranks }: HeroBandProps) {
+  const gap = proj != null && fieldTop != null ? fieldTop - proj : null
+  const verdict =
+    rank != null && !scratched ? `${ordinal(rank)} of ${fieldSize}${gap != null && gap > 0.05 ? ` \u00b7 ${gap.toFixed(1)} off the top` : ' \u00b7 top rated'}` : scratched ? 'Scratched' : ''
+  const tiles: { label: string; value: number | null; rank: number | null; title: string }[] = [
+    { label: 'Peak', value: runner.peakWpr ?? null, rank: ranks?.[3] ?? null, title: 'Best runner-page rating in the last 12 months' },
+    { label: 'Base', value: runner.nett ?? null, rank: ranks?.[0] ?? null, title: "TopRate's Nett" },
+    { label: 'Spd', value: runner.speedRating != null ? speedRatingOnScale(runner.speedRating) : null, rank: ranks?.[1] ?? null, title: 'Speed rating, on the rating scale' },
+    { label: 'WR', value: scratched ? null : wr, rank: ranks?.[2] ?? null, title: 'WR projection at the weight carried today' },
+  ]
+  const market_ = (
+    <div className="min-w-0 text-right">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Market / rated</div>
+      <div className="whitespace-nowrap font-mono text-xl font-semibold leading-tight text-ink lg:text-2xl">
+        {fmtPrice(market)} <span className="text-sm font-normal text-ink-faint lg:text-base">/ {fair != null && !scratched ? fmtPrice(fair) : '-'}</span>
+      </div>
+      <div className="text-[11px] text-ink-mute">
+        {fixedMove ? (
+          <span className={fixedMove.direction === 'firmed' ? 'text-emerald-deep' : 'text-rose'}>
+            {fixedMove.direction} {fixedMove.pctChange.toFixed(0)}% from {fmtPrice(runner.openFixedPrice)}
+          </span>
+        ) : market != null ? (
+          'no move since open'
+        ) : (
+          'no price yet'
+        )}
+      </div>
+    </div>
+  )
+  return (
+    <section className="overflow-hidden rounded-xl border border-line bg-panel shadow-[var(--shadow-1)]" aria-label="Summary">
+      <div className="grid gap-3 p-3 sm:p-4 lg:grid-cols-[minmax(170px,auto)_minmax(0,1fr)_auto] lg:items-center lg:gap-6">
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Rating</span>
+              {hasOverride && <span className="rounded-full bg-amber-bg px-1.5 text-[10px] font-semibold text-amber">adjusted</span>}
+            </div>
+            {scratched ? (
+              <div className="font-mono text-4xl font-bold leading-none text-rose">SCR</div>
+            ) : (
+              <div className="font-mono text-4xl font-bold leading-none tracking-tight text-emerald-deep lg:text-5xl">{fmtWpr(proj)}</div>
+            )}
+            {verdict && <div className="mt-1 text-xs font-medium text-ink-soft">{verdict}</div>}
+          </div>
+          <div className="lg:hidden">{market_}</div>
+        </div>
+        <div className="grid grid-cols-4 gap-1.5 sm:gap-2" aria-label="Ratings">
+          {tiles.map((t) => (
+            <div key={t.label} title={t.title} className={`min-w-0 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 ${t.label === 'WR' ? 'bg-emerald-bg ring-1 ring-emerald-line' : 'bg-bg'}`}>
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-mute">{t.label}</span>
+                {t.rank != null && (
+                  <span className={`rounded px-1 font-mono text-[10px] font-bold leading-4 ${t.rank === 1 ? 'bg-emerald text-white' : t.rank <= 3 ? 'bg-emerald-line/60 text-emerald-deep' : 'text-ink-faint'}`}>#{t.rank}</span>
+                )}
+              </div>
+              <div className="font-mono text-lg font-medium leading-tight text-ink sm:text-xl">{t.value != null ? t.value.toFixed(1) : <span className="text-ink-faint">&ndash;</span>}</div>
+            </div>
+          ))}
+        </div>
+        <div className="hidden lg:block">{market_}</div>
+      </div>
+      <div className="flex flex-col gap-1 border-t border-line-soft bg-bg/60 px-3 py-2 sm:px-4 lg:flex-row lg:items-baseline lg:gap-6">
+        <span className="flex-none text-xs font-semibold text-ink">
+          Barrier {runner.barrier ?? '-'}
+          {runner.weightCarried != null && <> &middot; {runner.weightCarried}kg</>}
+          {race.distance ? <span className="font-normal text-ink-mute"> &middot; {race.distance}m</span> : null}
+        </span>
+        {!scratched && <div className="min-w-0"><FormCheck runner={runner} raceDate={race.date} bare /></div>}
       </div>
     </section>
   )

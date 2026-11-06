@@ -203,24 +203,27 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
         <span className="text-xs text-ink-faint">{narrow ? (noGps ? 'Width at 800m (estimated)' : trip.laneKind === '800m' ? 'Width at 800m from home' : 'Width in the final 200m') : `Projected running line · ${laneLabel}`}</span>
       </div>
       <div className="mt-1 text-xs text-ink-soft">Forecast error is about {trip.err.gap.toFixed(1)}L, so small gaps are not reliable.</div>
-      {t1Gx != null && (
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First third of the field, forecast order ({t1N} of {nField})</span>
-          {t2Gx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-ink-soft" />Second third ({t2N} of {nField})</span>}
-        </div>
-      )}
-      {items.some((r) => r.pft != null) && (
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-[3px] w-5 rounded-full bg-emerald-deep" />Bar under each runner: chance of settling in the first third ({Math.round(FT_LIKELY * 100)}%+ in green, {items.filter((r) => (r.pft ?? 0) >= FT_LIKELY).length} of {nField})</span>
-        </div>
-      )}
-      {hasCont && (
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-emerald-deep text-center text-[8px] font-bold leading-3 text-white">1</span>Rating rank (contenders within {innerGap} of the top)</span>
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm bg-blue-bg" />likely leaders (within {LEADER_ZONE_L}L of the front)</span>
-        </div>
-      )}
-      <div className="mt-1 text-[11px] text-ink-faint">Horses level with each other are nudged to keep barrier order. Others can cross in front or drop in behind.</div>
+      <details className="group mt-1 text-[11px]">
+        <summary className="cursor-pointer list-none text-ink-mute hover:text-ink"><span className="inline-block transition-transform group-open:rotate-90">&#9656;</span> Key{t1Gx != null ? ` · first third ${t1N} of ${nField}` : ''}</summary>
+        {t1Gx != null && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First third of the field, forecast order ({t1N} of {nField})</span>
+            {t2Gx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-ink-soft" />Second third ({t2N} of {nField})</span>}
+          </div>
+        )}
+        {items.some((r) => r.pft != null) && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-[3px] w-5 rounded-full bg-emerald-deep" />Bar under each runner: chance of settling in the first third ({Math.round(FT_LIKELY * 100)}%+ in green, {items.filter((r) => (r.pft ?? 0) >= FT_LIKELY).length} of {nField})</span>
+          </div>
+        )}
+        {hasCont && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-full bg-emerald-deep text-center text-[8px] font-bold leading-3 text-white">1</span>Rating rank (contenders within {innerGap} of the top)</span>
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm bg-blue-bg" />likely leaders (within {LEADER_ZONE_L}L of the front)</span>
+          </div>
+        )}
+        <div className="mt-1 text-[11px] text-ink-faint">Horses level with each other are nudged to keep barrier order. Others can cross in front or drop in behind.</div>
+      </details>
       <div ref={wrapRef} className="relative mt-2 overflow-x-auto">
         <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected trip map: distance behind the leader against width from the rail">
           <rect x={m.l} y={m.t} width={iw} height={ih} fill="var(--color-bg)" />
