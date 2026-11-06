@@ -184,16 +184,14 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
   const hasCont = cont.length >= 2
   const best = hasCont ? cont.reduce((a, b) => (b.gx < a.gx ? b : a)) : null
   const leaders = items.filter((r) => r.gx <= LEADER_ZONE_L)
-  // First third and second third of the field by forecast order (same cut as the rule tested: rank within 1 + (n - 1) / 3 and 1 + 2 x (n - 1) / 3).
-  // Each line sits halfway (in lengths) between the last runner inside and the first runner outside.
+  // First third of the field by forecast order (same cut as the rule tested: rank within 1 + (n - 1) / 3). The line sits halfway (in lengths)
+  // between the last runner inside and the first runner outside. The second-third line was removed on 6 Nov 2026 (nothing uses it).
   const nField = items.length
   const order = [...items].sort((a, b) => a.gx - b.gx)
   const orderOf = new Map(order.map((r, i) => [r.rid, i + 1]))
   const t1N = Math.floor(1 + (nField - 1) / 3)
-  const t2N = Math.floor(1 + (2 * (nField - 1)) / 3)
   const cutGx = (k: number) => (k >= 1 && k < nField ? (order[k - 1].gx + order[k].gx) / 2 : null)
   const t1Gx = nField >= 4 ? cutGx(t1N) : null
-  const t2Gx = nField >= 4 && t2N > t1N ? cutGx(t2N) : null
   const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'width from rail in the final 200m (racing.com GPS), not at 800m'
 
   return (
@@ -208,12 +206,11 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
         {t1Gx != null && (
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
             <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First third of the field, forecast order ({t1N} of {nField})</span>
-            {t2Gx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-ink-soft" />Second third ({t2N} of {nField})</span>}
           </div>
         )}
         {items.some((r) => r.pft != null) && (
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
-            <span className="inline-flex items-center gap-1"><span className="inline-block h-[3px] w-5 rounded-full bg-emerald-deep" />Bar under each runner: chance of settling in the first third ({Math.round(FT_LIKELY * 100)}%+ in green, {items.filter((r) => (r.pft ?? 0) >= FT_LIKELY).length} of {nField})</span>
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-[3px] w-5 rounded-full bg-emerald" />Bar along each runner (and the % on wide screens): chance of settling in the first third ({Math.round(FT_LIKELY * 100)}%+ in green, {items.filter((r) => (r.pft ?? 0) >= FT_LIKELY).length} of {nField})</span>
           </div>
         )}
         {hasCont && (
@@ -248,14 +245,6 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             {leaders.length} likely {leaders.length === 1 ? 'leader' : 'leaders'}
           </text>
           <line x1={m.l} x2={m.l + iw} y1={Y(0)} y2={Y(0)} stroke="var(--color-ink)" strokeWidth={3} />
-          {t2Gx != null && (
-            <g>
-              <line x1={X(t2Gx)} x2={X(t2Gx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-ink-soft)" strokeWidth={2} strokeDasharray="1.5 4" strokeLinecap="round" />
-              <text x={X(t2Gx)} y={m.t - 20} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--color-ink-soft)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
-                {narrow ? '2/3' : 'second third'}
-              </text>
-            </g>
-          )}
           {t1Gx != null && (
             <g>
               <line x1={X(t1Gx)} x2={X(t1Gx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-emerald-deep)" strokeWidth={2} strokeDasharray="1.5 4" strokeLinecap="round" />
@@ -291,7 +280,10 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             const tx = x + SILK + 8
             const c = contenders[r.rid]
             return (
-              <g key={r.rid} onMouseEnter={() => setHover(r.rid)} onMouseLeave={() => setHover(null)} onClick={() => setHover(on ? null : r.rid)} style={{ cursor: 'pointer' }} opacity={hasCont && !c && !on ? 0.5 : 1}>
+              <g key={r.rid} onMouseEnter={() => setHover(r.rid)} onMouseLeave={() => setHover(null)} onClick={() => setHover(on ? null : r.rid)} style={{ cursor: 'pointer' }}>
+                {/* solid backing so a dimmed chip does not let the first-third line show through it */}
+                <rect x={x} y={y} width={2 * hw} height={CHIP_H} rx={5} fill="var(--color-panel)" />
+                <g opacity={hasCont && !c && !on ? 0.5 : 1}>
                 <rect
                   x={x}
                   y={y}
@@ -302,9 +294,28 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
                   stroke={on ? 'var(--color-amber)' : c ? 'var(--color-emerald)' : 'var(--color-ink-faint)'}
                   strokeWidth={on || c ? 2 : 1}
                 />
-                {r.pft != null && (
-                  <rect x={x + 2} y={y + CHIP_H - 5} width={Math.max(2, (2 * hw - 4) * r.pft)} height={3} rx={1.5} fill={r.pft >= FT_LIKELY ? 'var(--color-emerald-deep)' : 'var(--color-ink-faint)'} opacity={r.pft >= FT_LIKELY ? 0.9 : 0.6} />
-                )}
+                {r.pft != null && (() => {
+                  // Chance of settling in the first third: a gauge along the chip's bottom edge (faint track, filled share), clipped to the chip's
+                  // rounded corners; green from FT_LIKELY up, soft grey below. On wide layouts the percentage sits at the right end of the chip.
+                  const likely = r.pft >= FT_LIKELY
+                  const cid = `tm-clip-${r.rid}`
+                  return (
+                    <g>
+                      <clipPath id={cid}>
+                        <rect x={x} y={y} width={2 * hw} height={CHIP_H} rx={5} />
+                      </clipPath>
+                      <g clipPath={`url(#${cid})`}>
+                        <rect x={x} y={y + CHIP_H - 4} width={2 * hw} height={4} fill="var(--color-line)" />
+                        <rect x={x} y={y + CHIP_H - 4} width={Math.max(3, 2 * hw * r.pft)} height={4} fill={likely ? 'var(--color-emerald-deep)' : 'var(--color-ink-mute)'} opacity={likely ? 1 : 0.45} />
+                      </g>
+                      {!narrow && (
+                        <text x={x + 2 * hw - 5} y={r.py + 3} textAnchor="end" fontSize={9} fontWeight={likely ? 700 : 500} fill={likely ? 'var(--color-emerald-deep)' : 'var(--color-ink-faint)'}>
+                          {Math.round(r.pft * 100)}%
+                        </text>
+                      )}
+                    </g>
+                  )
+                })()}
                 {r.silk && <image href={r.silk} x={x + 3} y={y + (CHIP_H - SILK) / 2} width={SILK} height={SILK} preserveAspectRatio="xMidYMid meet" />}
                 <text x={tx} y={r.py + 4} fontSize={11} fontWeight={700} fill="var(--color-ink)">
                   {r.num}
@@ -327,6 +338,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
                     {r.label}
                   </text>
                 )}
+                </g>
               </g>
             )
           })}
@@ -345,7 +357,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             {hov.pft != null && <div>Chance of settling in the first third: {Math.round(hov.pft * 100)}%</div>}
             <div>
               Forecast order {orderOf.get(hov.rid)} of {nField}
-              {nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t1N ? ' (first third)' : nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t2N ? ' (second third)' : ''}
+              {nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t1N ? ' (first third)' : ''}
             </div>
             {contenders[hov.rid] && best && (
               <div>
