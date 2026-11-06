@@ -88,7 +88,7 @@ function sortValue(
     case 'actual':
       return runner.actualWpr ?? -Infinity
     case 'miss':
-      return ratingMiss(runner) ?? -Infinity
+      return ratingMiss(runner, combo?.rating) ?? -Infinity
     case 'finish':
       return runner.finishPosition ?? Infinity
   }

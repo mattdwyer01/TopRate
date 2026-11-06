@@ -3,7 +3,7 @@ import type { CombinedRank } from '../../lib/combinedRank'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { pureProj } from '../../lib/raceModel'
 import { fmtInt, fmtPrice } from '../../lib/format'
-import { ratingMiss } from '../../lib/atw'
+import { ratingMiss, ratingOnActualScale } from '../../lib/atw'
 
 interface RaceResultProps {
   race: Race
@@ -108,7 +108,7 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
           const c = combo.get(r.runId)
           const proj = pureProj(r, effective[r.runId])
           const m = marginText(r)
-          const miss = ratingMiss(r)
+          const miss = ratingMiss(r, c?.rating)
           return (
             <li key={r.runId} className="flex flex-1">
               <button type="button" onClick={() => onSelectRunner(r.runId)} className={`flex w-full items-center gap-3 rounded-md border-t border-line-soft px-2 py-1 text-left hover:bg-bg ${win ? 'bg-emerald-tint' : ''}`}>
@@ -128,7 +128,7 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
                 </span>
                 <span className="hidden shrink-0 gap-3 text-center xl:flex">
                   {[
-                    ['Rating', c?.rating != null ? c.rating.toFixed(1) : fmtInt(proj), 'text-ink-soft'],
+                    ['Rating', ratingOnActualScale(c?.rating ?? null, r) != null ? (ratingOnActualScale(c?.rating ?? null, r) as number).toFixed(1) : fmtInt(proj), 'text-ink-soft'],
                     ['Actual', r.actualWpr != null ? r.actualWpr.toFixed(1) : '\u2013', 'text-ink'],
                     ['+/-', miss != null ? `${miss >= 0 ? '+' : '\u2212'}${Math.abs(miss).toFixed(1)}` : '', miss == null ? '' : miss >= 0 ? 'text-blue-700' : 'text-rose'],
                   ].map(([label, val, tone]) => (

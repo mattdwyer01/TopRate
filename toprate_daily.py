@@ -1312,6 +1312,22 @@ def rebuild_html(runners_df, model_pick_rows=None):
         print(f"  results-scale offsets skipped: {_e}")
         _rso_lookup = {}
 
+    def _rso_toprate(row):
+        """Shift from the Proj's page ATW scale to TopRate's actual (plain) rating: minus 0.8 x (AR 168 standard weight - weight carried after claim), wfa_scale.py.
+        Measured 6 Nov 2026 on 6,800 resulted runs: actual minus (Proj - c) has sd 8.39 against 8.67 unshifted, slope of the unshifted miss on c -0.89."""
+        try:
+            import wfa_scale
+            age = pd.to_numeric(row.get("horse_age"), errors="coerce")
+            wt = pd.to_numeric(row.get("weight_carried"), errors="coerce")
+            dist = pd.to_numeric(row.get("distance"), errors="coerce")
+            sex = row.get("horse_sex")
+            if pd.isna(age) or pd.isna(wt) or pd.isna(dist) or not isinstance(sex, str):
+                return None
+            c = wfa_scale.atw_offset(int(age), sex, str(row.get("date"))[:10], int(dist), float(wt))
+            return None if c is None else round(-c, 2)
+        except Exception:
+            return None
+
     def _atwo_for_row(row):
         """ATW offset for the payload. The offset frozen in the projection log (wprp_atwo) wins, so a race that has run keeps the weight it ran at.
         Without one, only a race still to run takes the horse's latest offset (it is for its next start, so it would be wrong for a past race).
@@ -1935,7 +1951,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # to the projection and the winning line so they sit on the same scale as the ATW history dots. None = no shift.
                 "atwo": _atwo_for_row(row),
                 # Results-scale offset (Oct 2026): add to the plain projection to compare it with wpr_actual (the results-file atw). See atw_results_scale.py.
-                "rso": None if str(row.get("wprp_scale")) == "toprate" else _rso_lookup.get(si(row.get("run_id"))),  # TopRate-scale actual is the plain rating: no results-scale shift
+                "rso": _rso_toprate(row) if str(row.get("wprp_scale")) == "toprate" else _rso_lookup.get(si(row.get("run_id"))),  # TopRate-scale actual is the plain rating: shift = minus the ATW offset (wfa_scale)
                 # Going performance breakdown - dict by category
                 "gb":   gb_parsed,
                 # Form string: last 4 finishes (e.g. "3-1-7-2")
