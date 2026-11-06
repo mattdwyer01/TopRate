@@ -2,13 +2,13 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-05; races checked 53; bets still open 0.
+Logged 2026-11-04 to 2026-11-06; races checked 89; bets still open 0.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
-| Volume v1 | 22 | 46 | 2 | $550 | $248 | $-302 | -55.0% | -42.7% |
-| Volume v2 | 19 | 38 | 2 | $475 | $248 | $-227 | -47.9% | -33.7% |
-| Volume v3 (P cut) | 0 | 0 | 0 | $0 | $0 | $0 | None% | None% |
+| Volume v1 | 37 | 79 | 2 | $925 | $248 | $-677 | -73.2% | -65.9% |
+| Volume v2 | 30 | 55 | 2 | $750 | $248 | $-502 | -67.0% | -58.0% |
+| Volume v3 (P cut) | 13 | 20 | 0 | $325 | $0 | $-325 | -100.0% | -100.0% |
 
 ## By day (at logged price)
 
@@ -16,29 +16,30 @@ Logged 2026-11-04 to 2026-11-05; races checked 53; bets still open 0.
 |---|---|---|---|---|---|---|
 | 2026-11-04 | 5 | $35 | 5 | $35 | 0 | $0 |
 | 2026-11-05 | 41 | $-337 | 33 | $-262 | 0 | $0 |
+| 2026-11-06 | 33 | $-375 | 17 | $-275 | 20 | $-325 |
 
 ## Segments (at logged price; stake is the full $25 a race rule stake, so segments are cuts of the same bets)
 
 | Segment | v1 bets | v1 profit | v1 ROI | v2 bets | v2 profit | v2 ROI | v3 bets | v3 profit | v3 ROI |
 |---|---|---|---|---|---|---|---|---|---|
-| All bets | 46 | $-302 | -55.0% | 38 | $-227 | -47.9% | 0 | $0 | None% |
-| Meeting minimum prize $30k+ | 21 | $-225 | -100.0% | 16 | $-175 | -100.0% | 0 | $0 | None% |
+| All bets | 79 | $-677 | -73.2% | 55 | $-502 | -67.0% | 20 | $-325 | -100.0% |
+| Meeting minimum prize $30k+ | 35 | $-425 | -100.0% | 24 | $-325 | -100.0% | 10 | $-175 | -100.0% |
 | Meeting minimum prize $40k+ | 21 | $-225 | -100.0% | 16 | $-175 | -100.0% | 0 | $0 | None% |
 | Meeting minimum prize $50k+ | 17 | $-175 | -100.0% | 12 | $-125 | -100.0% | 0 | $0 | None% |
-| Good or firm going (1 to 4) | 33 | $-287 | -67.6% | 25 | $-212 | -60.7% | 0 | $0 | None% |
-| $30k+ and good/firm | 12 | $-150 | -100.0% | 7 | $-100 | -100.0% | 0 | $0 | None% |
+| Good or firm going (1 to 4) | 60 | $-562 | -80.4% | 37 | $-387 | -73.8% | 16 | $-250 | -100.0% |
+| $30k+ and good/firm | 20 | $-250 | -100.0% | 10 | $-150 | -100.0% | 6 | $-100 | -100.0% |
 | $40k+ and good/firm | 12 | $-150 | -100.0% | 7 | $-100 | -100.0% | 0 | $0 | None% |
-| Field of 8 or more | 37 | $-202 | -45.0% | 32 | $-152 | -38.1% | 0 | $0 | None% |
-| Field of 5 to 7 | 9 | $-100 | -100.0% | 6 | $-75 | -100.0% | 0 | $0 | None% |
+| Field of 8 or more | 66 | $-502 | -67.0% | 47 | $-377 | -60.4% | 17 | $-250 | -100.0% |
+| Field of 5 to 7 | 13 | $-175 | -100.0% | 8 | $-125 | -100.0% | 3 | $-75 | -100.0% |
 | $40k+ and field of 8+ | 18 | $-200 | -100.0% | 13 | $-150 | -100.0% | 0 | $0 | None% |
-| P(first third) 0.7+ | 0 | $0 | None% | 0 | $0 | None% | 0 | $0 | None% |
-| P(first third) 0.5 to 0.7 | 0 | $0 | None% | 0 | $0 | None% | 0 | $0 | None% |
-| P(first third) under 0.5 | 0 | $0 | None% | 0 | $0 | None% | 0 | $0 | None% |
-| 3+ earlier races, 40%+ won from first third | 11 | $-125 | -100.0% | 11 | $-125 | -100.0% | 0 | $0 | None% |
-| 3+ earlier races, under 25% won from first third | 10 | $-125 | -100.0% | 7 | $-100 | -100.0% | 0 | $0 | None% |
-| 3+ earlier races, winners forecast at the back (mean 0.55+) | 1 | $-25 | -100.0% | 1 | $-25 | -100.0% | 0 | $0 | None% |
+| P(first third) 0.7+ | 13 | $-152 | -100.0% | 8 | $-129 | -100.0% | 13 | $-225 | -100.0% |
+| P(first third) 0.5 to 0.7 | 12 | $-150 | -100.0% | 6 | $-88 | -100.0% | 7 | $-100 | -100.0% |
+| P(first third) under 0.5 | 8 | $-73 | -100.0% | 3 | $-58 | -100.0% | 0 | $0 | None% |
+| 3+ earlier races, 40%+ won from first third | 17 | $-225 | -100.0% | 16 | $-225 | -100.0% | 3 | $-50 | -100.0% |
+| 3+ earlier races, under 25% won from first third | 29 | $-275 | -100.0% | 13 | $-175 | -100.0% | 11 | $-150 | -100.0% |
+| 3+ earlier races, winners forecast at the back (mean 0.55+) | 20 | $-175 | -100.0% | 7 | $-100 | -100.0% | 11 | $-150 | -100.0% |
 
 ## Races checked without a bet, by reason
 
-- ok: 29
-- first starter, light-history or no-Proj runner: 24
+- ok: 49
+- first starter, light-history or no-Proj runner: 40

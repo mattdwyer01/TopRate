@@ -190,9 +190,9 @@ jobs:
           # carry TopRate's ratings for races run since the results files stopped supplying them (the projection's history), so the days ahead matter
           FORCE=""; [ "${{ inputs.refetch_runners }}" = "true" ] && FORCE="--force"
           python toprate_runner_fetch.py --from "$START" --days 3 $FORCE || echo "runner pages skipped"
-          # post-race pages for today and the 3 days before: each run's published ATW (the rating at this race's weight) for the Actual column. Preliminary
+          # post-race pages for today and the 6 days before: each run's published ATW (the rating at this race's weight) for the Actual column. Preliminary
           # ratings are used until TopRate finalises the race; a stored race that is not Final is read again, so the final rating replaces the preliminary one.
-          python toprate_result_fetch.py --days 4 --to "$START" || echo "result pages skipped"
+          python toprate_result_fetch.py --days 7 --to "$START" || echo "result pages skipped"
 
       - name: Merge racing.com fields and rebuild the payload
         run: |

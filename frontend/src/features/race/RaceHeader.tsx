@@ -14,6 +14,40 @@ interface RaceHeaderProps {
   scratchedInRace: number
   hasAnyResult: boolean
   activeRunners: Race['runners']
+  // Back to the meetings grid and the meeting's race switcher live inside the banner (6 Nov 2026), so the race page starts with one block, not three rows.
+  onBack?: () => void
+  onSelectRace?: (raceId: string, date: string) => void
+}
+
+// Race switcher on the dark banner: the race shown is solid white, a race that has run is faded, one about to jump has a rose dot, an interim result an amber dot.
+function BannerRacePills({ race, meeting, onSelectRace }: { race: Race; meeting: Race[]; onSelectRace: (raceId: string, date: string) => void }) {
+  const now = useNow(30_000)
+  return (
+    <div className="-mx-1 flex max-w-full flex-nowrap gap-1 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] md:flex-wrap md:overflow-visible md:pb-0" role="tablist" aria-label="Races at this meeting">
+      {meeting.map((r) => {
+        const st = raceStatus(r, now)
+        const active = r.raceId === race.raceId
+        return (
+          <button
+            key={r.raceId}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onSelectRace(r.raceId, r.date)}
+            title={`R${r.raceNumber} ${r.raceName}${formatTimeOfDay(r.startTime) ? ' · ' + formatTimeOfDay(r.startTime) : ''}`}
+            className={`relative inline-flex h-7 min-w-[36px] flex-none items-center justify-center rounded-full px-2 font-mono text-xs font-semibold transition-colors ${
+              active ? 'bg-white text-[#0B3B2A]' : st === 'resulted' ? 'bg-white/5 text-white/45 hover:bg-white/15' : 'bg-white/10 text-white hover:bg-white/20'
+            }`}
+          >
+            R{r.raceNumber}
+            {!active && (st === 'soon' || st === 'interim') && (
+              <span className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full ${st === 'soon' ? 'bg-[#fb7185]' : 'bg-[#fbbf24]'}`} aria-hidden="true" />
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 type Tone = 'good' | 'warn' | 'bad' | 'plain'
@@ -60,19 +94,29 @@ function useConditions(race: Race, meeting: Race[], activeRunners: Race['runners
 
 // The race and its conditions in one banner. The things that change the result (track, pace, rail) get tiles coloured by what they mean,
 // the rest stay as chips.
-export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activeRunners }: RaceHeaderProps) {
+export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activeRunners, onBack, onSelectRace }: RaceHeaderProps) {
   const { change, pace, leaders, rail, paceTone, goingTileTone } = useConditions(race, meeting, activeRunners)
   const prize = fmtPrize(race.prizeMoney)
   const time = formatTimeOfDay(race.startTime)
   return (
-    <section className="rounded-2xl border border-transparent bg-[#0B3B2A] px-3 py-2.5 shadow-[var(--shadow-1)] sm:px-4 md:px-7 md:py-5">
+    <section className="rounded-2xl border border-transparent bg-[#0B3B2A] px-3 py-2.5 shadow-[var(--shadow-1)] sm:px-4 md:px-6 md:py-4">
+      {(onBack || onSelectRace) && (
+        <div className="mb-2 flex flex-col gap-1.5 border-b border-white/10 pb-2 md:mb-3 md:flex-row md:items-center md:justify-between md:gap-3">
+          {onBack && (
+            <button type="button" onClick={onBack} className="w-fit flex-none text-xs font-medium text-[#A9CDBB] hover:text-white">
+              &larr; Meetings
+            </button>
+          )}
+          {onSelectRace && meeting.length > 1 && <BannerRacePills race={race} meeting={meeting} onSelectRace={onSelectRace} />}
+        </div>
+      )}
       <div className="flex items-start justify-between gap-x-3">
         <div className="min-w-0">
           <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-[#A9CDBB]">
             {race.venue} &middot; {race.state} &middot; R{race.raceNumber}
             {prize ? ` · ${prize}` : ''}
           </div>
-          <h2 className="text-lg font-semibold leading-tight text-white sm:text-xl md:text-3xl md:tracking-tight">{race.raceName}</h2>
+          <h2 className="text-lg font-semibold leading-tight text-white sm:text-xl md:text-[26px] md:tracking-tight">{race.raceName}</h2>
         </div>
         <div className="flex-none text-right">
           {race.allResulted && !race.provisional ? (
@@ -87,7 +131,7 @@ export function RaceHeader({ race, meeting, scratchedInRace, hasAnyResult, activ
             </span>
           ) : (
             <div>
-              <div className="font-mono text-xl font-semibold leading-none text-white md:text-4xl">{formatCountdown(race.startTime) || '-'}</div>
+              <div className="font-mono text-xl font-semibold leading-none text-white md:text-3xl">{formatCountdown(race.startTime) || '-'}</div>
               <div className="mt-0.5 text-[10px] uppercase tracking-wide text-[#A9CDBB] md:text-xs">to jump{time ? ` · ${time}` : ''}</div>
             </div>
           )}
