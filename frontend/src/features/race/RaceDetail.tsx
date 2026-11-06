@@ -41,7 +41,7 @@ interface RaceDetailProps {
 const MAX_COMPARE = 6
 
 // Column headers (lgOnly ones drop out below lg), in the same order as RunnerRow's grid (ROW_GRID). The first (silk) cell is blank.
-const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean; phoneOnly?: boolean; resultOnly?: boolean; hideOnPhoneWithResult?: boolean; label2?: string }[] = [
+const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; title?: string; lgOnly?: boolean; phoneOnly?: boolean; resultOnly?: boolean; actualOnly?: boolean; hideOnPhoneWithResult?: boolean; label2?: string }[] = [
   { key: null, label: '', align: 'left' },
   { key: 'tab', label: '#', align: 'left' },
   { key: 'horse', label: 'Horse', align: 'left' },
@@ -50,8 +50,8 @@ const COLUMNS: { key: SortKey | null; label: string; align: 'left' | 'right'; ti
   { key: 'ratedPrice', label: 'Rated $', align: 'right', title: "Rated price: the model's win chance turned into a price (1 / chance). The model's view only, not a value claim." },
   { key: 'fixedPrice', label: 'Fixed $', align: 'right', hideOnPhoneWithResult: true },
   { key: 'finish', label: 'FP', align: 'right', title: 'Finishing position' },
-  { key: 'actual', label: 'Actual', align: 'right', resultOnly: true, title: "The rating the horse ran at this race's weight, on the same scale as the Rating: TopRate's published ATW. A small p marks a preliminary rating (about a point low), replaced by the final one when TopRate publishes it. Blank until TopRate publishes, a day or two after the race." },
-  { key: 'miss', label: '+/-', align: 'right', resultOnly: true, title: "Actual minus Rating, same scale: blue = ran above the rating, red = below." },
+  { key: 'actual', label: 'Actual', align: 'right', resultOnly: true, actualOnly: true, title: "The rating the horse ran at this race's weight, on the same scale as the Rating: TopRate's published ATW. A small p marks a preliminary rating (about a point low), replaced by the final one when TopRate publishes it. Blank until TopRate publishes, a day or two after the race." },
+  { key: 'miss', label: '+/-', align: 'right', resultOnly: true, actualOnly: true, title: "Actual minus Rating, same scale: blue = ran above the rating, red = below." },
 ]
 
 // Compare runners hidden at the user's request (11 Oct 2026); the feature is intact. Set true to show the pill again.
@@ -141,6 +141,8 @@ export function RaceDetail({
   const scratchedInRace = race.runners.filter((r) => effectiveScratched.has(r.runId)).length
   const hasAnyResult = race.runners.some((r) => r.finishPosition !== null)
   const hasAnyPrice = race.runners.some((r) => r.fixedWinPrice != null)
+  // Actual and +/- only show once TopRate has published a rating (preliminary or final) for some runner in the race.
+  const hasAnyActual = hasAnyResult && race.runners.some((r) => r.actualAtw != null)
   const activeRunners = useMemo(() => race.runners.filter((r) => !effectiveScratched.has(r.runId)), [race.runners, effectiveScratched])
 
   const ranked = useMemo(
@@ -190,6 +192,7 @@ export function RaceDetail({
       effective: effectiveByRunId[runner.runId],
       combo: comboByRunId.get(runner.runId),
       showFp: hasAnyResult,
+      showActual: hasAnyActual,
       showPrice: hasAnyPrice,
       showBias,
       onClick: compareMode
@@ -237,8 +240,8 @@ export function RaceDetail({
           </div>
 
           <div className="overflow-hidden rounded-lg border border-line bg-panel">
-            <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult, hasAnyPrice)}`}>
-              {COLUMNS.filter((c) => !c.resultOnly || hasAnyResult).map((c, i) =>
+            <div className={`grid min-w-full gap-x-1 border-b border-l-4 border-b-line border-l-transparent bg-bg px-2 py-1.5 text-[11px] font-medium text-ink-mute lg:gap-x-2 lg:text-xs ${rowGrid(hasAnyResult, hasAnyPrice, hasAnyActual)}`}>
+              {COLUMNS.filter((c) => (!c.resultOnly || hasAnyResult) && (!c.actualOnly || hasAnyActual)).map((c, i) =>
                 c.key == null ? (
                   <span key={i} className={`hidden ${silkFrom(hasAnyResult, hasAnyPrice)}`} />
                 ) : (
@@ -253,6 +256,7 @@ export function RaceDetail({
                     {c.label}
                     {sortKey === c.key && (sortDir === 'asc' ? ' ↑' : ' ↓')}
                     {c.label2 && <span className="block font-normal text-ink-faint">{c.label2}</span>}
+                    {c.key === 'ratedPrice' && hasAnyResult && hasAnyPrice && <span className="block font-normal text-ink-faint lg:hidden">Fixed $</span>}
                   </button>
                 ),
               )}

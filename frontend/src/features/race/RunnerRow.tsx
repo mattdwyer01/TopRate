@@ -12,6 +12,8 @@ interface RunnerRowProps {
   selected: boolean
   effective?: EffectiveRunner
   showFp: boolean
+  // Actual and +/- columns: only once TopRate has published a rating for some runner in the race.
+  showActual?: boolean
   // False before any price is out: the Fixed $ cell drops out on phones (desktop keeps the column).
   showPrice?: boolean
   // Bias chip only once enough earlier races have run at the meeting (lib/bias MIN_BIAS_RACES).
@@ -25,23 +27,30 @@ interface RunnerRowProps {
 // Below lg the RTS column drops out (its track collapses to nothing via `hidden`) so everything else fits a phone without sideways scrolling; RTS moves into the detail line instead.
 
 // Desktop tracks: silk | # | Horse | RTS | Rating | Rated $ | Fixed $ | FP | (Actual | +/-).
-const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_70px_84px_30px]'
-const DESKTOP_GRID_RESULT = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_70px_84px_30px_56px_52px]'
-// The FP, Actual and +/- columns only take room once there is a result; the Fixed $ column only once a price is out, and not on phones once the race has a result.
-export const rowGrid = (showFp: boolean, showPrice = true) =>
-  // Phone: [silk] | # | Horse | Rating | Rated $ | (Fixed $) | (FP | Actual | +/-). The silk column joins from 380px up.
+const DESKTOP_GRID = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_76px_90px_30px]'
+const DESKTOP_GRID_RESULT = 'lg:grid-cols-[40px_28px_minmax(190px,1fr)_44px_62px_76px_90px_30px_56px_52px]'
+// The FP column only takes room once there is a result, Actual and +/- once TopRate has published a rating, the Fixed $ column once a price is out.
+export const rowGrid = (showFp: boolean, showPrice = true, showActual = false) =>
+  // Phone: [silk] | # | Horse | Rating | Rated $ | (Fixed $) | (FP) | (Actual | +/-). The silk column joins from 380px up.
+  // Once the race has a result the Fixed $ sits under the Rated $ in the same cell on phones (a separate track left the horse name about 30px).
+  // Actual and +/- only take room once TopRate has published a rating for the race (showActual).
   // The # track is 20px so a two-digit tab number clears the badge beside it.
   // (Full class names on purpose: Tailwind only generates classes it can read literally.)
   `${
     showFp
-      ? 'grid-cols-[20px_minmax(0,1fr)_44px_46px_18px_38px_36px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_46px_18px_38px_36px]'
+      ? showActual
+        ? 'grid-cols-[20px_minmax(0,1fr)_44px_52px_18px_38px_36px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_18px_38px_36px]'
+        : 'grid-cols-[20px_minmax(0,1fr)_44px_52px_18px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_18px]'
       : showPrice
-        ? 'grid-cols-[20px_minmax(0,1fr)_44px_46px_60px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_46px_60px]'
-        : 'grid-cols-[20px_minmax(0,1fr)_44px_46px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_46px]'
-  } ${showFp ? DESKTOP_GRID_RESULT : DESKTOP_GRID}`
+        ? 'grid-cols-[20px_minmax(0,1fr)_44px_52px_64px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px_64px]'
+        : 'grid-cols-[20px_minmax(0,1fr)_44px_52px] min-[380px]:grid-cols-[24px_20px_minmax(0,1fr)_44px_52px]'
+  } ${showFp && showActual ? DESKTOP_GRID_RESULT : DESKTOP_GRID}`
 // Where the silk column starts showing on a phone (matches rowGrid).
 export const silkFrom = (_showFp: boolean, _showPrice = true) => 'min-[380px]:block'
 const LG_ONLY = 'hidden lg:block'
+
+// Prices of $100 or more drop the cents so they fit the column (same as the Fixed $ cell).
+const fmtPriceShort = (v: number) => (v >= 100 && v < 999 ? `$${Math.round(v)}` : fmtPrice(v))
 
 // A cell with no value: a faint dash whose tooltip says why, so "not rated" is not mistaken for a blank rendering glitch.
 function Missing({ why }: { why: string }) {
@@ -55,7 +64,7 @@ function Missing({ why }: { why: string }) {
 // Bad-run risk (percent) at which the race table marks a runner: about twice the average of 7%, roughly the riskiest decile (held out: predicted 16.5%, actual 18.7%).
 const BAD_RUN_FLAG = 15
 
-export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, onClick }: RunnerRowProps) {
+export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showActual = false, showBias = true, combo, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
   const actualShown = actualOnRatingScale(runner)
@@ -71,7 +80,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
           onClick()
         }
       }}
-      className={`group grid min-w-full cursor-pointer items-center gap-x-1 border-b border-l-4 ${runner.finishPosition === 1 && !f.scratched ? 'border-l-amber' : 'border-l-transparent'} border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp, showPrice)} ${
+      className={`group grid min-w-full cursor-pointer items-center gap-x-1 border-b border-l-4 ${runner.finishPosition === 1 && !f.scratched ? 'border-l-amber' : 'border-l-transparent'} border-line-soft px-2 py-1 text-left text-sm lg:gap-x-2 transition-colors ${rowGrid(showFp, showPrice, showActual)} ${
         f.scratched ? 'opacity-50' : selected ? 'bg-emerald-bg' : runner.finishPosition === 1 ? 'bg-amber-bg/40 hover:bg-amber-bg/70' : 'hover:bg-bg'
       }`}
     >
@@ -83,7 +92,7 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
           {runner.dataScratched && <span className="flex-none rounded bg-rose px-1 text-[10px] font-semibold text-white">SCR</span>}
           {showBias && hasRunnerBias(runner) && !f.scratched && (
             <span
-              className={`flex-none rounded border px-1 font-mono text-[10px] font-semibold ${runnerBias(runner) >= 0 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-rose-line bg-rose-bg text-rose'}`}
+              className={`flex-none rounded border px-1 font-mono text-[10px] font-semibold ${showFp ? 'hidden lg:inline' : ''} ${runnerBias(runner) >= 0 ? 'border-emerald-line bg-emerald-bg text-emerald-deep' : 'border-rose-line bg-rose-bg text-rose'}`}
               title="Draw lean read from earlier races at this meeting would move this runner by this much. Display only: it is not inside Proj."
             >
               <span className="lg:hidden">{runnerBias(runner) >= 0 ? '\u25B2' : '\u25BC'}{Math.abs(runnerBias(runner)).toFixed(1)}</span>
@@ -134,21 +143,26 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
           </>
         )}
       </span>
-      <span className="text-right font-mono text-[12px] text-ink-mute lg:text-[13px]" title={effective?.effectivePlacePrice != null ? `Rated price (model view). Place ${fmtPrice(effective.effectivePlacePrice)}` : 'Rated price (model view)'}>
-        {f.scratched ? '' : effective?.effectivePrice != null ? fmtPrice(effective.effectivePrice) : <Missing why="No rated price (no rating for this runner)" />}
+      <span className="text-right font-mono text-[13px] leading-tight text-ink-mute lg:text-[14px]" title={effective?.effectivePlacePrice != null ? `Rated price (model view). Place ${fmtPrice(effective.effectivePlacePrice)}` : 'Rated price (model view)'}>
+        {f.scratched ? '' : effective?.effectivePrice != null ? fmtPriceShort(effective.effectivePrice) : <Missing why="No rated price (no rating for this runner)" />}
+        {showFp && showPrice && !f.scratched && (
+          <span className="block lg:hidden" title="Fixed price">
+            <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
+          </span>
+        )}
       </span>
-      <span className={`text-right text-[12px] text-ink-mute lg:text-[13px] ${showPrice && !showFp ? '' : LG_ONLY}`}>
+      <span className={`text-right text-[13px] text-ink-mute lg:text-[14px] ${showPrice && !showFp ? '' : LG_ONLY}`}>
         <PriceCell runner={runner} scratched={f.scratched} move={f.move} showMove={f.showMove} />
       </span>
       <span className={`text-right ${showFp ? '' : LG_ONLY}`}>
         <FinishBadge pos={runner.finishPosition} />
       </span>
-      {showFp && (
+      {showActual && (
         <span className={`text-right font-mono text-[12px] lg:text-[13px] ${runner.actualPrelim ? 'italic text-ink-soft' : 'text-ink'}`} title={runner.actualAtw != null ? `TopRate's ${runner.actualPrelim ? 'PRELIMINARY' : 'final'} ATW rating for this run: the rating at this race's weight${runner.actualPrelim ? '. Preliminary ratings run about a point low and are replaced by the final rating when TopRate publishes it' : ''}. Plain rating ${runner.actualWpr != null ? runner.actualWpr.toFixed(1) : 'not in'}.` : 'Shown once TopRate publishes the rating (a day or two after the race).'}>
           {f.scratched ? '' : actualShown == null ? <Missing why="Rating not out yet (TopRate publishes a day or two after the race)" /> : actualShown.toFixed(1)}{runner.actualPrelim && actualShown != null ? <sup className="ml-px text-[9px]">p</sup> : null}
         </span>
       )}
-      {showFp && (
+      {showActual && (
         <span className={`text-right font-mono text-[12px] font-medium lg:text-[13px] ${miss == null ? '' : miss >= 0 ? 'text-blue-700' : 'text-rose'}`} title="Actual minus Rating, both on the same scale (blue = ran above the rating, red = below)">
           {f.scratched || miss == null ? '' : `${miss >= 0 ? '+' : '\u2212'}${Math.abs(miss).toFixed(1)}`}
         </span>
