@@ -3,7 +3,7 @@ import type { CombinedRank } from '../../lib/combinedRank'
 import type { EffectiveRunner } from '../../lib/raceModel'
 import { pureProj } from '../../lib/raceModel'
 import { fmtInt, fmtPrice } from '../../lib/format'
-import { ratingMiss, ratingOnActualScale } from '../../lib/atw'
+import { actualOnRatingScale, ratingMiss } from '../../lib/atw'
 
 interface RaceResultProps {
   race: Race
@@ -128,8 +128,8 @@ export function RaceResult({ race, combo, effective, scratched, onSelectRunner }
                 </span>
                 <span className="hidden shrink-0 gap-3 text-center xl:flex">
                   {[
-                    ['Rating', ratingOnActualScale(c?.rating ?? null, r) != null ? (ratingOnActualScale(c?.rating ?? null, r) as number).toFixed(1) : fmtInt(proj), 'text-ink-soft'],
-                    ['Actual', r.actualWpr != null ? r.actualWpr.toFixed(1) : '\u2013', 'text-ink'],
+                    ['Rating', c?.rating != null ? c.rating.toFixed(1) : fmtInt(proj), 'text-ink-soft'],
+                    ['Actual', actualOnRatingScale(r) != null ? (actualOnRatingScale(r) as number).toFixed(1) : '\u2013', 'text-ink'],
                     ['+/-', miss != null ? `${miss >= 0 ? '+' : '\u2212'}${Math.abs(miss).toFixed(1)}` : '', miss == null ? '' : miss >= 0 ? 'text-blue-700' : 'text-rose'],
                   ].map(([label, val, tone]) => (
                     <span key={label} className="w-11">

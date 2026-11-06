@@ -2,7 +2,7 @@ import type { Runner } from '../types/domain'
 import type { EffectiveRunner } from './raceModel'
 import type { CombinedRank } from './combinedRank'
 import { spellPosition } from './spellPosition'
-import { ratingMiss } from './atw'
+import { actualOnRatingScale, ratingMiss } from './atw'
 
 export type SortKey =
   | 'tab'
@@ -86,7 +86,7 @@ function sortValue(
     case 'ratedPrice':
       return effective?.effectivePrice ?? Infinity
     case 'actual':
-      return runner.actualWpr ?? -Infinity
+      return actualOnRatingScale(runner) ?? -Infinity
     case 'miss':
       return ratingMiss(runner, combo?.rating) ?? -Infinity
     case 'finish':

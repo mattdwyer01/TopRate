@@ -141,6 +141,7 @@ export interface Runner {
   // Populated ~5 days post-race once TopRate's own actual rating settles
   actualWpr: number | null
   actualWprRank: number | null
+  actualAtw: number | null // TopRate's published ATW rating for the run: the rating at this race's weight, the Rating's scale
 
   commentsVideo: string | null
   commentsSteward: string | null

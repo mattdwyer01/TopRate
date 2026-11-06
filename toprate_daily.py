@@ -1128,6 +1128,30 @@ def _tr_actual():
     return _TR_ACTUAL["v"]
 
 
+_TR_RESULT_ATW = {}
+
+
+def _tr_result_atw():
+    """TopRate's published ATW rating (this run's rating at the weight carried in that race) by (lowercased horse, date), from the race pages stored in
+    data/tr_results (toprate_result_fetch.py). Final or Preliminary as stored. {} if nothing is readable."""
+    if "v" not in _TR_RESULT_ATW:
+        out = {}
+        try:
+            for f in sorted(glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "tr_results", "*.json.gz"))):
+                d = os.path.basename(f)[:10]
+                with gzip.open(f, "rt") as fh:
+                    races = json.load(fh).get("races", {})
+                for race in races.values():
+                    for ru in race.get("runners") or []:
+                        a = ru.get("atw")
+                        if a is not None and ru.get("horse"):
+                            out[(str(ru["horse"]).strip().lower(), d)] = float(a)
+        except Exception as e:
+            print(f"  TopRate result ATW lookup unavailable: {e}")
+        _TR_RESULT_ATW["v"] = out
+    return _TR_RESULT_ATW["v"]
+
+
 def _compute_atw_offsets(fh):
     """Moved to atw_offsets.py (shared with projection/run.py)."""
     return _atw_offsets_mod.compute_atw_offsets(fh)
@@ -2062,6 +2086,8 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # settles (~5 days post-race). Lets the dashboard show how
                 # far the projection and ranking actually missed.
                 "wpja":  sf(_review_actual(row)),
+                # TopRate's published ATW for this run (rating at the weight carried in this race, the Rating's scale); None until the race page is stored
+                "wpat":  sf(_tr_result_atw().get((str(row.get("horse", "")).strip().lower(), str(row.get("date"))[:10]))),
                 "wpjar": si(row.get("wpr_actual_rank")),
                 # Running (video) and stewards comments for resulted runners.
                 # Drive the post-race variance subtab's auto-reason + display.

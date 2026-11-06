@@ -190,6 +190,9 @@ jobs:
           # carry TopRate's ratings for races run since the results files stopped supplying them (the projection's history), so the days ahead matter
           FORCE=""; [ "${{ inputs.refetch_runners }}" = "true" ] && FORCE="--force"
           python toprate_runner_fetch.py --from "$START" --days 3 $FORCE || echo "runner pages skipped"
+          # post-race pages for today and yesterday: each run's published ATW (the rating at this race's weight) for the race table's Actual column.
+          # Races already stored are not fetched again (review_daily.yml refetches the final ratings later).
+          python toprate_result_fetch.py --days 2 --to "$START" || echo "result pages skipped"
 
       - name: Merge racing.com fields and rebuild the payload
         run: |
@@ -272,6 +275,8 @@ jobs:
             [ -d data/tr_fields ] && git add data/tr_fields
             # per-runner pages (toprate_runner_fetch.py), gzipped, one file per date, 7 days kept
             [ -d data/tr_runners ] && git add data/tr_runners
+            # post-race race pages with each run's published atw / wpr (toprate_result_fetch.py)
+            [ -d data/tr_results ] && git add data/tr_results
             # every past run on those pages, kept for good (tr_form_store.py), one gzipped file per month of the run date
             [ -d data/tr_form ] && git add data/tr_form
             # complete-field pre-race feature log (direct_log.py)

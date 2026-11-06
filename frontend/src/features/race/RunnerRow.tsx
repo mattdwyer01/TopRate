@@ -4,7 +4,7 @@ import { fmtPrice } from '../../lib/format'
 import { fmtBias, hasRunnerBias, runnerBias } from '../../lib/bias'
 import { FinishBadge, PriceCell, useRowFacts } from './rowParts'
 import type { CombinedRank } from '../../lib/combinedRank'
-import { ratingMiss, ratingOnActualScale } from '../../lib/atw'
+import { actualOnRatingScale, ratingMiss } from '../../lib/atw'
 
 interface RunnerRowProps {
   runner: Runner
@@ -58,7 +58,7 @@ const BAD_RUN_FLAG = 15
 export function RunnerRow({ runner, raceDate, selected, effective, showFp, showPrice = true, showBias = true, combo, onClick }: RunnerRowProps) {
   const f = useRowFacts(runner, raceDate, effective)
   const sd = runner.projectionSd
-  const shownRating = ratingOnActualScale(combo?.rating ?? null, runner)
+  const actualShown = actualOnRatingScale(runner)
   const miss = ratingMiss(runner, combo?.rating)
   return (
     <div
@@ -119,14 +119,14 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
       </span>
       <span
         className="text-right font-mono leading-tight"
-        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Rating ${shownRating != null ? shownRating.toFixed(1) : '-'}, on the scale of the Actual rating (the model's ${combo.rating != null ? combo.rating.toFixed(1) : '-'} at today's weight shifted by ${(runner.resultsScaleOffset ?? 0).toFixed(1)} for weight, age, sex and month) (rank ${combo.tied ? 'joint ' : ''}${combo.rank}): the WR projection at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}${sd != null ? ` ± ${Math.round(sd)}` : ''}, set from the simulated win chance${effective?.directBlend ? ' (blended with the direct finishing-position model)' : ''}. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim).${runner.badRunRisk != null ? ` Bad-run risk ${runner.badRunRisk.toFixed(0)}% (average runner about 7%): the chance the rating comes in more than 12 below the form figure.` : ''}` : undefined}
+        title={combo?.estimated ? `Estimated rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'}: a first starter, so this is the WR estimate (race level and market price), not a form rating. It does not count in the ranks or gap lines.` : combo ? `Rating ${combo.rating != null ? combo.rating.toFixed(1) : '-'} (rank ${combo.tied ? 'joint ' : ''}${combo.rank}): the WR projection at ${runner.weightCarried != null ? runner.weightCarried + 'kg' : "today's weight"}${sd != null ? ` ± ${Math.round(sd)}` : ''}, set from the simulated win chance${effective?.directBlend ? ' (blended with the direct finishing-position model)' : ''}. Rated price ${fmtPrice(effective?.effectivePrice ?? null)}${effective?.effectivePlacePrice != null ? `, place ${fmtPrice(effective.effectivePlacePrice)}` : ''} (model view only, not a value claim).${runner.badRunRisk != null ? ` Bad-run risk ${runner.badRunRisk.toFixed(0)}% (average runner about 7%): the chance the rating comes in more than 12 below the form figure.` : ''}` : undefined}
       >
         {f.scratched ? null : !combo ? (
           <span className="mr-1.5 text-ink-faint lg:mr-0" title="No WR (no rated form, or a jumps race)">&ndash;</span>
         ) : (
           <>
             <span className={`inline-block min-w-[18px] text-center text-[13px] font-semibold lg:text-[14px] ${combo.estimated ? 'italic text-ink-faint' : combo.rank === 1 ? 'text-emerald-deep' : 'text-ink'}`}>
-              {combo.estimated ? '~' : ''}{shownRating != null ? shownRating.toFixed(1) : combo.rank}
+              {combo.estimated ? '~' : ''}{combo.rating != null ? combo.rating.toFixed(1) : combo.rank}
             </span>
             {f.overridden && <span className="ml-0.5 text-amber" title="Manually adjusted">*</span>}
             {runner.badRunRisk != null && runner.badRunRisk >= BAD_RUN_FLAG && <span className="ml-0.5 hidden text-amber lg:inline" title={`Bad-run risk ${runner.badRunRisk.toFixed(0)}% (average runner about 7%)`}>!</span>}
@@ -134,12 +134,12 @@ export function RunnerRow({ runner, raceDate, selected, effective, showFp, showP
         )}
       </span>
       {showFp && (
-        <span className="text-right font-mono text-[12px] text-ink lg:text-[13px]" title="The rating the horse actually ran">
-          {f.scratched ? '' : runner.actualWpr == null ? <Missing why="Actual rating not published yet (usually within a few days)" /> : runner.actualWpr.toFixed(1)}
+        <span className="text-right font-mono text-[12px] text-ink lg:text-[13px]" title={runner.actualAtw != null ? `TopRate's published ATW for this run, the rating at this race's weight. Plain rating ${runner.actualWpr != null ? runner.actualWpr.toFixed(1) : 'not in'}.` : runner.actualWpr != null ? `Estimated: TopRate's plain rating ${runner.actualWpr.toFixed(1)} moved to this race's weight (published ATW not stored yet).` : undefined}>
+          {f.scratched ? '' : actualShown == null ? <Missing why="Actual rating not published yet (usually within a few days)" /> : actualShown.toFixed(1)}
         </span>
       )}
       {showFp && (
-        <span className={`text-right font-mono text-[12px] font-medium lg:text-[13px] ${miss == null ? '' : miss >= 0 ? 'text-blue-700' : 'text-rose'}`} title="Actual minus the Rating shown (blue = ran above the rating, red = below)">
+        <span className={`text-right font-mono text-[12px] font-medium lg:text-[13px] ${miss == null ? '' : miss >= 0 ? 'text-blue-700' : 'text-rose'}`} title="Actual minus Rating, both on the same scale (blue = ran above the rating, red = below)">
           {f.scratched || miss == null ? '' : `${miss >= 0 ? '+' : '\u2212'}${Math.abs(miss).toFixed(1)}`}
         </span>
       )}

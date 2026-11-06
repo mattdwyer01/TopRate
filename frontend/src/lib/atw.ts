@@ -18,18 +18,21 @@ export function projectedAtResultsScale(r: Pick<Runner, 'projectedWpr' | 'result
   return r.projectedWpr + (r.resultsScaleOffset ?? 0)
 }
 
-// The race table's Rating on the scale of the actual rating (TopRate's plain result rating): the Rating (page ATW scale) plus the run's shift
-// `resultsScaleOffset` (minus 0.8 x (AR 168 standard weight - weight carried), toprate_daily `_rso_toprate`). No shift known = the Rating as it is.
-// Display only: ranking, gap lines and Rated $ stay on the ATW scale (winner log-lik -1.917 there against -1.9445 fully on the plain scale, 1,134 races).
-export function ratingOnActualScale(rating: number | null, r: Pick<Runner, 'resultsScaleOffset'>): number | null {
-  return rating == null ? null : rating + (r.resultsScaleOffset ?? 0)
+// The Actual rating on the Rating's scale: the rating the horse ran at THIS race's weight. TopRate's published actual is the plain rating; the Rating
+// (and Peak, Base, Spd, Recent runs) are weight-adjusted, so the actual is moved by the run's shift `resultsScaleOffset` (minus 0.8 x (AR 168 standard
+// weight - weight carried), toprate_daily `_rso_toprate`): shown = published - shift. No shift known = the published figure. The pre-race Rating is never changed
+// (fully converting it to the plain scale costs winner log-lik: -1.9445 against -1.917, 1,134 races).
+export function actualOnRatingScale(r: Pick<Runner, 'actualWpr' | 'resultsScaleOffset' | 'actualAtw'>): number | null {
+  if (r.actualAtw != null) return r.actualAtw // TopRate's own ATW for this run: exactly the rating at this race's weight
+  return r.actualWpr == null ? null : r.actualWpr - (r.resultsScaleOffset ?? 0)
 }
 
-// Actual minus the Rating as displayed (both on the actual's scale): + = ran above the rating. null until the actual is in.
-export function ratingMiss(r: Pick<Runner, 'projectedWpr' | 'resultsScaleOffset' | 'actualWpr'>, rating?: number | null): number | null {
-  const shown = ratingOnActualScale(rating ?? r.projectedWpr, r)
-  if (shown == null || r.actualWpr == null) return null
-  return r.actualWpr - shown
+// Actual (on the Rating's scale) minus the Rating shown: + = ran above the rating. null until the actual is in.
+export function ratingMiss(r: Pick<Runner, 'projectedWpr' | 'resultsScaleOffset' | 'actualWpr' | 'actualAtw'>, rating?: number | null): number | null {
+  const act = actualOnRatingScale(r)
+  const shown = rating ?? r.projectedWpr
+  if (act == null || shown == null) return null
+  return act - shown
 }
 
 // Rank and fair price for every rated, unscratched runner of a finished (or any) race on the ATW scale, the same softmax the race page uses
