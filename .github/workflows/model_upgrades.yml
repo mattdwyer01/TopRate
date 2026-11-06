@@ -1,0 +1,33 @@
+name: Model upgrades test (research)
+
+# 6 Nov 2026: research/model_upgrades_test.py (market, sequence model, bagging, weather, live complete fields, each against the live-style direct model).
+# Too long for the cloud session. Results are in the job log; nothing is committed.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/keen-ramanujan-ypf0fj]
+    paths: [research/model_upgrades.trigger]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Context features
+        run: python -W ignore research/direct_ctx_features.py
+      - name: Model upgrades test
+        run: python -u -W ignore research/model_upgrades_test.py
