@@ -2,13 +2,13 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-07; races checked 197; bets still open 24.
+Logged 2026-11-04 to 2026-11-07; races checked 198; bets still open 25.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
-| Volume v1 | 68 | 142 | 11 | $1700 | $1167 | $-532 | -31.3% | -27.3% |
-| Volume v2 | 55 | 102 | 9 | $1375 | $1070 | $-305 | -22.2% | -17.3% |
-| Volume v3 (P cut) | 34 | 54 | 5 | $850 | $754 | $-96 | -11.3% | -11.3% |
+| Volume v1 | 69 | 143 | 11 | $1725 | $1167 | $-557 | -32.3% | -28.4% |
+| Volume v2 | 56 | 103 | 9 | $1400 | $1070 | $-330 | -23.6% | -18.7% |
+| Volume v3 (P cut) | 35 | 55 | 5 | $875 | $754 | $-121 | -13.9% | -13.9% |
 
 ## By day (at logged price)
 
@@ -17,24 +17,24 @@ Logged 2026-11-04 to 2026-11-07; races checked 197; bets still open 24.
 | 2026-11-04 | 5 | $35 | 5 | $35 | 0 | $0 |
 | 2026-11-05 | 41 | $-337 | 33 | $-262 | 0 | $0 |
 | 2026-11-06 | 39 | $-450 | 20 | $-325 | 26 | $-400 |
-| 2026-11-07 | 57 | $220 | 44 | $247 | 28 | $304 |
+| 2026-11-07 | 58 | $195 | 45 | $222 | 29 | $279 |
 
 ## Segments (at logged price; stake is the full $25 a race rule stake, so segments are cuts of the same bets)
 
 | Segment | v1 bets | v1 profit | v1 ROI | v2 bets | v2 profit | v2 ROI | v3 bets | v3 profit | v3 ROI |
 |---|---|---|---|---|---|---|---|---|---|
-| All bets | 142 | $-532 | -31.3% | 102 | $-305 | -22.2% | 54 | $-96 | -11.3% |
-| Meeting minimum prize $30k+ | 88 | $-242 | -22.6% | 63 | $-115 | -13.5% | 43 | $79 | 11.7% |
-| Meeting minimum prize $40k+ | 74 | $-42 | -4.9% | 55 | $35 | 5.0% | 33 | $254 | 50.8% |
-| Meeting minimum prize $50k+ | 54 | $158 | 25.2% | 40 | $110 | 23.2% | 21 | $404 | 115.4% |
-| Good or firm going (1 to 4) | 114 | $-405 | -29.5% | 76 | $-177 | -16.9% | 49 | $4 | 0.5% |
-| $30k+ and good/firm | 73 | $-67 | -7.5% | 49 | $60 | 8.9% | 39 | $154 | 25.6% |
-| $40k+ and good/firm | 65 | $33 | 4.1% | 46 | $110 | 17.6% | 33 | $254 | 50.8% |
-| Field of 8 or more | 126 | $-307 | -20.8% | 93 | $-155 | -12.7% | 50 | $4 | 0.5% |
+| All bets | 143 | $-557 | -32.3% | 103 | $-330 | -23.6% | 55 | $-121 | -13.9% |
+| Meeting minimum prize $30k+ | 89 | $-267 | -24.3% | 64 | $-140 | -16.0% | 44 | $54 | 7.7% |
+| Meeting minimum prize $40k+ | 75 | $-67 | -7.5% | 56 | $10 | 1.4% | 34 | $229 | 43.6% |
+| Meeting minimum prize $50k+ | 55 | $133 | 20.4% | 41 | $85 | 17.0% | 22 | $379 | 101.0% |
+| Good or firm going (1 to 4) | 115 | $-430 | -30.7% | 77 | $-202 | -18.8% | 50 | $-21 | -2.7% |
+| $30k+ and good/firm | 74 | $-92 | -10.0% | 50 | $35 | 5.0% | 40 | $129 | 20.6% |
+| $40k+ and good/firm | 66 | $8 | 0.9% | 47 | $85 | 13.1% | 34 | $229 | 43.6% |
+| Field of 8 or more | 127 | $-332 | -22.2% | 94 | $-180 | -14.4% | 51 | $-21 | -2.7% |
 | Field of 5 to 7 | 16 | $-225 | -100.0% | 9 | $-150 | -100.0% | 4 | $-100 | -100.0% |
-| $40k+ and field of 8+ | 71 | $-17 | -2.1% | 52 | $60 | 8.9% | 33 | $254 | 50.8% |
+| $40k+ and field of 8+ | 72 | $-42 | -4.9% | 53 | $35 | 5.0% | 34 | $229 | 43.6% |
 | P(first third) 0.7+ | 35 | $-13 | -3.2% | 22 | $-102 | -35.3% | 35 | $6 | 1.0% |
-| P(first third) 0.5 to 0.7 | 36 | $-83 | -17.2% | 25 | $27 | 7.3% | 19 | $-102 | -38.6% |
+| P(first third) 0.5 to 0.7 | 37 | $-108 | -21.2% | 26 | $2 | 0.5% | 20 | $-127 | -43.9% |
 | P(first third) under 0.5 | 25 | $-134 | -49.8% | 17 | $-2 | -1.0% | 0 | $0 | None% |
 | 3+ earlier races, 40%+ won from first third | 48 | $-150 | -26.1% | 42 | $-25 | -4.5% | 21 | $63 | 17.9% |
 | 3+ earlier races, under 25% won from first third | 30 | $-300 | -100.0% | 14 | $-200 | -100.0% | 11 | $-150 | -100.0% |
@@ -42,6 +42,6 @@ Logged 2026-11-04 to 2026-11-07; races checked 197; bets still open 24.
 
 ## Races checked without a bet, by reason
 
-- ok: 104
+- ok: 105
 - first starter, light-history or no-Proj runner: 61
 - bush meeting: 32
