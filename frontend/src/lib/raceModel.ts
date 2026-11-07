@@ -185,7 +185,15 @@ export function computeEffectiveRace(
     const lnP = sim.map((x) => Math.log(Math.max(x.win, 1e-9)))
     const meanLn = lnP.reduce((a, b) => a + b, 0) / lnP.length
     const level = rated.reduce((a, r) => a + r.wpr, 0) / rated.length
-    rated.forEach((r, i) => ratingByRunId.set(r.runId, level + (lnP[i] - meanLn) / Math.max(beta, 0.01)))
+    // Rescaled so the rating's spread around the race mean equals the projection's (7 Nov 2026): the simulation's noise (BASE_SD 5.0) is
+    // sharper than a 0.20 softmax, so 1 / beta points per ln chance stretched gaps about 1.5x (Flemington R8 7 Nov: top runner +12.5 vs +8.0).
+    // Order still follows the simulated chances (Rated $ order); only the spread is put back on the projection's scale.
+    const raw = lnP.map((l) => (l - meanLn) / Math.max(beta, 0.01))
+    const sdOf = (xs: number[]) => Math.sqrt(xs.reduce((a, x) => a + x * x, 0) / xs.length)
+    const rawSd = sdOf(raw)
+    const projSd = sdOf(rated.map((r) => r.wpr - level))
+    const k = rawSd > 1e-9 ? projSd / rawSd : 1
+    rated.forEach((r, i) => ratingByRunId.set(r.runId, level + k * raw[i]))
     const maxRating = Math.max(...ratingByRunId.values())
     for (const r of rated) {
       gapByRunId.set(r.runId, maxRating - (ratingByRunId.get(r.runId) as number))
