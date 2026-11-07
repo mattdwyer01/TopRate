@@ -95,9 +95,10 @@ checked_at,mins_to_jump,date,venue,race,race_id,start_time,field_n,reason,v1_bet
 2026-11-07T01:21:04Z,3.9,2026-11-07,Rosehill,1,1829476,2026-11-07T01:25:00+00:00,15,"first starter, light-history or no-Proj runner",0,0
 2026-11-07T01:21:04Z,10.9,2026-11-07,Eagle Farm,1,1829494,2026-11-07T01:32:00+00:00,10,"first starter, light-history or no-Proj runner",0,0
 2026-11-07T01:21:04Z,8.9,2026-11-07,Longreach,2,1829684,2026-11-07T01:30:00+00:00,7,bush meeting,0,0
-2026-11-07T01:31:09Z,28.8,2026-11-07,Rosehill,2,1829475,2026-11-07T02:00:00+00:00,13,ok,5,3
-2026-11-07T01:31:09Z,35.8,2026-11-07,Eagle Farm,2,1829492,2026-11-07T02:07:00+00:00,8,ok,2,0
-2026-11-07T01:31:09Z,24.8,2026-11-07,Geelong,1,1829525,2026-11-07T01:56:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
-2026-11-07T01:31:09Z,8.8,2026-11-07,Flemington,1,1829541,2026-11-07T01:40:00+00:00,11,"first starter, light-history or no-Proj runner",0,0
-2026-11-07T01:31:09Z,20.8,2026-11-07,Morphettville,1,1829552,2026-11-07T01:52:00+00:00,5,"first starter, light-history or no-Proj runner",0,0
-2026-11-07T01:31:09Z,28.8,2026-11-07,Longreach,3,1829680,2026-11-07T02:00:00+00:00,11,bush meeting,0,0
+2026-11-07T01:35:58Z,24.0,2026-11-07,Rosehill,2,1829475,2026-11-07T02:00:00+00:00,13,ok,5,3
+2026-11-07T01:35:58Z,31.0,2026-11-07,Eagle Farm,2,1829492,2026-11-07T02:07:00+00:00,8,ok,2,0
+2026-11-07T01:35:58Z,20.0,2026-11-07,Geelong,1,1829525,2026-11-07T01:56:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
+2026-11-07T01:35:58Z,4.0,2026-11-07,Flemington,1,1829541,2026-11-07T01:40:00+00:00,11,"first starter, light-history or no-Proj runner",0,0
+2026-11-07T01:35:58Z,39.0,2026-11-07,Flemington,2,1829543,2026-11-07T02:15:00+00:00,12,ok,1,1
+2026-11-07T01:35:58Z,16.0,2026-11-07,Morphettville,1,1829552,2026-11-07T01:52:00+00:00,5,"first starter, light-history or no-Proj runner",0,0
+2026-11-07T01:35:58Z,24.0,2026-11-07,Longreach,3,1829680,2026-11-07T02:00:00+00:00,11,bush meeting,0,0
