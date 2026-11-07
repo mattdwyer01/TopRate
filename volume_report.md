@@ -2,13 +2,13 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-07; races checked 198; bets still open 25.
+Logged 2026-11-04 to 2026-11-07; races checked 199; bets still open 19.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
-| Volume v1 | 69 | 143 | 11 | $1725 | $1167 | $-557 | -32.3% | -28.4% |
-| Volume v2 | 56 | 103 | 9 | $1400 | $1070 | $-330 | -23.6% | -18.7% |
-| Volume v3 (P cut) | 35 | 55 | 5 | $875 | $754 | $-121 | -13.9% | -13.9% |
+| Volume v1 | 71 | 149 | 11 | $1775 | $1167 | $-607 | -34.2% | -30.4% |
+| Volume v2 | 58 | 107 | 9 | $1450 | $1070 | $-380 | -26.2% | -21.6% |
+| Volume v3 (P cut) | 37 | 58 | 5 | $925 | $754 | $-171 | -18.5% | -18.5% |
 
 ## By day (at logged price)
 
@@ -17,31 +17,31 @@ Logged 2026-11-04 to 2026-11-07; races checked 198; bets still open 25.
 | 2026-11-04 | 5 | $35 | 5 | $35 | 0 | $0 |
 | 2026-11-05 | 41 | $-337 | 33 | $-262 | 0 | $0 |
 | 2026-11-06 | 39 | $-450 | 20 | $-325 | 26 | $-400 |
-| 2026-11-07 | 58 | $195 | 45 | $222 | 29 | $279 |
+| 2026-11-07 | 64 | $145 | 49 | $172 | 32 | $229 |
 
 ## Segments (at logged price; stake is the full $25 a race rule stake, so segments are cuts of the same bets)
 
 | Segment | v1 bets | v1 profit | v1 ROI | v2 bets | v2 profit | v2 ROI | v3 bets | v3 profit | v3 ROI |
 |---|---|---|---|---|---|---|---|---|---|
-| All bets | 143 | $-557 | -32.3% | 103 | $-330 | -23.6% | 55 | $-121 | -13.9% |
-| Meeting minimum prize $30k+ | 89 | $-267 | -24.3% | 64 | $-140 | -16.0% | 44 | $54 | 7.7% |
-| Meeting minimum prize $40k+ | 75 | $-67 | -7.5% | 56 | $10 | 1.4% | 34 | $229 | 43.6% |
+| All bets | 149 | $-607 | -34.2% | 107 | $-380 | -26.2% | 58 | $-171 | -18.5% |
+| Meeting minimum prize $30k+ | 92 | $-292 | -26.0% | 67 | $-165 | -18.3% | 45 | $29 | 4.0% |
+| Meeting minimum prize $40k+ | 78 | $-92 | -10.0% | 59 | $-15 | -2.0% | 35 | $204 | 37.1% |
 | Meeting minimum prize $50k+ | 55 | $133 | 20.4% | 41 | $85 | 17.0% | 22 | $379 | 101.0% |
-| Good or firm going (1 to 4) | 115 | $-430 | -30.7% | 77 | $-202 | -18.8% | 50 | $-21 | -2.7% |
-| $30k+ and good/firm | 74 | $-92 | -10.0% | 50 | $35 | 5.0% | 40 | $129 | 20.6% |
-| $40k+ and good/firm | 66 | $8 | 0.9% | 47 | $85 | 13.1% | 34 | $229 | 43.6% |
-| Field of 8 or more | 127 | $-332 | -22.2% | 94 | $-180 | -14.4% | 51 | $-21 | -2.7% |
+| Good or firm going (1 to 4) | 121 | $-480 | -33.1% | 81 | $-252 | -22.4% | 53 | $-71 | -8.6% |
+| $30k+ and good/firm | 77 | $-117 | -12.4% | 53 | $10 | 1.4% | 41 | $104 | 16.0% |
+| $40k+ and good/firm | 69 | $-17 | -2.1% | 50 | $60 | 8.9% | 35 | $204 | 37.1% |
+| Field of 8 or more | 133 | $-382 | -24.7% | 98 | $-230 | -17.7% | 54 | $-71 | -8.6% |
 | Field of 5 to 7 | 16 | $-225 | -100.0% | 9 | $-150 | -100.0% | 4 | $-100 | -100.0% |
-| $40k+ and field of 8+ | 72 | $-42 | -4.9% | 53 | $35 | 5.0% | 34 | $229 | 43.6% |
-| P(first third) 0.7+ | 35 | $-13 | -3.2% | 22 | $-102 | -35.3% | 35 | $6 | 1.0% |
-| P(first third) 0.5 to 0.7 | 37 | $-108 | -21.2% | 26 | $2 | 0.5% | 20 | $-127 | -43.9% |
-| P(first third) under 0.5 | 25 | $-134 | -49.8% | 17 | $-2 | -1.0% | 0 | $0 | None% |
-| 3+ earlier races, 40%+ won from first third | 48 | $-150 | -26.1% | 42 | $-25 | -4.5% | 21 | $63 | 17.9% |
+| $40k+ and field of 8+ | 75 | $-67 | -7.5% | 56 | $10 | 1.4% | 35 | $204 | 37.1% |
+| P(first third) 0.7+ | 37 | $-30 | -7.1% | 23 | $-110 | -37.1% | 37 | $-32 | -5.1% |
+| P(first third) 0.5 to 0.7 | 39 | $-125 | -23.7% | 27 | $-23 | -5.4% | 21 | $-140 | -46.2% |
+| P(first third) under 0.5 | 27 | $-151 | -52.8% | 19 | $-19 | -7.5% | 0 | $0 | None% |
+| 3+ earlier races, 40%+ won from first third | 54 | $-200 | -32.0% | 46 | $-75 | -12.5% | 24 | $13 | 3.1% |
 | 3+ earlier races, under 25% won from first third | 30 | $-300 | -100.0% | 14 | $-200 | -100.0% | 11 | $-150 | -100.0% |
 | 3+ earlier races, winners forecast at the back (mean 0.55+) | 20 | $-175 | -100.0% | 7 | $-100 | -100.0% | 11 | $-150 | -100.0% |
 
 ## Races checked without a bet, by reason
 
-- ok: 105
+- ok: 106
 - first starter, light-history or no-Proj runner: 61
 - bush meeting: 32
