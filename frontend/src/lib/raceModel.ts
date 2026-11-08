@@ -106,7 +106,8 @@ export function pureProj(runner: Runner, eff: EffectiveRunner | undefined): numb
   return eff?.effectiveProjectedWpr ?? runner.projectedWpr
 }
 
-export const DIRECT_SHARE = 0.7
+// 0 since 8 Nov 2026 (owner: the Rating should be the Proj): the direct model no longer enters the Rating, rank, gaps or Rated $.
+export const DIRECT_SHARE = 0
 export const DIRECT_PTS_PER_LN = 5
 
 export function computeEffectiveRace(
@@ -131,7 +132,7 @@ export function computeEffectiveRace(
   // DIRECT_PTS_PER_LN per ln of its win chance, demeaned in the race) plus the rest of the Proj, on the same race mean. No manual deltas or Nett in the direct part.
   const directById = new Map<string, number>()
   for (const r of runners) if (!scratched.has(r.runId) && r.projectedWpr != null && r.directChance != null && r.directChance > 0) directById.set(r.runId, Math.log(r.directChance))
-  const directBlend = ownForBlend.length >= 2 && ownForBlend.every((o) => directById.has(o.runId))
+  const directBlend = DIRECT_SHARE > 0 && ownForBlend.length >= 2 && ownForBlend.every((o) => directById.has(o.runId))
   if (directBlend) {
     const lnMean = ownForBlend.reduce((a, o) => a + (directById.get(o.runId) as number), 0) / ownForBlend.length
     const projMean = ownForBlend.reduce((a, o) => a + (blended.get(o.runId) ?? o.base), 0) / ownForBlend.length
@@ -166,10 +167,7 @@ export function computeEffectiveRace(
   const placePriceByRunId = new Map<string, number>()
   const rankByRunId = new Map<string, number>()
   const gapByRunId = new Map<string, number>()
-  // The rating the page ranks and sorts on: the projection re-expressed from the simulated win chance, so rating order, rank, gaps
-  // and Rated $ order are always the same order (a runner with a noisier projection, such as a light-history horse, can price
-  // differently from another runner on the same projection). Same race mean as the projection, 1 / beta rating points per ln of win
-  // chance (the softmax scale), so the rating stays on the familiar WPR scale. The raw projection stays in `projectionWpr`.
+  // The rating the page ranks and sorts on is the projection itself (plus any manual adjustment); `projectionWpr` holds the same figure.
   const ratingByRunId = new Map<string, number>()
   if (rated.length >= 2) {
     const sim = simulateRace(rated.map((r) => ({ runId: r.runId, wpr: r.wpr, sd: r.sd })), beta)
@@ -182,18 +180,10 @@ export function computeEffectiveRace(
       priceByRunId.set(r.runId, Math.min(1 / Math.max(w, 1e-9), PRICE_CAP))
       if (sim[i].place != null) placePriceByRunId.set(r.runId, Math.min(1 / Math.max(Math.max(sim[i].place as number, w), 1e-9), PRICE_CAP))
     })
-    const lnP = sim.map((x) => Math.log(Math.max(x.win, 1e-9)))
-    const meanLn = lnP.reduce((a, b) => a + b, 0) / lnP.length
-    const level = rated.reduce((a, r) => a + r.wpr, 0) / rated.length
-    // Rescaled so the rating's spread around the race mean equals the projection's (7 Nov 2026): the simulation's noise (BASE_SD 5.0) is
-    // sharper than a 0.20 softmax, so 1 / beta points per ln chance stretched gaps about 1.5x (Flemington R8 7 Nov: top runner +12.5 vs +8.0).
-    // Order still follows the simulated chances (Rated $ order); only the spread is put back on the projection's scale.
-    const raw = lnP.map((l) => (l - meanLn) / Math.max(beta, 0.01))
-    const sdOf = (xs: number[]) => Math.sqrt(xs.reduce((a, x) => a + x * x, 0) / xs.length)
-    const rawSd = sdOf(raw)
-    const projSd = sdOf(rated.map((r) => r.wpr - level))
-    const k = rawSd > 1e-9 ? projSd / rawSd : 1
-    rated.forEach((r, i) => ratingByRunId.set(r.runId, level + k * raw[i]))
+    // 8 Nov 2026 (owner): the Rating IS the projection (plus any manual adjustment), no longer re-expressed from the simulated
+    // win chances. Rank and gaps follow it; Rated $ still comes from the simulation, so for a runner with a noisier projection
+    // (light history) the price order can differ slightly from the Rating order.
+    rated.forEach((r) => ratingByRunId.set(r.runId, r.wpr))
     const maxRating = Math.max(...ratingByRunId.values())
     for (const r of rated) {
       gapByRunId.set(r.runId, maxRating - (ratingByRunId.get(r.runId) as number))
