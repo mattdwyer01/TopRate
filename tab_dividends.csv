@@ -22530,3 +22530,11 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-11-08T09:35:36+00:00,2026-11-08,YORK,4,VIC,Paying,EarlyQuaddie,6/8/12/8,5790.9,"{""selections"":[6,8,12,8],""amount"":5790.9}"
 2026-11-08T09:35:36+00:00,2026-11-08,YORK,5,VIC,Abandoned,(abandoned),,,
 2026-11-08T09:35:36+00:00,2026-11-08,YORK,6,VIC,Abandoned,(abandoned),,,
+2026-11-08T09:55:36+00:00,2026-11-08,YORK,7,VIC,Paying,Win,4,2.8,"{""selections"":[4],""amount"":2.8}"
+2026-11-08T09:55:36+00:00,2026-11-08,YORK,7,VIC,Paying,Place,4,1.5,"{""selections"":[4],""amount"":1.5}"
+2026-11-08T09:55:36+00:00,2026-11-08,YORK,7,VIC,Paying,Place,5,1.9,"{""selections"":[5],""amount"":1.9}"
+2026-11-08T09:55:36+00:00,2026-11-08,YORK,7,VIC,Paying,Quinella,4/5,5.4,"{""selections"":[4,5],""amount"":5.4}"
+2026-11-08T09:55:36+00:00,2026-11-08,YORK,7,VIC,Paying,Exacta,4/5,9.6,"{""selections"":[4,5],""amount"":9.6}"
+2026-11-08T09:55:36+00:00,2026-11-08,YORK,7,VIC,Paying,Trifecta,4/5/3,20.5,"{""selections"":[4,5,3],""amount"":20.5}"
+2026-11-08T09:55:36+00:00,2026-11-08,YORK,7,VIC,Paying,RunningDouble,F/4,3.2,"{""selections"":[""F"",4],""amount"":3.2}"
+2026-11-08T09:55:36+00:00,2026-11-08,YORK,7,VIC,Paying,FirstFour,4/5/3/2,86.6,"{""selections"":[4,5,3,2],""amount"":86.6}"
