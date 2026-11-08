@@ -252,4 +252,5 @@ checked_at,mins_to_jump,date,venue,race,race_id,start_time,field_n,reason,v1_bet
 2026-11-08T08:35:56Z,24.1,2026-11-08,York,7,1829839,2026-11-08T09:00:00+00:00,7,ok,1,0
 2026-11-08T08:35:56Z,19.1,2026-11-08,York,6,1829846,2026-11-08T08:55:00+00:00,9,ok,3,2
 2026-11-08T08:35:56Z,4.1,2026-11-08,Sha Tin,9,1829890,2026-11-08T08:40:00+00:00,14,"first starter, light-history or no-Proj runner",0,0
-2026-11-08T08:35:56Z,39.1,2026-11-08,Sha Tin,10,1829891,2026-11-08T09:15:00+00:00,12,"first starter, light-history or no-Proj runner",0,0
+2026-11-08T09:10:59Z,4.0,2026-11-08,Sha Tin,10,1829891,2026-11-08T09:15:00+00:00,12,"first starter, light-history or no-Proj runner",0,0
+2026-11-08T09:10:59Z,39.0,2026-11-08,Sha Tin,11,1829892,2026-11-08T09:50:00+00:00,14,"first starter, light-history or no-Proj runner",0,0
