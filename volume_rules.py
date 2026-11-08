@@ -4,7 +4,11 @@ Three research betting rules, logged side by side so they can be judged on bets 
 
   Volume v1 (the original rule)
       a runner qualifies when it is forecast to settle in the FIRST THIRD of its field (trip map, rank on forecast gap behind the leader:
-      (rank - 1) / (n - 1) <= 1/3) and its fixed price is over $3; v1 bets every qualifier within 4 Proj points of the top-rated runner.
+      (rank - 1) / (n - 1) <= 1/3) and its fixed price is over $3; v1 bets every qualifier within 4 Rating points of the top-rated runner.
+
+  Points off the top are on the dashboard RATING (Proj blended with the direct model, re-expressed through the win-chance simulation, see race_rating)
+  from 8 Nov 2026 (owner's call); bets logged before that used the Proj. Backtest 9 Oct to 8 Nov 2026 at starting price (1,641 resulted races): v1 Proj 627 races
+  +8.8% vs Rating 629 races +0.2%; v2 Proj 516 races +9.8% vs Rating 516 races +2.0%; without the 5 best races every version loses (-8% to -14%).
   Volume v2 (v1 with the "top pick" condition)
       A: when the top-rated runner is itself a qualifier, bet the qualifiers within 2 points of the top;
       B: when NO qualifier is within 1 point of the top, bet the qualifiers within 4 points;
@@ -63,11 +67,11 @@ LOG_MAX_MINS = 40
 SKIP_SOURCES = {"duplicate entry"}
 
 RUNNER_COLS = ["date", "venue", "race", "race_id", "run_id", "horse", "tab_number", "barrier", "start_time", "scratched", "wprp_proj", "wprp_model",
-               "fixed_win_price", "starting_price_sp", "going", "prize_money", "rs_label", "won", "finish_position", "interim_resulted", "resulted",
+               "wprp_sd", "fixed_win_price", "starting_price_sp", "going", "prize_money", "rs_label", "won", "finish_position", "interim_resulted", "resulted",
                "field_source"]
 
 BET_COLS = ["logged_at", "mins_to_jump", "date", "venue", "race", "race_id", "run_id", "start_time", "horse", "tab_number", "barrier", "price_logged",
-            "v1", "v2", "v3", "stake_v1", "stake_v2", "stake_v3", "pft", "proj", "top_proj", "off_top", "gap", "gap_rank", "field_n", "sp_frac", "top_is_bet", "n_qual_within1",
+            "v1", "v2", "v3", "stake_v1", "stake_v2", "stake_v3", "pft", "proj", "rating", "top_rating", "direct_blend", "top_proj", "off_top", "gap", "gap_rank", "field_n", "sp_frac", "top_is_bet", "n_qual_within1",
             "going", "rs_label", "meeting_min_prize", "race_prize", "prev_races", "prev_win_first_third", "prev_win_sp", "prev_top3_sp", "won", "finish_position", "sp_final", "void", "settled_at"]
 RACE_COLS = ["checked_at", "mins_to_jump", "date", "venue", "race", "race_id", "start_time", "field_n", "reason", "v1_bets", "v2_bets"]
 
@@ -108,6 +112,86 @@ def read_pft(path=TRIP_MAP):
     return out
 
 
+DIRECT_DIR = "data/direct_scores"
+_DIRECT = {}
+
+
+def direct_chance(date, race_id, tab):
+    """Direct finishing-position model win chance (data/direct_scores/<date>.json, written by direct_score.py), or None."""
+    if date not in _DIRECT:
+        f = os.path.join(DIRECT_DIR, f"{date}.json")
+        _DIRECT[date] = json.load(open(f)).get("races", {}) if os.path.exists(f) else {}
+    try:
+        v = _DIRECT[date].get(str(int(float(race_id))), {}).get(str(int(float(tab))))
+    except (TypeError, ValueError):
+        return None
+    return None if v is None else float(v)
+
+
+# The dashboard Rating (frontend/src/lib/raceModel.ts computeEffectiveRace + ratedPrice.ts simulateRace), ported 8 Nov 2026 so the rules measure
+# points off the top on the Rating, not the Proj. Keep these in step with the frontend: DIRECT_SHARE, DIRECT_PTS_PER_LN, BASE_SD, REF_SD, RATIO_MIN/MAX,
+# PRICE_BETA 0.20. NETT_SHARE is 0 and the ATW offset is disabled in the payload, so neither appears here. Manual deltas (browser only) are not applied.
+DIRECT_SHARE = 0.7
+DIRECT_PTS_PER_LN = 5.0
+PRICE_BETA = 0.20
+BASE_SD, REF_SD, RATIO_MIN, RATIO_MAX = 5.0, 7.0, 0.8, 1.8
+_Z = np.linspace(-6, 6, 121)
+_W = np.exp(-_Z ** 2 / 2)
+
+
+def _ncdf(x):
+    from math import erf
+    return 0.5 * (1 + np.vectorize(erf)(x / np.sqrt(2)))
+
+
+def race_rating(proj, sd, direct):
+    """proj, sd, direct: arrays for the live runners of one race. Returns (rating array, direct_blend flag)."""
+    proj = np.asarray(proj, float)
+    n = len(proj)
+    if n < 2:
+        return proj.copy(), False
+    direct = np.asarray(direct, float)
+    blend = bool(np.all(np.isfinite(direct) & (direct > 0)))
+    w = proj.copy()
+    if blend:
+        ln = np.log(direct)
+        m = proj.mean()
+        w = m + (1 - DIRECT_SHARE) * (proj - m) + DIRECT_SHARE * DIRECT_PTS_PER_LN * (ln - ln.mean())
+    sd = np.asarray(sd, float)
+    ratio = np.where(np.isfinite(sd), np.clip(sd / REF_SD, RATIO_MIN, RATIO_MAX), 1.0)
+    ns = BASE_SD * (0.2 / PRICE_BETA) * ratio
+    x = w[:, None] + ns[:, None] * _Z[None, :]                     # runner i's figure at each quadrature point
+    lc = np.log(np.maximum(_ncdf((x[:, None, :] - w[None, :, None]) / ns[None, :, None]), 1e-300))  # [i, j, k]
+    lc[np.arange(n), np.arange(n), :] = 0.0
+    win = (_W[None, :] * np.exp(lc.sum(axis=1))).sum(axis=1) / _W.sum()
+    win = win / (win.sum() or 1)
+    lnp = np.log(np.maximum(win, 1e-9))
+    raw = (lnp - lnp.mean()) / PRICE_BETA
+    level = w.mean()
+    rsd = np.sqrt((raw ** 2).mean())
+    psd = np.sqrt(((w - level) ** 2).mean())
+    k = psd / rsd if rsd > 1e-9 else 1.0
+    return level + k * raw, blend
+
+
+def add_rating(d):
+    """Adds rating and direct_blend columns to the live rows of d (one race per race_id)."""
+    d["rating"] = np.nan
+    d["direct_blend"] = False
+    d["dchance"] = [direct_chance(str(a)[:10], b, c) for a, b, c in zip(d["date"], d["race_id"], d["tab_number"])]
+    sd = num(d["wprp_sd"]) if "wprp_sd" in d else pd.Series(np.nan, index=d.index)
+    for rid, idx in d.groupby("race_id").groups.items():
+        sub = d.loc[idx]
+        ok = sub["proj"].notna()
+        if ok.sum() < 2:
+            continue
+        ii = sub.index[ok]
+        r, b = race_rating(sub.loc[ii, "proj"].values, sd.loc[ii].values, num(sub.loc[ii, "dchance"]).values)
+        d.loc[ii, "rating"] = r
+        d.loc[ii, "direct_blend"] = b
+    return d
+
+
 def read_overrides():
     if not os.path.exists(OVERRIDES):
         return []
@@ -145,8 +229,12 @@ def evaluate(df, gaps, price_mode="fixed", overrides=None, pft=None):
     d["n"] = g["race_id"].transform("size")
     d["anyunk"] = g["unk"].transform("any")
     d["nogap"] = g["gap"].transform(lambda s: s.isna().any())
-    d["top"] = g["proj"].transform("max")
-    d["off"] = d["top"] - d["proj"]
+    d = add_rating(d)
+    g = d.groupby("race_id")
+    # points off the top on the dashboard Rating (8 Nov 2026; before that the rules used the Proj)
+    d["top_proj"] = g["proj"].transform("max")
+    d["top"] = g["rating"].transform("max")
+    d["off"] = d["top"] - d["rating"]
     d["rk"] = g["gap"].rank(method="min")
     d["sp"] = (d["rk"] - 1) / (d["n"] - 1).replace(0, np.nan)
 
@@ -285,7 +373,7 @@ def cmd_log(a):
         "run_id": x["rid"], "start_time": x["start_time"], "horse": x["horse"], "tab_number": x["tab_number"], "barrier": x["barrier"], "price_logged": x["price"],
         "v1": x["v1"].astype(int), "v2": x["v2"].astype(int), "v3": x["v3"].astype(int), "stake_v1": x["stake_v1"].round(2), "stake_v2": x["stake_v2"].round(2),
         "stake_v3": x["stake_v3"].round(2), "pft": x["pft"].round(3), "proj": x["proj"],
-        "top_proj": x["top"], "off_top": x["off"].round(2), "gap": x["gap"], "gap_rank": x["rk"], "field_n": x["n"], "sp_frac": x["sp"].round(3),
+        "rating": x["rating"].round(2), "top_rating": x["top"].round(2), "direct_blend": x["direct_blend"].astype(int), "top_proj": x["top_proj"], "off_top": x["off"].round(2), "gap": x["gap"], "gap_rank": x["rk"], "field_n": x["n"], "sp_frac": x["sp"].round(3),
         "top_is_bet": x["top_is_bet"].astype(int), "n_qual_within1": x["n_qual_within1"], "going": x["going"], "rs_label": x["rs_label"],
         "meeting_min_prize": x["meet_min"], "race_prize": x["prize_money"],
         "prev_races": x["race_id"].map(lambda r: mb[r][0]), "prev_win_first_third": x["race_id"].map(lambda r: round(mb[r][1], 3) if mb[r][0] else np.nan),
@@ -437,6 +525,7 @@ def write_report(rep, path_md=REPORT_MD, path_json=SUMMARY_JSON):
     json.dump(rep, open(path_json, "w"), indent=1)
     L = ["# Volume rules tracker", "",
          "Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.", "",
+         "From 8 Nov 2026 points off the top are measured on the dashboard Rating; bets logged before that used the Proj, so the totals below mix the two.", "",
          f"Logged {rep['first_date']} to {rep['last_date']}; races checked {rep['races_checked']}; bets still open {rep['open_bets']}.", "",
          "| Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |", "|---|---|---|---|---|---|---|---|---|"]
     for rule, name in (("v1", "Volume v1"), ("v2", "Volume v2"), ("v3", "Volume v3 (P cut)")):
