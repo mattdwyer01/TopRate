@@ -2,12 +2,12 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-08; races checked 256; bets still open 10.
+Logged 2026-11-04 to 2026-11-08; races checked 257; bets still open 10.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
-| Volume v1 | 106 | 220 | 21 | $2650 | $2389 | $-260 | -9.8% | -9.6% |
-| Volume v2 | 85 | 152 | 15 | $2125 | $2153 | $28 | 1.3% | 3.1% |
+| Volume v1 | 106 | 220 | 21 | $2650 | $2389 | $-260 | -9.8% | -8.8% |
+| Volume v2 | 85 | 152 | 15 | $2125 | $2153 | $28 | 1.3% | 4.0% |
 | Volume v3 (P cut) | 63 | 97 | 11 | $1575 | $1373 | $-202 | -12.8% | -19.6% |
 
 ## By day (at logged price)
@@ -45,4 +45,4 @@ Logged 2026-11-04 to 2026-11-08; races checked 256; bets still open 10.
 
 - ok: 143
 - first starter, light-history or no-Proj runner: 80
-- bush meeting: 33
+- bush meeting: 34
