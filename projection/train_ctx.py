@@ -26,6 +26,7 @@ def main():
     ap.add_argument('--es-from', default='2025-10-01')
     ap.add_argument('--v2', action='store_true', help='option 2 inputs: jockey/trainer rates and the field-relative block (ctx.FEATS2 / REL_FEATS2)')
     ap.add_argument('--conv-frac', type=float, default=0.0, help='also train on results-file history put on the ATW scale per target race (research/conv_history.py, AR 168); fraction of horses, 0 = page store only')
+    ap.add_argument('--fit-feats', action='store_true', help='add ctx.FIT_FEATS (prep position, distance and going against its best runs, usual running position) to the relevance model')
     a = ap.parse_args()
     conv = None
     if a.conv_frac > 0:
@@ -53,7 +54,7 @@ def main():
     tr, va = pg_all[pg_all.date < es], pg_all[(pg_all.date >= es) & (pg_all.date < cut)]
     params = dict(n_estimators=4000, learning_rate=0.03, num_leaves=31, min_child_samples=100, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, objective='huber', alpha=HUBER_ALPHA)
     F0 = C.FEATS2 if a.v2 else C.FEATS
-    F1 = F0 + (C.REL_FEATS2 if a.v2 else C.REL_FEATS)
+    F1 = F0 + (C.REL_FEATS2 if a.v2 else C.REL_FEATS) + (C.FIT_FEATS if a.fit_feats else [])
 
     def fit(feats, tr_, va_):
         m = lgb.LGBMRegressor(**params)
