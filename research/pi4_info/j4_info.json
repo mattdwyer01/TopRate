@@ -1,0 +1,32 @@
+{
+ "all_s1": {
+  "trees": 3989,
+  "trees_plain": 3812,
+  "new_share": 0.1236,
+  "top_new": {
+   "r_age": 0.0115,
+   "r_m8": 0.0095,
+   "trn_yng_eff": 0.0074,
+   "dsire_eff": 0.0072,
+   "r_barr_f": 0.0072,
+   "dsire_lvl": 0.0064,
+   "m4_mfin": 0.0061,
+   "r_weightCarried": 0.006
+  }
+ },
+ "all_s2": {
+  "trees": 3990,
+  "trees_plain": 3999,
+  "new_share": 0.125,
+  "top_new": {
+   "r_age": 0.0117,
+   "r_m8": 0.0106,
+   "trn_yng_eff": 0.0073,
+   "r_barr_f": 0.0069,
+   "dsire_lvl": 0.0067,
+   "dsire_eff": 0.0066,
+   "m4_mfin": 0.0063,
+   "r_weightCarried": 0.0059
+  }
+ }
+}
