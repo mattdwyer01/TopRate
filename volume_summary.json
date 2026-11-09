@@ -1,22 +1,22 @@
 {
  "v1": {
   "at_logged_price": {
-   "races": 106,
-   "bets": 220,
-   "wins": 21,
-   "staked": 2649.75,
-   "returned": 2389.43,
-   "profit": -260.32,
-   "roi_pct": -9.8
+   "races": 107,
+   "bets": 222,
+   "wins": 22,
+   "staked": 2674.75,
+   "returned": 2470.68,
+   "profit": -204.07,
+   "roi_pct": -7.6
   },
   "at_starting_price": {
-   "races": 106,
-   "bets": 220,
-   "wins": 21,
-   "staked": 2649.75,
-   "returned": 2415.67,
-   "profit": -234.08,
-   "roi_pct": -8.8
+   "races": 107,
+   "bets": 222,
+   "wins": 22,
+   "staked": 2674.75,
+   "returned": 2496.92,
+   "profit": -177.83,
+   "roi_pct": -6.6
   },
   "by_day": [
    {
@@ -68,6 +68,16 @@
     "returned": 222.41,
     "profit": -277.51,
     "roi_pct": -55.5
+   },
+   {
+    "date": "2026-11-09",
+    "races": 1,
+    "bets": 2,
+    "wins": 1,
+    "staked": 25.0,
+    "returned": 81.25,
+    "profit": 56.25,
+    "roi_pct": 225.0
    }
   ]
  },
@@ -145,22 +155,22 @@
  },
  "v3": {
   "at_logged_price": {
-   "races": 63,
-   "bets": 97,
-   "wins": 11,
-   "staked": 1574.94,
-   "returned": 1372.85,
-   "profit": -202.09,
-   "roi_pct": -12.8
+   "races": 64,
+   "bets": 98,
+   "wins": 12,
+   "staked": 1599.94,
+   "returned": 1535.35,
+   "profit": -64.59,
+   "roi_pct": -4.0
   },
   "at_starting_price": {
-   "races": 63,
-   "bets": 97,
-   "wins": 11,
-   "staked": 1574.94,
-   "returned": 1266.6,
-   "profit": -308.34,
-   "roi_pct": -19.6
+   "races": 64,
+   "bets": 98,
+   "wins": 12,
+   "staked": 1599.94,
+   "returned": 1429.1,
+   "profit": -170.84,
+   "roi_pct": -10.7
   },
   "by_day": [
    {
@@ -192,6 +202,16 @@
     "returned": 164.1,
     "profit": -185.86,
     "roi_pct": -53.1
+   },
+   {
+    "date": "2026-11-09",
+    "races": 1,
+    "bets": 1,
+    "wins": 1,
+    "staked": 25.0,
+    "returned": 162.5,
+    "profit": 137.5,
+    "roi_pct": 550.0
    }
   ]
  },
@@ -199,13 +219,13 @@
   {
    "segment": "All bets",
    "v1": {
-    "races": 106,
-    "bets": 220,
-    "wins": 21,
-    "staked": 2649.75,
-    "returned": 2389.43,
-    "profit": -260.32,
-    "roi_pct": -9.8
+    "races": 107,
+    "bets": 222,
+    "wins": 22,
+    "staked": 2674.75,
+    "returned": 2470.68,
+    "profit": -204.07,
+    "roi_pct": -7.6
    },
    "v2": {
     "races": 85,
@@ -217,13 +237,13 @@
     "roi_pct": 1.3
    },
    "v3": {
-    "races": 63,
-    "bets": 97,
-    "wins": 11,
-    "staked": 1574.94,
-    "returned": 1372.85,
-    "profit": -202.09,
-    "roi_pct": -12.8
+    "races": 64,
+    "bets": 98,
+    "wins": 12,
+    "staked": 1599.94,
+    "returned": 1535.35,
+    "profit": -64.59,
+    "roi_pct": -4.0
    }
   },
   {
@@ -319,13 +339,13 @@
   {
    "segment": "Good or firm going (1 to 4)",
    "v1": {
-    "races": 83,
-    "bets": 170,
-    "wins": 16,
-    "staked": 2074.82,
-    "returned": 2054.45,
-    "profit": -20.37,
-    "roi_pct": -1.0
+    "races": 84,
+    "bets": 172,
+    "wins": 17,
+    "staked": 2099.82,
+    "returned": 2135.7,
+    "profit": 35.88,
+    "roi_pct": 1.7
    },
    "v2": {
     "races": 65,
@@ -337,13 +357,13 @@
     "roi_pct": 20.4
    },
    "v3": {
-    "races": 52,
-    "bets": 81,
-    "wins": 9,
-    "staked": 1299.95,
-    "returned": 1262.03,
-    "profit": -37.92,
-    "roi_pct": -2.9
+    "races": 53,
+    "bets": 82,
+    "wins": 10,
+    "staked": 1324.95,
+    "returned": 1424.53,
+    "profit": 99.58,
+    "roi_pct": 7.5
    }
   },
   {
@@ -409,13 +429,13 @@
   {
    "segment": "Field of 8 or more",
    "v1": {
-    "races": 89,
-    "bets": 189,
-    "wins": 19,
-    "staked": 2224.8,
-    "returned": 2279.48,
-    "profit": 54.68,
-    "roi_pct": 2.5
+    "races": 90,
+    "bets": 191,
+    "wins": 20,
+    "staked": 2249.8,
+    "returned": 2360.73,
+    "profit": 110.93,
+    "roi_pct": 4.9
    },
    "v2": {
     "races": 74,
@@ -427,13 +447,13 @@
     "roi_pct": 11.9
    },
    "v3": {
-    "races": 52,
-    "bets": 84,
-    "wins": 9,
-    "staked": 1299.95,
-    "returned": 1209.55,
-    "profit": -90.4,
-    "roi_pct": -7.0
+    "races": 53,
+    "bets": 85,
+    "wins": 10,
+    "staked": 1324.95,
+    "returned": 1372.05,
+    "profit": 47.1,
+    "roi_pct": 3.6
    }
   },
   {
@@ -499,13 +519,13 @@
   {
    "segment": "P(first third) 0.7+",
    "v1": {
-    "races": 46,
-    "bets": 61,
-    "wins": 7,
-    "staked": 707.0,
-    "returned": 567.87,
-    "profit": -139.13,
-    "roi_pct": -19.7
+    "races": 47,
+    "bets": 62,
+    "wins": 8,
+    "staked": 719.5,
+    "returned": 649.12,
+    "profit": -70.38,
+    "roi_pct": -9.8
    },
    "v2": {
     "races": 33,
@@ -517,25 +537,25 @@
     "roi_pct": -29.0
    },
    "v3": {
-    "races": 46,
-    "bets": 61,
-    "wins": 7,
-    "staked": 1002.05,
-    "returned": 842.87,
-    "profit": -159.18,
-    "roi_pct": -15.9
+    "races": 47,
+    "bets": 62,
+    "wins": 8,
+    "staked": 1027.05,
+    "returned": 1005.37,
+    "profit": -21.68,
+    "roi_pct": -2.1
    }
   },
   {
    "segment": "P(first third) 0.5 to 0.7",
    "v1": {
-    "races": 54,
-    "bets": 67,
+    "races": 55,
+    "bets": 68,
     "wins": 8,
-    "staked": 896.19,
+    "staked": 908.69,
     "returned": 1279.95,
-    "profit": 383.76,
-    "roi_pct": 42.8
+    "profit": 371.26,
+    "roi_pct": 40.9
    },
    "v2": {
     "races": 37,
@@ -677,13 +697,13 @@
    }
   }
  ],
- "races_checked": 277,
+ "races_checked": 278,
  "races_with_reason": {
   "ok": 150,
-  "first starter, light-history or no-Proj runner": 87,
+  "first starter, light-history or no-Proj runner": 88,
   "bush meeting": 40
  },
- "open_bets": 18,
+ "open_bets": 16,
  "first_date": "2026-11-04",
  "last_date": "2026-11-09"
 }
