@@ -1,0 +1,47 @@
+name: "Proj gap lines and price sharpness check (live structure)"
+
+# 9 Nov 2026 (lines check): research/proj_lines_check.py. Before: stretch test, research/proj_stretch_test.py. Earlier text: research/proj_trials_test.py (live structure with and without ctx.TRIAL_FEATS, fitted before 2026, scored on 2026), then projection/train_ctx.py --v2 --conv-frac 1.0 --fit-feats --trials
+# and research/ctx_v2_live_check.py. Commits the test result and the retrained artifacts to the branch it ran on only. Nothing reaches main from here.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/wizardly-fermi-ijxb3p]
+    paths: [research/proj_lines.trigger]
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - name: Winner test
+        run: python -W ignore research/proj_lines_check.py --conv-frac 1.0
+      - name: Keep the outputs even if the check fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proj-lines
+          path: |
+            research/proj_lines_check.json
+            projection/models_tr/ctx_model.txt
+            projection/models_tr/ctx_rel_model.txt
+            projection/models_tr/ctx.json
+      - name: Commit to this branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add research/proj_lines_check.json
+          git commit -m "Proj gap lines and price sharpness check result" || echo nothing to commit
+          for i in 1 2 3 4; do git pull --rebase origin ${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && break; sleep $((i*5)); done
