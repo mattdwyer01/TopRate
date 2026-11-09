@@ -106,7 +106,8 @@ export function pureProj(runner: Runner, eff: EffectiveRunner | undefined): numb
   return eff?.effectiveProjectedWpr ?? runner.projectedWpr
 }
 
-export const DIRECT_SHARE = 0.7
+// 9 Nov 2026 (owner): the Rating is the Proj only; the direct model is not blended in. Set back to 0.7 to restore the 5 Nov blend.
+export const DIRECT_SHARE = 0
 export const DIRECT_PTS_PER_LN = 5
 
 export function computeEffectiveRace(
@@ -131,7 +132,7 @@ export function computeEffectiveRace(
   // DIRECT_PTS_PER_LN per ln of its win chance, demeaned in the race) plus the rest of the Proj, on the same race mean. No manual deltas or Nett in the direct part.
   const directById = new Map<string, number>()
   for (const r of runners) if (!scratched.has(r.runId) && r.projectedWpr != null && r.directChance != null && r.directChance > 0) directById.set(r.runId, Math.log(r.directChance))
-  const directBlend = ownForBlend.length >= 2 && ownForBlend.every((o) => directById.has(o.runId))
+  const directBlend = DIRECT_SHARE > 0 && ownForBlend.length >= 2 && ownForBlend.every((o) => directById.has(o.runId))
   if (directBlend) {
     const lnMean = ownForBlend.reduce((a, o) => a + (directById.get(o.runId) as number), 0) / ownForBlend.length
     const projMean = ownForBlend.reduce((a, o) => a + (blended.get(o.runId) ?? o.base), 0) / ownForBlend.length
