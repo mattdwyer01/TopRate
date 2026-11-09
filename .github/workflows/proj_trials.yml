@@ -29,7 +29,7 @@ jobs:
       - name: Winner test
         run: python -W ignore research/proj_trials_test.py --conv-frac 1.0
       - name: Retrain with the new inputs
-        run: python -W ignore projection/train_ctx.py --v2 --conv-frac 1.0 --fit-feats --trials --trials
+        run: python -W ignore projection/train_ctx.py --v2 --conv-frac 1.0 --fit-feats --trials
       - name: Keep the outputs even if the check fails
         if: always()
         uses: actions/upload-artifact@v4
