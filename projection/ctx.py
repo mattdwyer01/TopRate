@@ -55,6 +55,10 @@ REL_FEATS2 = REL_FEATS + FLD_REL_FEATS
 # best three ratings, how much better its best runs on OTHER going are than on today's going group, and its usual running position (fraction of the field ahead at 800m).
 FIT_FEATS = ['prep_no', 'prep_days', 'typ_prep_len', 'prep_vs_typ', 'best_dist', 'dist_from_best', 'dist_seen', 'going_best_gap', 'going_seen', 'style', 'style_sd']
 PREP_GAP = 60      # days between runs that start a new preparation
+# 9 Nov 2026 (research/proj_trials_test.py): barrier trials and jump-outs. Live they come from the runner pages (data/tr_form); training also reads the results files' trials so the
+# converted-history rows see the trials those horses had. Lengths behind the venue/distance trial par use 0.147 s a length (the speed-figure conversion).
+TRIAL_FEATS = ['tr_n_prep', 'tr_n90', 'tr_days', 'tr_fin', 'tr_won', 'tr_mgn', 'tr_trel', 'tr_best_fin', 'tr_best_trel', 'tr_jo']
+_TRIALS = {}
 SPD_FEATS = ['sp1', 'sp2', 'sp3', 'sp4', 'n_sp', 'sp_ewm4', 'sp_max4', 'sp_std4', 'spd_vs_f', 'sd1', 'sd2', 'sd3', 'sd4', 'sd_mean4']     # the time-based block (speed figures), optional
 SPD_A, SPD_B = 79.15, 1.33                         # speed figure (lengths vs par) to the rating scale, lib/speed.ts speedRatingOnScale
 
@@ -363,6 +367,83 @@ def rel_features(T, rp):
     return pd.DataFrame(out, columns=REL_FEATS, index=T.index)
 
 
+def trial_table(results_files=True):
+    """Every barrier trial and jump-out: runner pages (data/tr_form) plus, by default, the results files. One row per horse and date."""
+    key = 'all' if results_files else 'page'
+    if key in _TRIALS:
+        return _TRIALS[key]
+    import glob, gzip
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    rows = []
+    for f in sorted(glob.glob(os.path.join(root, 'data', 'tr_form', '*.json.gz'))):
+        with gzip.open(f, 'rt') as fh:
+            d = json.load(fh)
+        for x in d.values():
+            for r in (x.values() if isinstance(x, dict) else x):
+                if isinstance(r, dict) and (r.get('isBarrierTrial') or r.get('isJumpout')) and r.get('horse_id') is not None:
+                    rows.append((r['horse_id'], r['date'], r.get('positionFinish'), r.get('starters'), r.get('marginFinish'), r.get('winnersTime'), r.get('distance'),
+                                 str(r.get('venue') or r.get('track') or ''), bool(r.get('isJumpout'))))
+    t = pd.DataFrame(rows, columns=['horse_id', 'date', 'pos', 'st', 'mgn', 'wt', 'dist', 'venue', 'jo'])
+    if results_files:
+        cols = ['horse_id', 'date', 'positionFinish', 'field_size', 'marginFinish', 'winners_time', 'distance', 'venue', 'track', 'isBarrierTrial', 'is_jumpout', 'race_class']
+        parts = []
+        for f in sorted(glob.glob(os.path.join(root, 'race_results_20[0-9][0-9].csv.gz'))):
+            x = pd.read_csv(f, usecols=lambda c: c in cols, low_memory=False)
+            tri = (x.get('isBarrierTrial') == True) | (x.get('is_jumpout') == True) | x.race_class.astype(str).str.contains('Jumpout|Trial', case=False, na=False)
+            x = x[tri]
+            parts.append(pd.DataFrame({'horse_id': x.horse_id, 'date': x.date, 'pos': x.positionFinish, 'st': x.field_size, 'mgn': x.marginFinish, 'wt': x.winners_time,
+                                       'dist': x.distance, 'venue': x.venue.where(x.venue.notna(), x.track).astype(str),
+                                       'jo': (x.get('is_jumpout') == True) | x.race_class.astype(str).str.contains('Jumpout', case=False, na=False)}))
+        t = pd.concat([t] + parts, ignore_index=True)
+    t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce')
+    t['date'] = pd.to_datetime(t.date, errors='coerce')
+    t = t.dropna(subset=['horse_id', 'date']).drop_duplicates(['horse_id', 'date'], keep='first')
+    for c in ('pos', 'st', 'mgn', 'wt', 'dist'):
+        t[c] = pd.to_numeric(t[c], errors='coerce')
+    t['mgn0'] = np.where(t.pos == 1, 0.0, t.mgn.clip(lower=0))
+    t['par'] = t.groupby([t.venue.str.lower(), 'dist']).wt.transform('median')
+    t['trel'] = (t.wt + 0.147 * t.mgn0 - t.par) / 0.147
+    t['fin'] = (t.pos - 1) / (t.st - 1).clip(lower=1)
+    t['d'] = t.date.values.astype('datetime64[D]').astype('int64')
+    t = t.sort_values(['horse_id', 'd']).reset_index(drop=True)
+    _TRIALS[key] = t
+    return t
+
+
+def trial_features(T, tt=None):
+    """TRIAL_FEATS for the rows of T (horse_id, date, d_last = days since the last rated run): trials strictly before the date; 'since' = after the last rated run."""
+    tt = trial_table() if tt is None else tt
+    byh = {h: (g.d.values, g.fin.values, g.pos.values, g.mgn0.values, g.trel.values, g.jo.values.astype(float)) for h, g in tt.groupby('horse_id')}
+    n = len(T)
+    out = np.full((n, len(TRIAL_FEATS)), np.nan)
+    col = {c: i for i, c in enumerate(TRIAL_FEATS)}
+    out[:, col['tr_n_prep']] = 0
+    out[:, col['tr_n90']] = 0
+    hid = pd.to_numeric(T.horse_id, errors='coerce').values
+    dd = pd.to_datetime(T.date).values.astype('datetime64[D]').astype('int64')
+    dl = pd.to_numeric(T.d_last, errors='coerce').values.astype(float) if 'd_last' in T.columns else np.full(n, np.nan)
+    for i in range(n):
+        a = None if np.isnan(hid[i]) else byh.get(hid[i])
+        if a is None:
+            continue
+        j = int(np.searchsorted(a[0], dd[i], side='left'))
+        if j == 0:
+            continue
+        since = a[0][:j] > dd[i] - (dl[i] if not np.isnan(dl[i]) else 99999)
+        out[i, col['tr_n_prep']] = since.sum()
+        out[i, col['tr_n90']] = (a[0][:j] >= dd[i] - 90).sum()
+        k = j - 1
+        if dd[i] - a[0][k] > 180:
+            continue
+        out[i, col['tr_days']] = dd[i] - a[0][k]
+        out[i, col['tr_fin']], out[i, col['tr_won']], out[i, col['tr_mgn']] = a[1][k], float(a[2][k] == 1), a[3][k]
+        out[i, col['tr_trel']], out[i, col['tr_jo']] = a[4][k], a[5][k]
+        if since.any():
+            out[i, col['tr_best_fin']] = np.nanmin(a[1][:j][since]) if (~np.isnan(a[1][:j][since])).any() else np.nan
+            out[i, col['tr_best_trel']] = np.nanmin(a[4][:j][since]) if (~np.isnan(a[4][:j][since])).any() else np.nan
+    return pd.DataFrame(out, columns=TRIAL_FEATS, index=T.index)
+
+
 def _gg(g):
     out = np.asarray(going_group(np.asarray(g, dtype=float)), dtype=float)
     return np.where(out < 0, np.nan, out)
@@ -520,6 +601,7 @@ def training_frame(v2=False):
     rp = add_field(rp)
     if v2:
         rp = add_v2(rp)
+    rp = pd.concat([rp.drop(columns=[c for c in TRIAL_FEATS if c in rp.columns]), trial_features(rp)], axis=1)
     return rp
 
 
@@ -574,6 +656,8 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip
     X = add_field(X)
     if 'jw' in meta.get('feats', FEATS):
         X = add_v2(X)
+    if any(c in meta.get('feats', FEATS) + (meta.get('rel_feats') or []) for c in TRIAL_FEATS):
+        X = pd.concat([X.drop(columns=[c for c in TRIAL_FEATS if c in X.columns]), trial_features(X)], axis=1)
     X['cls_c'] = _cls(X.cls, meta['classes'])
     corr = np.full(len(X), np.nan)
     ok = X.f.notna().values
