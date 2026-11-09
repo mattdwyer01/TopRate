@@ -260,8 +260,9 @@ checked_at,mins_to_jump,date,venue,race,race_id,start_time,field_n,reason,v1_bet
 2026-11-09T02:11:14Z,10.8,2026-11-09,Mt Isa,3,1829668,2026-11-09T02:22:00+00:00,6,bush meeting,0,0
 2026-11-09T02:21:00Z,9.0,2026-11-09,Hamilton,1,1829831,2026-11-09T02:30:00+00:00,11,ok,0,0
 2026-11-09T02:45:59Z,4.0,2026-11-09,Scone,1,1829634,2026-11-09T02:50:00+00:00,8,ok,0,0
-2026-11-09T02:51:03Z,18.9,2026-11-09,Lismore,1,1829629,2026-11-09T03:10:00+00:00,9,"first starter, light-history or no-Proj runner",0,0
-2026-11-09T02:51:03Z,33.9,2026-11-09,Scone,2,1829637,2026-11-09T03:25:00+00:00,7,"first starter, light-history or no-Proj runner",0,0
-2026-11-09T02:51:03Z,5.9,2026-11-09,Mt Isa,4,1829662,2026-11-09T02:57:00+00:00,6,bush meeting,0,0
-2026-11-09T02:51:03Z,8.9,2026-11-09,Hamilton,2,1829832,2026-11-09T03:00:00+00:00,13,"first starter, light-history or no-Proj runner",0,0
-2026-11-09T02:51:03Z,38.9,2026-11-09,Hamilton,3,1829834,2026-11-09T03:30:00+00:00,13,"first starter, light-history or no-Proj runner",0,0
+2026-11-09T02:55:55Z,14.1,2026-11-09,Lismore,1,1829629,2026-11-09T03:10:00+00:00,9,"first starter, light-history or no-Proj runner",0,0
+2026-11-09T02:55:55Z,29.1,2026-11-09,Scone,2,1829637,2026-11-09T03:25:00+00:00,7,"first starter, light-history or no-Proj runner",0,0
+2026-11-09T02:55:55Z,1.1,2026-11-09,Mt Isa,4,1829662,2026-11-09T02:57:00+00:00,6,bush meeting,0,0
+2026-11-09T02:55:55Z,38.1,2026-11-09,Mt Isa,5,1829665,2026-11-09T03:34:00+00:00,6,bush meeting,0,0
+2026-11-09T02:55:55Z,4.1,2026-11-09,Hamilton,2,1829832,2026-11-09T03:00:00+00:00,13,"first starter, light-history or no-Proj runner",0,0
+2026-11-09T02:55:55Z,34.1,2026-11-09,Hamilton,3,1829834,2026-11-09T03:30:00+00:00,13,"first starter, light-history or no-Proj runner",0,0
