@@ -1,0 +1,17 @@
+{
+ "all_s3": {
+  "trees": 3999,
+  "trees_plain": 3425,
+  "new_share": 0.1251,
+  "top_new": {
+   "r_age": 0.0118,
+   "r_m8": 0.0101,
+   "r_barr_f": 0.0077,
+   "trn_yng_eff": 0.0074,
+   "dsire_lvl": 0.0071,
+   "dsire_eff": 0.0062,
+   "r_weightCarried": 0.0062,
+   "m4_mfin": 0.006
+  }
+ }
+}

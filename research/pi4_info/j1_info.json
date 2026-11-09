@@ -1,0 +1,14 @@
+{
+ "base_s1": {
+  "trees": 3970,
+  "trees_plain": 3509,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "base_s2": {
+  "trees": 3046,
+  "trees_plain": 4000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}
