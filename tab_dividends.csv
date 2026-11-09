@@ -22554,3 +22554,10 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-11-08T10:10:44+00:00,2026-11-08,SHA TIN,11,VIC,Paying,Trifecta,7/12/4,283.1,"{""selections"":[7,12,4],""amount"":283.1}"
 2026-11-08T10:10:44+00:00,2026-11-08,SHA TIN,11,VIC,Paying,FirstFour,7/12/4/14,1476.9,"{""selections"":[7,12,4,14],""amount"":1476.9}"
 2026-11-08T10:10:44+00:00,2026-11-08,SHA TIN,11,VIC,Paying,RunningDouble,8/7,304,"{""selections"":[8,7],""amount"":304}"
+2026-11-09T00:01:24+00:00,2026-11-09,SCONE,1,VIC,Abandoned,(abandoned),,,
+2026-11-09T00:01:24+00:00,2026-11-09,SCONE,2,VIC,Abandoned,(abandoned),,,
+2026-11-09T00:01:24+00:00,2026-11-09,SCONE,3,VIC,Abandoned,(abandoned),,,
+2026-11-09T00:01:24+00:00,2026-11-09,SCONE,4,VIC,Abandoned,(abandoned),,,
+2026-11-09T00:01:24+00:00,2026-11-09,SCONE,5,VIC,Abandoned,(abandoned),,,
+2026-11-09T00:01:24+00:00,2026-11-09,SCONE,6,VIC,Abandoned,(abandoned),,,
+2026-11-09T00:01:24+00:00,2026-11-09,SCONE,7,VIC,Abandoned,(abandoned),,,
