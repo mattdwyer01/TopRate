@@ -37,7 +37,10 @@ SUIT_BASE = ['pos_hist3', 'own_rel', 'm800_hist3', 'bf', 'field_size', 'dist', '
 
 FORMULA_PROJ = os.environ.get('PROJECTION_FORMULA', '1') == '1'
 TF_ANCHOR = os.environ.get('PROJECTION_TF_ANCHOR', '1') == '1'    # 6 Nov 2026: Proj = capped formula + a limited model step (see below); 0 = the unanchored model figure
-TF_CAP = float(os.environ.get('PROJECTION_TF_CAP', '3.0'))        # rating points the model may move the formula figure
+TF_CAP = float(os.environ.get('PROJECTION_TF_CAP', '5.0'))        # rating points the model may move the formula figure (9 Nov 2026: 3 -> 5, owner's call; research/proj_stretch_test.py)
+# 9 Nov 2026: the context step for horses with REL_MIN_RUNS+ earlier runs is stretched (held out, actual results move about 1.04 to 1.10x the predicted step,
+# 1.21x for 3 to 5 runs; a 1.2 stretch with the +-5 anchor gave winner log-lik +0.0067, se 0.0010, median miss 3.854 to 3.816). ctx.json 'stretch' overrides; 1 = off.
+CTX_STRETCH = os.environ.get('PROJECTION_CTX_STRETCH')
 CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '2.0'))   # rating points; 0 = no cap
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
@@ -358,6 +361,8 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             f2, corr, rsk = CTX.predict(Tc, meta=cmeta, want_risk=True)
             R['risk'] = rsk     # chance of a bad run (display only, projection/train_risk.py)
             use = has & ~np.isnan(corr)
+            stretch = float(CTX_STRETCH) if CTX_STRETCH else float(cmeta.get('stretch', 1.2))
+            corr = np.where(np.nan_to_num(fn) >= CTX.REL_MIN_RUNS, corr * stretch, corr)
             if CTX_CAP_FEW > 0:
                 # 23 Oct 2026: the context step for a horse with under REL_MIN_RUNS earlier runs is capped (same insurance as speed_model.CAP_FEW)
                 corr = np.where(np.nan_to_num(fn) < CTX.REL_MIN_RUNS, np.clip(corr, -CTX_CAP_FEW, CTX_CAP_FEW), corr)
