@@ -1,0 +1,34 @@
+{
+ "live": {
+  "rmse": 8.3831,
+  "mae": 5.5046,
+  "within3": 0.4028,
+  "rmse_3plus": 8.2825,
+  "win_ll": -1.60516,
+  "top_pick": 0.3543,
+  "races": 6229,
+  "trees": 3642,
+  "new_gain_share": 0.0
+ },
+ "fit": {
+  "rmse": 8.3766,
+  "mae": 5.4997,
+  "within3": 0.403,
+  "rmse_3plus": 8.2753,
+  "win_ll": -1.60459,
+  "top_pick": 0.3541,
+  "races": 6229,
+  "trees": 2932,
+  "new_gain_share": 0.0601
+ },
+ "paired": {
+  "sq_gain": 0.1098,
+  "sq_se": 0.0249,
+  "win_ll_gain": 0.00057,
+  "win_ll_se": 0.00073,
+  "runs": 73639,
+  "conv_frac": 1.0,
+  "2026-01..06": 0.0612,
+  "2026-07..": 0.159
+ }
+}

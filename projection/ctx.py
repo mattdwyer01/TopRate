@@ -51,6 +51,10 @@ SIM_NAMES = ['sim_dist', 'sim_going', 'sim_track', 'sim_jock', 'sim_class', 'sim
 OWN_NAMES = ['h_dist', 'h_dist_n', 'h_going', 'h_going_n', 'h_track', 'h_track_n', 'h_spell', 'h_spell_n', 'h_jock', 'h_jock_n']
 REL_FEATS = LAG_NAMES + CAR_NAMES + SIM_NAMES + OWN_NAMES
 REL_FEATS2 = REL_FEATS + FLD_REL_FEATS
+# 9 Nov 2026 (research/proj_fit_feats_test.py): where today sits in the preparation against the horse's usual prep length, today's distance against the distance of its
+# best three ratings, how much better its best runs on OTHER going are than on today's going group, and its usual running position (fraction of the field ahead at 800m).
+FIT_FEATS = ['prep_no', 'prep_days', 'typ_prep_len', 'prep_vs_typ', 'best_dist', 'dist_from_best', 'dist_seen', 'going_best_gap', 'going_seen', 'style', 'style_sd']
+PREP_GAP = 60      # days between runs that start a new preparation
 SPD_FEATS = ['sp1', 'sp2', 'sp3', 'sp4', 'n_sp', 'sp_ewm4', 'sp_max4', 'sp_std4', 'spd_vs_f', 'sd1', 'sd2', 'sd3', 'sd4', 'sd_mean4']     # the time-based block (speed figures), optional
 SPD_A, SPD_B = 79.15, 1.33                         # speed figure (lengths vs par) to the rating scale, lib/speed.ts speedRatingOnScale
 
@@ -359,6 +363,71 @@ def rel_features(T, rp):
     return pd.DataFrame(out, columns=REL_FEATS, index=T.index)
 
 
+def _gg(g):
+    out = np.asarray(going_group(np.asarray(g, dtype=float)), dtype=float)
+    return np.where(out < 0, np.nan, out)
+
+
+def fit_features(T, rp):
+    """FIT_FEATS for the rows in T from the horse's page runs in rp strictly before each row's date (one builder for training, T = rp, and for live targets).
+    Ratings are only ranked or differenced within the horse, so the converted-history shift (c_t) does not matter here."""
+    byh = {}
+    for h, x in rp.groupby('horse_id'):
+        d = x.date.values.astype('datetime64[D]').astype('int64')
+        gap = np.r_[99999, np.diff(d)]
+        pid = np.cumsum(gap > PREP_GAP)
+        pno = np.ones(len(d), int); pst = d.copy()
+        for i in range(1, len(d)):
+            if pid[i] == pid[i - 1]:
+                pno[i], pst[i] = pno[i - 1] + 1, pst[i - 1]
+        fs = pd.to_numeric(x.field_size, errors='coerce').values.astype(float)
+        p8 = (pd.to_numeric(x.position800m, errors='coerce').values - 1) / np.clip(fs - 1, 1, None) if 'position800m' in x.columns else np.full(len(d), np.nan)
+        byh[h] = dict(d=d, pid=pid, pno=pno, pst=pst, w=(x.wpr_plain if 'wpr_plain' in x.columns else x.wpr).values.astype(float),
+                      dist=x.distance.values.astype(float), gg=_gg(x.going_n.values), p8=p8)
+    n = len(T)
+    out = np.full((n, len(FIT_FEATS)), np.nan)
+    col = {c: i for i, c in enumerate(FIT_FEATS)}
+    hid = pd.to_numeric(T.horse_id, errors='coerce').values
+    dts = pd.to_datetime(T.date).values.astype('datetime64[D]').astype('int64')
+    dist = T.distance.values.astype(float)
+    tgg = _gg(T.going_n.values)
+    for i in range(n):
+        h = hid[i]
+        a = None if np.isnan(h) else byh.get(h)
+        j = 0 if a is None else int(np.searchsorted(a['d'], dts[i], side='left'))
+        if j == 0:
+            out[i, col['prep_no']], out[i, col['prep_days']] = 1, 0
+            continue
+        new = dts[i] - a['d'][j - 1] > PREP_GAP
+        pno = 1 if new else a['pno'][j - 1] + 1
+        out[i, col['prep_no']] = pno
+        out[i, col['prep_days']] = 0 if new else dts[i] - a['pst'][j - 1]
+        cur = a['pid'][j - 1] + (1 if new else 0)
+        done = a['pid'][:j] < cur
+        if done.any():
+            _, lens = np.unique(a['pid'][:j][done], return_counts=True)
+            tl = float(np.median(lens))
+            out[i, col['typ_prep_len']], out[i, col['prep_vs_typ']] = tl, pno - tl
+        if j < 2:
+            continue
+        w = a['w'][:j]
+        top = np.argsort(w)[::-1][:3]
+        bd = float(np.median(a['dist'][:j][top]))
+        out[i, col['best_dist']], out[i, col['dist_from_best']] = bd, dist[i] - bd
+        out[i, col['dist_seen']] = float((np.abs(a['dist'][:j] - dist[i]) <= 100).sum())
+        if not np.isnan(tgg[i]):
+            g = a['gg'][:j]
+            same, oth = g == tgg[i], (g != tgg[i]) & ~np.isnan(g)
+            out[i, col['going_seen']] = float(same.sum())
+            if same.any() and oth.any():
+                out[i, col['going_best_gap']] = np.mean(np.sort(w[oth])[::-1][:3]) - np.mean(np.sort(w[same])[::-1][:3])
+        p = a['p8'][:j]
+        ok = ~np.isnan(p)
+        if ok.sum() >= 2:
+            out[i, col['style']], out[i, col['style_sd']] = float(np.median(p[ok])), float(p[ok].std())
+    return pd.DataFrame(out, columns=FIT_FEATS, index=T.index)
+
+
 def add_field(df):
     """fld_other and f_vs_fld: for each row with a formula figure, the mean formula figure of the OTHER rows of the same race that also have one (race = date, venue key, distance,
     field size, class), and its own figure against that. NaN when no other runner of the race has a figure."""
@@ -457,7 +526,7 @@ def training_frame(v2=False):
 def training_frame_rel(v2=False):
     """training_frame plus the relevance features (rel_features run on the page runs themselves, history strictly before each run's date)."""
     rp = training_frame(v2)
-    rp = pd.concat([rp, rel_features(rp, rp)], axis=1)
+    rp = pd.concat([rp, rel_features(rp, rp), fit_features(rp, rp)], axis=1)
     if v2:
         rp = add_field_rel(rp, FLD_REL_BASE)
     return rp
@@ -520,6 +589,8 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip
             if fld:
                 Xr = add_field_rel(Xr, FLD_REL_BASE)
                 Xr = Xr.loc[X.loc[use].index]
+            if any(c in meta['rel_feats'] for c in FIT_FEATS):
+                Xr = pd.concat([Xr.drop(columns=[c for c in FIT_FEATS if c in Xr.columns]), fit_features(Xr, rp)], axis=1)
             if any(c in meta['rel_feats'] for c in SPD_FEATS):
                 Xr = pd.concat([Xr, speed_features(Xr, rp)], axis=1)
             corr[use] = rel_booster.predict(Xr[meta['rel_feats']])

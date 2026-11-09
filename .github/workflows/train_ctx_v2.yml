@@ -27,7 +27,7 @@ jobs:
           python-version: "3.11"
       - run: pip install -r projection/requirements.txt scipy scikit-learn
       - name: Retrain
-        run: python -W ignore projection/train_ctx.py --v2 --conv-frac 1.0
+        run: python -W ignore projection/train_ctx.py --v2 --conv-frac 1.0 --fit-feats
       - name: Keep the models even if the check fails
         if: always()
         uses: actions/upload-artifact@v4
