@@ -1,0 +1,63 @@
+{
+ "runs": 73639,
+ "races": 6229,
+ "runners_per_race": 6.45,
+ "pre-change: no trials, stretch 1.0, anchor 3": {
+  "best_beta": 0.185,
+  "win_ll_best": -1.61297,
+  "win_ll_at_020": -1.61404,
+  "best_beta_by_half": [
+   0.175,
+   0.2
+  ],
+  "inside_2": {
+   "runners": 1.9,
+   "winners": 0.542
+  },
+  "inside_4": {
+   "runners": 3.0,
+   "winners": 0.7179
+  },
+  "inside_6": {
+   "runners": 4.09,
+   "winners": 0.8509
+  },
+  "inside_8": {
+   "runners": 4.97,
+   "winners": 0.9255
+  },
+  "top_pick": 0.3444,
+  "median_miss": 3.8845,
+  "rmse": 8.445,
+  "within_race_sd": 3.981
+ },
+ "shipped: trials, stretch 1.2, anchor 5": {
+  "best_beta": 0.19,
+  "win_ll_best": -1.59808,
+  "win_ll_at_020": -1.59834,
+  "best_beta_by_half": [
+   0.18,
+   0.205
+  ],
+  "inside_2": {
+   "runners": 1.89,
+   "winners": 0.5463
+  },
+  "inside_4": {
+   "runners": 2.97,
+   "winners": 0.7219
+  },
+  "inside_6": {
+   "runners": 4.06,
+   "winners": 0.8557
+  },
+  "inside_8": {
+   "runners": 4.94,
+   "winners": 0.9271
+  },
+  "top_pick": 0.355,
+  "median_miss": 3.8556,
+  "rmse": 8.4379,
+  "within_race_sd": 3.978
+ }
+}
