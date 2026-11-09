@@ -22561,3 +22561,9 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-11-09T00:01:24+00:00,2026-11-09,SCONE,5,VIC,Abandoned,(abandoned),,,
 2026-11-09T00:01:24+00:00,2026-11-09,SCONE,6,VIC,Abandoned,(abandoned),,,
 2026-11-09T00:01:24+00:00,2026-11-09,SCONE,7,VIC,Abandoned,(abandoned),,,
+2026-11-09T01:20:41+00:00,2026-11-09,MOUNT ISA,1,VIC,Paying,Win,4,2.2,"{""selections"":[4],""amount"":2.2}"
+2026-11-09T01:20:41+00:00,2026-11-09,MOUNT ISA,1,VIC,Paying,Place,F,0,"{""selections"":[""F""],""amount"":0}"
+2026-11-09T01:20:41+00:00,2026-11-09,MOUNT ISA,1,VIC,Paying,Quinella,4/3,2.9,"{""selections"":[4,3],""amount"":2.9}"
+2026-11-09T01:20:41+00:00,2026-11-09,MOUNT ISA,1,VIC,Paying,Exacta,4/3,6.2,"{""selections"":[4,3],""amount"":6.2}"
+2026-11-09T01:20:41+00:00,2026-11-09,MOUNT ISA,1,VIC,Paying,Trifecta,4/3/1,6.8,"{""selections"":[4,3,1],""amount"":6.8}"
+2026-11-09T01:20:41+00:00,2026-11-09,MOUNT ISA,1,VIC,Paying,FirstFour,4/3/1/2,7.6,"{""selections"":[4,3,1,2],""amount"":7.6}"
