@@ -44,7 +44,17 @@
   "r_tw90",
   "k_tw90",
   "r_jock_eff",
-  "k_jock_eff"
+  "k_jock_eff",
+  "tr_n_prep",
+  "tr_n90",
+  "tr_days",
+  "tr_fin",
+  "tr_won",
+  "tr_mgn",
+  "tr_trel",
+  "tr_best_fin",
+  "tr_best_trel",
+  "tr_jo"
  ],
  "rel_feats": [
   "f",
@@ -92,6 +102,16 @@
   "k_tw90",
   "r_jock_eff",
   "k_jock_eff",
+  "tr_n_prep",
+  "tr_n90",
+  "tr_days",
+  "tr_fin",
+  "tr_won",
+  "tr_mgn",
+  "tr_trel",
+  "tr_best_fin",
+  "tr_best_trel",
+  "tr_jo",
   "dd1",
   "gd1",
   "trk1",
@@ -289,14 +309,14 @@
   "RST95"
  ],
  "sd": {
-  "1": 9.78,
-  "2": 9.09,
-  "3": 8.54,
+  "1": 9.69,
+  "2": 9.03,
+  "3": 8.51,
   "4": 8.6,
-  "5": 8.51,
-  "6": 8.87,
-  "7": 8.69,
-  "8": 8.17
+  "5": 8.48,
+  "6": 8.86,
+  "7": 8.67,
+  "8": 8.16
  },
  "sd_formula": {
   "1": 10.16,
@@ -308,15 +328,15 @@
   "7": 8.83,
   "8": 8.4
  },
- "n_trees": 4179,
- "n_trees_rel": 3371,
+ "n_trees": 3972,
+ "n_trees_rel": 3949,
  "trained_to": "2026-11-08",
  "n_train": 1021420,
  "n_train_rel": 877374,
  "held_out_rmse": {
   "formula": 8.602,
-  "context": 8.47,
-  "deployed": 8.377,
+  "context": 8.449,
+  "deployed": 8.359,
   "n": 73639
  }
 }
