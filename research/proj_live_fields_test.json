@@ -1,0 +1,242 @@
+{
+ "formula only": {
+  "races": 1827,
+  "win_ll": -1.9873,
+  "top_pick": 0.2447,
+  "gain": -0.08354,
+  "se": 0.00747,
+  "rmse": 8.642,
+  "mae": 5.861,
+  "within3": 0.286,
+  "median_miss": 0.47,
+  "betas": [
+   0.185,
+   0.165
+  ]
+ },
+ "stretch 1.0, no anchor": {
+  "races": 1827,
+  "win_ll": -1.90376,
+  "top_pick": 0.3054,
+  "gain": 0.0,
+  "se": 0.0,
+  "rmse": 8.413,
+  "mae": 5.52,
+  "within3": 0.3208,
+  "median_miss": -0.67,
+  "betas": [
+   0.24,
+   0.215
+  ]
+ },
+ "stretch 1.1, no anchor": {
+  "races": 1827,
+  "win_ll": -1.90194,
+  "top_pick": 0.3087,
+  "gain": 0.00182,
+  "se": 0.00079,
+  "rmse": 8.431,
+  "mae": 5.529,
+  "within3": 0.3207,
+  "median_miss": -0.79,
+  "betas": [
+   0.24,
+   0.215
+  ]
+ },
+ "stretch 1.2, no anchor": {
+  "races": 1827,
+  "win_ll": -1.90081,
+  "top_pick": 0.3076,
+  "gain": 0.00295,
+  "se": 0.0016,
+  "rmse": 8.455,
+  "mae": 5.545,
+  "within3": 0.3205,
+  "median_miss": -0.93,
+  "betas": [
+   0.235,
+   0.215
+  ]
+ },
+ "stretch 1.3, no anchor": {
+  "races": 1827,
+  "win_ll": -1.90192,
+  "top_pick": 0.3065,
+  "gain": 0.00185,
+  "se": 0.00234,
+  "rmse": 8.486,
+  "mae": 5.571,
+  "within3": 0.3175,
+  "median_miss": -1.04,
+  "betas": [
+   0.235,
+   0.21
+  ]
+ },
+ "stretch 1.0, anchor 3": {
+  "races": 1827,
+  "win_ll": -1.91834,
+  "top_pick": 0.306,
+  "gain": -0.01457,
+  "se": 0.00321,
+  "rmse": 8.498,
+  "mae": 5.565,
+  "within3": 0.3188,
+  "median_miss": -0.71,
+  "betas": [
+   0.235,
+   0.205
+  ]
+ },
+ "stretch 1.0, anchor 5": {
+  "races": 1827,
+  "win_ll": -1.90574,
+  "top_pick": 0.306,
+  "gain": -0.00197,
+  "se": 0.00163,
+  "rmse": 8.45,
+  "mae": 5.536,
+  "within3": 0.3206,
+  "median_miss": -0.7,
+  "betas": [
+   0.24,
+   0.215
+  ]
+ },
+ "stretch 1.0, anchor 8": {
+  "races": 1827,
+  "win_ll": -1.904,
+  "top_pick": 0.3054,
+  "gain": -0.00024,
+  "se": 0.00056,
+  "rmse": 8.425,
+  "mae": 5.525,
+  "within3": 0.3205,
+  "median_miss": -0.67,
+  "betas": [
+   0.24,
+   0.215
+  ]
+ },
+ "stretch 1.2, anchor 3": {
+  "races": 1827,
+  "win_ll": -1.91797,
+  "top_pick": 0.3016,
+  "gain": -0.01421,
+  "se": 0.00348,
+  "rmse": 8.532,
+  "mae": 5.582,
+  "within3": 0.3194,
+  "median_miss": -0.91,
+  "betas": [
+   0.235,
+   0.205
+  ]
+ },
+ "stretch 1.2, anchor 5": {
+  "races": 1827,
+  "win_ll": -1.90395,
+  "top_pick": 0.3087,
+  "gain": -0.00019,
+  "se": 0.00217,
+  "rmse": 8.494,
+  "mae": 5.561,
+  "within3": 0.3205,
+  "median_miss": -0.95,
+  "betas": [
+   0.24,
+   0.215
+  ]
+ },
+ "stretch 1.2, anchor 8": {
+  "races": 1827,
+  "win_ll": -1.90157,
+  "top_pick": 0.3071,
+  "gain": 0.00219,
+  "se": 0.00165,
+  "rmse": 8.468,
+  "mae": 5.551,
+  "within3": 0.3205,
+  "median_miss": -0.93,
+  "betas": [
+   0.24,
+   0.215
+  ]
+ },
+ "stretch 1.0, no cap for under 3 runs": {
+  "races": 1827,
+  "win_ll": -1.88872,
+  "top_pick": 0.3082,
+  "gain": 0.01504,
+  "se": 0.00484,
+  "rmse": 8.385,
+  "mae": 5.505,
+  "within3": 0.3201,
+  "median_miss": -0.68,
+  "betas": [
+   0.25,
+   0.22
+  ]
+ },
+ "stretch 1.0, cap 4 for under 3 runs": {
+  "races": 1827,
+  "win_ll": -1.89751,
+  "top_pick": 0.3076,
+  "gain": 0.00626,
+  "se": 0.00152,
+  "rmse": 8.396,
+  "mae": 5.509,
+  "within3": 0.3204,
+  "median_miss": -0.67,
+  "betas": [
+   0.245,
+   0.215
+  ]
+ },
+ "stretch 1.0, within-race target (rdm)": {
+  "races": 1827,
+  "win_ll": -1.90076,
+  "top_pick": 0.3038,
+  "gain": 0.003,
+  "se": 0.00287,
+  "rmse": 8.414,
+  "mae": 5.513,
+  "within3": 0.3211,
+  "median_miss": -0.65,
+  "betas": [
+   0.255,
+   0.22
+  ]
+ },
+ "stretch 1.2, within-race target (rdm)": {
+  "races": 1827,
+  "win_ll": -1.89682,
+  "top_pick": 0.2994,
+  "gain": 0.00694,
+  "se": 0.00337,
+  "rmse": 8.452,
+  "mae": 5.535,
+  "within3": 0.3219,
+  "median_miss": -0.87,
+  "betas": [
+   0.255,
+   0.22
+  ]
+ },
+ "logged live Proj (as shown then)": {
+  "races": 1666,
+  "win_ll": -1.91179,
+  "top_pick": 0.3085,
+  "gain": -0.00504,
+  "se": 0.01087,
+  "rmse": 8.447,
+  "mae": 5.602,
+  "within3": 0.2864,
+  "median_miss": -0.02,
+  "betas": [
+   0.255,
+   0.215
+  ]
+ }
+}

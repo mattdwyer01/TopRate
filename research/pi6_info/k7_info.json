@@ -1,0 +1,52 @@
+{
+ "frm_s1": {
+  "trees": 2035,
+  "trees_plain": 2427,
+  "cap": 10000,
+  "new_share": 0.0801,
+  "top_new": {
+   "r_ldays": 0.0091,
+   "r_wt_chg": 0.0052,
+   "r_c_mean": 0.0051,
+   "r_n": 0.0048,
+   "r_style": 0.004,
+   "k_wt_chg": 0.003,
+   "r_dist_from_best": 0.0026,
+   "r_dist_chg": 0.0026,
+   "k_dist_chg": 0.0025,
+   "r_trk_n": 0.0025
+  }
+ },
+ "frm.R_s1": {
+  "trees": 2460,
+  "trees_plain": 2322,
+  "cap": 10000,
+  "new_share": 0.1461,
+  "top_new": {
+   "r_ldays": 0.0387,
+   "r_wt_chg": 0.0076,
+   "r_n": 0.0066,
+   "r_style": 0.0065,
+   "r_dist_from_best": 0.0064,
+   "r_c_mean": 0.005,
+   "r_trk_n": 0.0048,
+   "k_trk_n": 0.0043,
+   "r_going_best_gap": 0.004,
+   "k_pair_n": 0.0039
+  }
+ },
+ "lfld_s1": {
+  "trees": 2530,
+  "trees_plain": 2218,
+  "cap": 10000,
+  "new_share": 0.022,
+  "top_new": {
+   "lfv1": 0.0077,
+   "lfv2": 0.0043,
+   "lkf1": 0.0033,
+   "lfv3": 0.0031,
+   "lkf3": 0.002,
+   "lkf2": 0.0016
+  }
+ }
+}

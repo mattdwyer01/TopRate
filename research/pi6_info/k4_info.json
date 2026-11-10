@@ -1,0 +1,16 @@
+{
+ "dirf.C_s1": {
+  "trees": 1709,
+  "trees_plain": 2204,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "dirf.RC_s1": {
+  "trees": 1553,
+  "trees_plain": 1117,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}

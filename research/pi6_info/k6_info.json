@@ -1,0 +1,16 @@
+{
+ "allx.C_s1": {
+  "trees": 2227,
+  "trees_plain": 1595,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "allx.RC_s1": {
+  "trees": 1660,
+  "trees_plain": 1962,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}
