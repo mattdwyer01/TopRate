@@ -50,11 +50,12 @@ def asof_mean(df, key, val, k):
     return (m.cs.fillna(0) / (m.cn.fillna(0) + k)).values, m.cn.fillna(0).values
 
 
-def load():
-    use = ["race_id", "date", "horse_id", "horse", "track", "distance", "going", "wpr", "weightCarried", "barrier", "priceStarting", "positionFinish",
+def load(extra=(), keep_trials=False):
+    use = list(extra) + ["race_id", "date", "horse_id", "horse", "track", "distance", "going", "wpr", "weightCarried", "barrier", "priceStarting", "positionFinish",
            "marginFinish", "isBarrierTrial", "is_jumpout", "race_class", "jockey", "trainer", "horse_age", "horse_sex", "sire", "comments_steward", "comments_video"]
     fs = [f for f in sorted(glob.glob("race_results_20*.csv.gz")) if re.search(r"results_20(2[0-6])\.csv", f)]
     r = pd.concat([pd.read_csv(f, usecols=lambda c: c in use, low_memory=False) for f in fs], ignore_index=True)
+    trials = r[(r.isBarrierTrial == True) | (r.is_jumpout == True)].copy() if keep_trials else None  # noqa: E712
     r = r[(r.isBarrierTrial != True) & (r.is_jumpout != True)]  # noqa: E712
     r = r[~r.race_class.astype(str).str.contains("Hurdle|Steeple", case=False)]
     r = r.drop_duplicates(["race_id", "horse_id"]).sort_values(["horse_id", "date", "race_id"]).reset_index(drop=True)
@@ -77,7 +78,7 @@ def load():
     r["excuse"] = txt.str.contains(EXCUSE, regex=True).astype(float)
     r["has_txt"] = (txt.str.len() > 3).astype(float)
     r["sex"] = r.horse_sex.astype(str).str.upper().str[:1].map({"G": 0, "M": 1, "F": 2, "C": 3, "H": 4, "R": 5})
-    return r
+    return (r, trials) if keep_trials else r
 
 
 def features(r):
@@ -169,6 +170,11 @@ def main():
     r = load()
     r["date"] = pd.to_datetime(r.date)
     d = features(r)
+    d, FE = prepare(d, b)
+    walk(d, FE)
+
+
+def prepare(d, b, extra_feats=()):
     d = d[d.date >= "2022-12-31"].copy()
     d["ds"] = d.date.dt.strftime("%Y-%m-%d")
     d["hn"] = d.horse.map(norm)
@@ -189,7 +195,7 @@ def main():
         d["k_" + c] = gk[c].rank(pct=True)
     d["fav"] = (d.pm == gk.pm.transform("max")).astype(float)
     d["pm_rank"] = gk.pm.rank(ascending=False)
-    FE = BASE + ["r_" + c for c in REL] + ["k_" + c for c in REL] + ["lpm", "fav", "pm_rank"]
+    FE = BASE + ["r_" + c for c in REL] + ["k_" + c for c in REL] + ["lpm", "fav", "pm_rank"] + list(extra_feats)
     print("complete races with a Betfair price for every runner: %d (%s to %s), runners %d, inputs %d" % (
         d.race_id.nunique(), d.ds.min(), d.ds.max(), len(d), len(FE)))
 
@@ -201,6 +207,10 @@ def main():
     print("winner log-lik on %d races: SP (margin removed) %.4f, Betfair %.4f, Betfair better by %+.4f (se %.4f)" % (
         len(w), np.log(w.spm).mean(), np.log(w.pm).mean(), dif.mean(), dif.std() / np.sqrt(len(w))))
 
+    return d, FE
+
+
+def walk(d, FE):
     folds = [("2023-10-01", "2024-01-01", "2025-01-01"), ("2024-10-01", "2025-01-01", "2026-01-01"), ("2025-10-01", "2026-01-01", "2027-01-01")]
     if os.environ.get("VM_SINGLE") == "1":
         folds = [(FIT_END, VAL_END, "2027-01-01")]
@@ -228,6 +238,8 @@ def main():
         dif = np.log(w.p) - np.log(w.pm)
         print("winner log-lik gain over Betfair, all test years: %+.4f (se %.4f) on %d races" % (dif.mean(), dif.std() / np.sqrt(len(w)), len(w)))
         A[["ds", "race_id", "track", "nsw", "comm", "horse", "bsp", "pm", "p", "vp", "ev", "won"]].to_csv(os.environ.get("VM_OUT", "/tmp/value_model_test.csv.gz"), index=False)
+        return A
+    return None
 
 
 def run(d, FE, FIT_END, VAL_END, TEST_END):
@@ -256,7 +268,7 @@ def run(d, FE, FIT_END, VAL_END, TEST_END):
         return f
 
     res = {}
-    for seed in (1, 2, 3):
+    for seed in [int(x) for x in os.environ.get('VM_SEEDS', '1,2,3').split(',')]:
         P = dict(learning_rate=0.02, num_leaves=8, min_data_in_leaf=400, feature_fraction=0.5, bagging_fraction=0.7, bagging_freq=1, lambda_l2=50,
                  verbose=-1, objective=obj(tr), metric="None", seed=seed)
         dtr = lgb.Dataset(tr[FE], label=tr.won.values, init_score=tr.lpm.values)
