@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from betfair_bsp_test import load_bsp, norm  # noqa: E402
+from betfair_bsp_test import load_bsp, norm, nsw_flag, COMM_NSW, COMM_OTHER  # noqa: E402
 
 warnings.filterwarnings("ignore")
 COMM = float(os.environ.get("BSP_COMM", "0.08"))
@@ -150,11 +150,11 @@ def soft(df, z):
     return e / np.repeat(np.add.reduceat(e, st), s)
 
 
-def roi_line(label, d, comm=COMM):
+def roi_line(label, d):
     if len(d) == 0:
         return "%-46s n=0" % label
     w = d.won.values
-    pnl = w * (d.bsp.values - 1) * (1 - comm) - (1 - w)
+    pnl = w * (d.bsp.values - 1) * (1 - d.comm.values) - (1 - w)
     dd = d.date.values
     mid = np.sort(dd)[len(dd) // 2]
     o = np.sort(pnl)[::-1]
@@ -178,6 +178,9 @@ def main():
     d = d[ok].copy()
     d["book"] = d.groupby("race_id").bsp.transform(lambda x: (1 / x).sum())
     d = d[d.book.between(0.95, 1.15)].sort_values(["date", "race_id"]).reset_index(drop=True)
+    d["nsw"] = nsw_flag(d.track)
+    d["comm"] = np.where(d.nsw, COMM_NSW, COMM_OTHER)
+    print("NSW share of runners %.1f%% (commission %.0f%%, elsewhere %.0f%%)" % (100 * d.nsw.mean(), 100 * COMM_NSW, 100 * COMM_OTHER))
     d["pm"] = (1 / d.bsp) / d.book
     d["lpm"] = np.log(d.pm)
     gk = d.groupby("race_id")
@@ -211,18 +214,20 @@ def main():
         A = pd.concat(allte)
         print("\n\n########## all test years together; rule fixed before the 2024 and 2025 tests were seen: edge > 1.00, BSP under $30 ##########")
         x = A[(A.ev > 1.0) & (A.bsp < 30)].copy()
-        x["pnl"] = x.won * (x.bsp - 1) * (1 - COMM) - (1 - x.won)
+        x["pnl"] = x.won * (x.bsp - 1) * (1 - x.comm) - (1 - x.won)
         days = x.groupby("ds").pnl.agg(["sum", "size"])
         rng = np.random.default_rng(1)
         bs = np.array([(lambda s_: s_["sum"].sum() / s_["size"].sum())(days.sample(len(days), replace=True, random_state=int(rng.integers(1e9)))) for _ in range(2000)])
         print(roi_line("value bets, all test years", x))
         print("90%% range by day %+.1f%% to %+.1f%%, chance above zero %.0f%%; model said %.2f%% winners, Betfair %.2f%%, actual %.2f%%" % (
             100 * np.quantile(bs, 0.05), 100 * np.quantile(bs, 0.95), 100 * (bs > 0).mean(), 100 * x.p.mean(), 100 * x.pm.mean(), 100 * x.won.mean()))
+        for lab, sub in (("NSW (10%)", x[x.nsw]), ("other states (8%)", x[~x.nsw])):
+            print(roi_line("  " + lab, sub))
         print(x.assign(q=x.ds.str[:4] + "Q" + ((x.ds.str[5:7].astype(int) - 1) // 3 + 1).astype(str)).groupby("q").pnl.agg(["size", "mean"]).round(3).T.to_string())
         w = A[A.won == 1]
         dif = np.log(w.p) - np.log(w.pm)
         print("winner log-lik gain over Betfair, all test years: %+.4f (se %.4f) on %d races" % (dif.mean(), dif.std() / np.sqrt(len(w)), len(w)))
-        A[["ds", "race_id", "horse", "bsp", "pm", "p", "vp", "ev", "won"]].to_csv(os.environ.get("VM_OUT", "/tmp/value_model_test.csv.gz"), index=False)
+        A[["ds", "race_id", "track", "nsw", "comm", "horse", "bsp", "pm", "p", "vp", "ev", "won"]].to_csv(os.environ.get("VM_OUT", "/tmp/value_model_test.csv.gz"), index=False)
 
 
 def run(d, FE, FIT_END, VAL_END, TEST_END):
@@ -264,7 +269,7 @@ def run(d, FE, FIT_END, VAL_END, TEST_END):
         corr = np.mean([m.predict(df[FE]) for m in res.values()], axis=0)
         df["p"] = soft(df, df.lpm.values + corr)
         df["vp"] = 5 * (np.log(df.p) - np.log(df.pm))
-        df["ev"] = df.p * (1 + (df.bsp - 1) * (1 - COMM))
+        df["ev"] = df.p * (1 + (df.bsp - 1) * (1 - df.comm))
     imp = pd.Series(np.mean([m.feature_importance("gain") for m in res.values()], axis=0), index=FE)
     print("\ninputs by share of gain: " + ", ".join("%s %.0f%%" % (k, 100 * v) for k, v in (imp / max(imp.sum(), 1e-9)).sort_values(ascending=False).head(15).items()))
 
@@ -276,7 +281,7 @@ def run(d, FE, FIT_END, VAL_END, TEST_END):
         print("value points: sd %.2f, 1%% / 99%% %.1f / %.1f" % (df.vp.std(), df.vp.quantile(0.01), df.vp.quantile(0.99)))
         t = df.assign(band=pd.cut(df.vp, [-99, -1, -0.5, -0.2, 0.2, 0.5, 1, 99])).groupby("band").apply(lambda x: pd.Series({
             "n": len(x), "Betfair %": 100 * x.pm.mean(), "model %": 100 * x.p.mean(), "actual %": 100 * x.won.mean(),
-            "ROI % net": 100 * (x.won * (x.bsp - 1) * (1 - COMM) - (1 - x.won)).mean()}))
+            "ROI % net": 100 * (x.won * (x.bsp - 1) * (1 - x.comm) - (1 - x.won)).mean()}))
         print("by value points (model against Betfair):")
         print(t.round(2).to_string())
         for th in (1.0, 1.02, 1.05, 1.10):

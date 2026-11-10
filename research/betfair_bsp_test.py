@@ -23,6 +23,32 @@ COMM = float(os.environ.get("BSP_COMM", "0.08"))
 COMMS = (0.06, 0.08, 0.10)
 
 
+NSW_EXTRA = """beaumont walcha illawarra grange broken hill glen innes holbrook tocumwal braidwood cooma deepwater lightning ridge talmoi tumbarumba
+tottenham carrathool bourke tomingley bedgerebong bingara moulamein hay warialda condobolin bong bong tullibigeal adaminaby yass crookwell ardlethan
+mungery merriwa hillston narrabri"""
+COMM_NSW, COMM_OTHER = 0.10, 0.08          # owner's figures, 10 Nov 2026: 10% on NSW racing, 8% elsewhere
+
+
+def nsw_flag(venues):
+    """True for a New South Wales venue (10% Betfair commission). States come from runners.csv; ACT is not NSW."""
+    import runners_io
+    from rc_field_rows import norm_venue
+    df = runners_io.read_runners()
+    m = df.dropna(subset=["venue", "state"]).groupby(df.venue.map(norm_venue)).state.agg(lambda x: x.value_counts().index[0])
+    nsw = set(k for k, v in m.items() if v == "NSW")
+    first = set(k.split()[0] for k in nsw)
+    extra = NSW_EXTRA.replace("\n", " ")
+    cache = {}
+
+    def f(v):
+        if v not in cache:
+            k = norm_venue(str(v))
+            w = re.split(r"[\s-]", k)[0] if k else ""
+            cache[v] = (k in nsw) or (k in m.index and False) or (k not in m.index and (w in first or k in extra))
+        return cache[v]
+    return pd.Series(venues).map(f).values
+
+
 def norm(s):
     return re.sub(r"[^a-z]", "", str(s).lower())
 
@@ -48,7 +74,7 @@ def roi_line(label, d, price="bsp", comm=None, stake=None):
     """flat $1 (or given stakes) ROI; commission applies to Betfair prices only"""
     if len(d) == 0:
         return "%-44s n=0" % label
-    c = COMM if comm is None else comm
+    c = (d["comm"].values if "comm" in d.columns else COMM) if comm is None else comm
     st = np.ones(len(d)) if stake is None else d[stake].values
     p = d[price].values
     w = d.won.values.astype(float)
@@ -69,7 +95,7 @@ def roi_line(label, d, price="bsp", comm=None, stake=None):
 
 def both(label, d):
     print(roi_line(label + " @SP", d, "sp"))
-    print(roi_line(label + " @BSP net %d%%" % round(100 * COMM), d, "bsp"))
+    print(roi_line(label + " @BSP net", d, "bsp"))
 
 
 def clogit_gain(d, col, race="rid"):
@@ -197,6 +223,7 @@ def part_b(b):
     full["bbook"] = full.groupby("rid").bsp.transform(lambda x: (1 / x).sum())
     full = full[full.bbook.between(0.9, 1.15)]
     full["sp"] = full.sp.fillna(full.bsp)
+    full["comm"] = np.where(full.state.astype(str).str.upper() == "NSW", COMM_NSW, COMM_OTHER)
     full["fav"] = full.bsp == full.groupby("rid").bsp.transform("min")
     print("races with BSP for 90%%+ of our field: %d (%s to %s), runners %d" % (
         full.rid.nunique(), full.date.min(), full.date.max(), len(full)))
@@ -220,7 +247,7 @@ def part_b(b):
             # rated price: softmax of Proj at 0.20 per point over the rated runners
             e = np.exp(0.20 * (R[col] - R.groupby("rid")[col].transform("max")))
             R["p"] = e / e.groupby(R.rid).transform("sum")
-            R["ev"] = R.p * (1 + (R.bsp - 1) * (1 - COMM))
+            R["ev"] = R.p * (1 + (R.bsp - 1) * (1 - R.comm))
             for th in (1.0, 1.1, 1.25, 1.5):
                 print(roi_line("  rated-price overlay EV>%.2f @BSP net" % th, R[R.ev > th], "bsp"))
                 print(roi_line("    and within 4 of top", R[(R.ev > th) & (R.gap <= 4)], "bsp"))
@@ -246,13 +273,14 @@ def part_c(b):
     print("settled bets %d, with BSP %d" % (len(m), m.bsp.notna().sum()))
     m = m[m.bsp.notna()].copy()
     m["sp"] = m.price_logged
+    m["comm"] = np.where(nsw_flag(m.venue), COMM_NSW, COMM_OTHER)
     for rule in ("v1", "v2", "v3"):
         d = m[m[rule] == 1].copy()
         if len(d) < 10:
             continue
         d["st"] = d["stake_" + rule]
         print(roi_line("%s at the fixed price logged" % rule, d, "sp", stake="st"))
-        print(roi_line("%s @BSP net %d%%" % (rule, round(100 * COMM)), d, "bsp", stake="st"))
+        print(roi_line("%s @BSP net" % rule, d, "bsp", stake="st"))
         print("   mean fixed price logged $%.2f, mean BSP $%.2f, BSP higher for %.0f%% of bets" % (
             d.sp.mean(), d.bsp.mean(), 100 * (d.bsp > d.sp).mean()))
 
