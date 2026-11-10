@@ -13,7 +13,7 @@ rp = C.training_frame_rel(v2)
 if meta.get('ext'):
     # extra inputs (ctx_ext.py): the training frame's values come from the same builder over the rows with a formula figure, reading the complete-field table
     import ctx_ext as EXT
-    pe = EXT.add_all(rp[rp.f.notna()].copy(), rp, EXT.load_src())
+    pe = EXT.add_all(rp[rp.f.notna()].copy(), rp, EXT.load_src(), blocks=EXT.blocks_in(meta['feats'] + meta['rel_feats']))
     rp = pd.concat([rp, pe[EXT.EXT_FEATS].reindex(rp.index)], axis=1)
 last = rp.date.max()
 # whole fields, first starters included: the field-relative block ranks a runner against every runner of the race, as the live path sees the declared field

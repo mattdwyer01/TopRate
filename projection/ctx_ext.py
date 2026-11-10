@@ -288,8 +288,10 @@ def _asof(src):
     return _S['asof']
 
 
-def add_static(T):
+def add_static(T, facts=True):
     T = T.copy()
+    if not facts:        # trainer patterns need only the name keys
+        return _keys(T)
     h = horse_facts().reindex(pd.to_numeric(T.horse_id, errors='coerce').values)
     age = (_season(pd.to_datetime(T.date)).values - h.foal.values).astype(float)
     T['age'] = np.where((age >= 1) & (age <= 15), age, np.nan)
@@ -443,17 +445,34 @@ def add_frank(T, src):
     return T
 
 
-def add_all(T, rp, src=None):
-    """Every EXT column for the rows of T. T: rows with a formula figure (the population the field-relative columns compare within), with horse_id, date, distance,
-    going_n, jockey, trainer, vn, cls, field_size, weightCarried, barr_f and r1..r8. rp: the frame holding the horses' own earlier runs (page frame live, the training
-    frame itself in training). src: the complete-field table (load_src() when None)."""
+def blocks_in(feats):
+    """Which blocks a model's feature list uses."""
+    fs = set(feats)
+    return [b for b, cols in BLOCKS.items() if fs & set(cols)]
+
+
+def add_all(T, rp, src=None, blocks=None):
+    """The EXT columns of the named blocks (all four when None) for the rows of T. T: rows with a formula figure (the population the field-relative columns compare
+    within), with horse_id, date, distance, going_n, jockey, trainer, vn, cls, field_size, weightCarried, barr_f and r1..r8. rp: the frame holding the horses' own earlier
+    runs (page frame live, the training frame itself in training). src: the complete-field table (load_src() when None). Columns of blocks not asked for come back blank."""
+    blocks = list(BLOCKS) if blocks is None else list(blocks)
     src = load_src() if src is None else src
     A = _asof(src)
-    X = add_static(T)
-    X = add_ped(X, A)
-    X = add_tfu(X, A)
-    X = add_own(X, rp)
-    X = add_frank(X, src)
-    X = C.add_field_rel(X, DIRF_REL)
+    X = add_static(T, facts=('ped' in blocks or 'dirf' in blocks))
+    if 'ped' in blocks:
+        X = add_ped(X, A)
+    if 'tfu' in blocks:
+        X = add_tfu(X, A)
+    if 'dirf' in blocks or 'frk' in blocks:
+        X = add_own(X, rp)
+    if 'frk' in blocks:
+        X = add_frank(X, src)
+    if 'dirf' in blocks:
+        X = C.add_field_rel(X, DIRF_REL)
+    for c in EXT_FEATS:
+        if c not in X.columns:
+            X[c] = np.nan
+    if 'dirf' not in blocks:
+        X[[c for c in DIRF]] = np.nan
     drop = [c for c in ('_ld1', '_ld2', '_ld3', 'sire', 'dam', 'dsire', 'tk', 'jk', 'dband', 'wet') if c in X.columns]
     return X.drop(columns=drop)

@@ -1,6 +1,6 @@
 name: "Retrain the context Proj with the extra inputs"
 
-# 10 Nov 2026: projection/train_ctx.py --v2 --conv-frac 1.0 --fit-feats --trials --ext (extra inputs of projection/ctx_ext.py), then research/ctx_v2_live_check.py (live path must equal the training path), then commits the
+# 10 Nov 2026: projection/train_ctx.py --v2 --conv-frac 1.0 --fit-feats --trials --ext tfu (trainer patterns from projection/ctx_ext.py), then research/ctx_v2_live_check.py (live path must equal the training path), then commits the
 # artifacts (projection/models_tr/ctx_model.txt, ctx_rel_model.txt, ctx.json) to the branch it ran on. Nothing reaches main from here.
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
           python-version: "3.11"
       - run: pip install -r projection/requirements.txt scipy scikit-learn
       - name: Retrain
-        run: python -W ignore projection/train_ctx.py --v2 --conv-frac 1.0 --fit-feats --trials --ext
+        run: python -W ignore projection/train_ctx.py --v2 --conv-frac 1.0 --fit-feats --trials --ext tfu
       - name: Keep the models even if the check fails
         if: always()
         uses: actions/upload-artifact@v4

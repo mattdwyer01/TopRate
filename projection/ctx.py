@@ -554,10 +554,23 @@ def add_trainer(rp):
     for f in sorted(glob.glob(os.path.join(os.path.dirname(M), '..', 'race_results_20[12]?.csv.gz'))) + [os.path.join(os.path.dirname(M), '..', 'race_results_2026.csv.gz')]:
         if os.path.exists(f):
             parts.append(pd.read_csv(f, usecols=lambda c: c in ('horse_id', 'date', 'trainer'), low_memory=False))
+    try:
+        # runs after the results files' last day: the trainer on TopRate's stored result pages (data/tr_results), same names
+        import gzip
+        rows = []
+        for f in sorted(glob.glob(os.path.join(os.path.dirname(M), '..', 'data', 'tr_results', '*.json.gz'))):
+            d = os.path.basename(f)[:10]
+            with gzip.open(f, 'rt') as fh:
+                for race in json.load(fh).get('races', {}).values():
+                    rows += [dict(horse_id=ru.get('horseId'), date=d, trainer=ru.get('trainer')) for ru in race.get('runners') or []]
+        if rows:
+            parts.append(pd.DataFrame(rows))
+    except Exception as e:
+        print('  add_trainer: result pages not read:', e)
     t = pd.concat(parts, ignore_index=True)
     t['horse_id'] = pd.to_numeric(t.horse_id, errors='coerce')
     t['date'] = pd.to_datetime(t.date)
-    t = t.dropna(subset=['horse_id', 'trainer']).drop_duplicates(['horse_id', 'date'], keep='last')
+    t = t.dropna(subset=['horse_id', 'trainer']).drop_duplicates(['horse_id', 'date'], keep='first')
     return rp.merge(t[['horse_id', 'date', 'trainer']], on=['horse_id', 'date'], how='left')
 
 
@@ -671,7 +684,7 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip
         # computed over the runners with a formula figure (the population the field-relative columns compare within)
         import ctx_ext as EXT
         try:
-            Xe = EXT.add_all(X.loc[ok], rp, src)[EXT.EXT_FEATS]
+            Xe = EXT.add_all(X.loc[ok], rp, src, blocks=EXT.blocks_in(meta.get('feats', FEATS) + (meta.get('rel_feats') or [])))[EXT.EXT_FEATS]
         except Exception as e:
             if os.environ.get('PROJECTION_EXT_SOFT') != '1':
                 raise

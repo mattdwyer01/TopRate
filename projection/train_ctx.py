@@ -28,12 +28,14 @@ def main():
     ap.add_argument('--conv-frac', type=float, default=0.0, help='also train on results-file history put on the ATW scale per target race (research/conv_history.py, AR 168); fraction of horses, 0 = page store only')
     ap.add_argument('--fit-feats', action='store_true', help='add ctx.FIT_FEATS (prep position, distance and going against its best runs, usual running position) to the relevance model')
     ap.add_argument('--trials', action='store_true', help='add ctx.TRIAL_FEATS (barrier trials and jump-outs) to both models')
-    ap.add_argument('--ext', action='store_true', help='add the extra inputs of ctx_ext.py (pedigree, finishing-position, trainer patterns, collateral form) to both models; the converted rows then run to the newest stored result page')
+    ap.add_argument('--ext', default='', help='blocks of extra inputs from ctx_ext.py to add to both models, comma separated (ped, dirf, tfu, frk; all = every block); the converted rows then run to the newest stored result page. Live: tfu (trainer patterns), the one block that held on real fields')
     a = ap.parse_args()
     conv, src, EXT = None, None, None
     if a.ext:
         assert a.conv_frac > 0, '--ext needs the converted history (--conv-frac)'
         import ctx_ext as EXT
+        XB = list(EXT.BLOCKS) if a.ext == 'all' else [b for b in a.ext.split(',') if b]
+        XF = [c for b in XB for c in EXT.BLOCKS[b]]
     if a.conv_frac > 0:
         # TRAINING history only (27 Oct 2026): converted rows are never inputs to a live projection
         sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'research'))
@@ -46,12 +48,12 @@ def main():
         conv = conv_full[conv_full.f.notna()].copy()
         if a.ext:
             src = EXT.src_from_frame(conv_full)
-            conv = EXT.add_all(conv, conv_full, src)
+            conv = EXT.add_all(conv, conv_full, src, blocks=XB)
         print('converted training rows', len(conv), flush=True)
     rp = C.training_frame_rel(a.v2)
     pg = rp[rp.f.notna()].copy()
     if a.ext:
-        pg = EXT.add_all(pg, rp, src)
+        pg = EXT.add_all(pg, rp, src, blocks=XB)
     classes = sorted(pg.cls.dropna().unique().tolist())
     pg['cls_c'] = C._cls(pg.cls, classes)
     cut, es = pd.Timestamp(a.fit_end), pd.Timestamp(a.es_from)
@@ -66,7 +68,7 @@ def main():
     F0 = (C.FEATS2 if a.v2 else C.FEATS) + (C.TRIAL_FEATS if a.trials else [])
     F1 = F0 + (C.REL_FEATS2 if a.v2 else C.REL_FEATS) + (C.FIT_FEATS if a.fit_feats else [])
     if a.ext:
-        F0, F1 = F0 + EXT.EXT_FEATS, F1 + EXT.EXT_FEATS
+        F0, F1 = F0 + XF, F1 + XF
 
     def fit(feats, tr_, va_):
         m = lgb.LGBMRegressor(**params)
@@ -103,7 +105,7 @@ def main():
     fin1 = lgb.LGBMRegressor(**{**params, 'n_estimators': n1}).fit(pr[F1], pr.resid)
     fin0.booster_.save_model(os.path.join(C.M, 'ctx_model.txt'))
     fin1.booster_.save_model(os.path.join(C.M, 'ctx_rel_model.txt'))
-    json.dump({'ext': bool(a.ext), 'feats': F0, 'rel_feats': F1, 'v2': bool(a.v2), 'conv_frac': a.conv_frac, 'rel_min_runs': C.REL_MIN_RUNS, 'classes': classes, 'sd': sd, 'sd_formula': sd0, 'n_trees': n0, 'n_trees_rel': n1,
+    json.dump({'ext': (XB if a.ext else []), 'feats': F0, 'rel_feats': F1, 'v2': bool(a.v2), 'conv_frac': a.conv_frac, 'rel_min_runs': C.REL_MIN_RUNS, 'classes': classes, 'sd': sd, 'sd_formula': sd0, 'n_trees': n0, 'n_trees_rel': n1,
                'trained_to': str(pg.date.max().date()), 'n_train': int(len(pg_all)), 'n_train_rel': int(len(pr)),
                'held_out_rmse': {'formula': round(r(te.e0), 3), 'context': round(r(te.e_ctx), 3), 'deployed': round(r(te.e1), 3), 'n': int(len(te))}},
               open(os.path.join(C.M, 'ctx.json'), 'w'), indent=1)
