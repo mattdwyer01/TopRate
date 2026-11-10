@@ -2,7 +2,7 @@ name: Betfair BSP history (AU runner)
 
 # Downloads Betfair's published starting price files for Australian racing (betfair_bsp.py) into data/betfair_bsp/ and
 # commits them to the branch that triggered the run. Betfair answers 403 outside Australia, so this needs the AU
-# runner. The runner is shared with the live results poller, so a run fetches for at most 4 minutes; run it again
+# runner. The runner is shared with the live results poller, so a run fetches for at most 7 minutes; run it again
 # for the rest (dates done are in data/betfair_bsp/index.json).
 # Trigger: push a change to research/betfair_bsp.trigger (one line: since until kinds, e.g. "2025-01-01 2026-11-09 win"),
 # or run it by hand.
