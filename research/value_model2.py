@@ -2,7 +2,7 @@
 Same model, split, rule and commission as research/value_model.py (walk-forward 2024 / 2025 / 2026).
   bias   draw and on-pace lean of the EARLIER races at the same meeting, crossed with the runner's draw and style
   horse  the horse's own record against the price: overall, at this track, on wet ground, at this distance band; running style
-  gear   blinkers on or first time, any gear change, apprentice claim, jockey upgrade or downgrade from last start
+  jock   jockey upgrade or downgrade from last start (the gear and claim inputs were dropped: leak, see FAM)
   trial  barrier trials and jump-outs since the last run
   pace   how many likely leaders are in the field, lone leader, the runner's style rank
   PYTHONPATH=. python research/value_model2.py [family ...]     (no argument = baseline, each family, then all)
@@ -23,7 +23,10 @@ CACHE = os.environ.get("VM2_CACHE", "/tmp/value_model2_frame.pkl")
 FAM = {
     "bias": ["lean_prev", "lead_prev", "n_prev", "lean_x_bar", "lead_x_style"],
     "horse": ["h_ae", "h_trk_ae", "h_wet_ae", "h_dist_ae", "h_trk_n", "style", "close4", "r_style", "k_style"],
-    "gear": ["blink", "blink_first", "gear_chg", "claim", "jk_up"],
+    # "gear" (blinkers, gear changes, apprentice claim) is NOT usable: blinkers_on / gear_changes / weight_allowance are filled for only 22% / 22% / 6% of
+    # results rows (5% in 2022 rising to 45% in 2026), and filled rows win 6 to 8% more than the Betfair price implies (blank rows 2% less), i.e. the fields were
+    # captured for horses that raced on. With them the walk-forward showed +4.5% on 24,048 bets, a leak, not a finding (10 Nov 2026).
+    "jock": ["jk_up"],
     "trial": ["tr_n60", "tr_days", "tr_fin", "tr_won", "tr_since_run"],
     "pace": ["n_lead", "lone_lead", "style_gap_lead", "style_x_nr", "mean_style"],
 }
