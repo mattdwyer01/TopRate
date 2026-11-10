@@ -53,4 +53,9 @@ jobs:
           git add data/betfair_bsp
           git diff --cached --quiet && { echo "no change"; exit 0; }
           git commit -q -m "Betfair BSP files $(TZ=Australia/Melbourne date +%F\ %H:%M)"
-          git push -q origin "HEAD:${GITHUB_REF_NAME}"
+          for i in 1 2 3 4; do
+            git push -q origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            git pull -q --rebase origin "${GITHUB_REF_NAME}"     # the branch moved while this ran
+            sleep 5
+          done
+          exit 1
