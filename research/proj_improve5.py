@@ -19,7 +19,7 @@ still improving when training ended. Variants (name:seed):
   l2 / xt / lin  squared error / extra-random trees / linear leaves;  one  a single model for every run count;  cshort  no converted rows after 2025-03 (value of the newest ones);
   nopg   converted rows only
   frm    more inputs as runner minus field mean and rank in field;  allz  ped + dirf + tfu + frank + lfld + frm
-  a name may end in .R (within-race target, as rdm), .C (CatBoost) or .RC, e.g. allx.R, dirf.RC
+  a name may end in .R (within-race target, as rdm), .C (CatBoost), .RC, or .N (no cap on the step for horses with under 3 runs), e.g. allx.R, dirf.RC, ped.N
   ped    pedigree block of batch 4      dirf  finishing-position inputs of batch 4       allx  all of the above
 Run: PYTHONPATH=.:projection:research PROJECTION_RATINGS=toprate python research/proj_improve5.py --jobs base:1,lr06:1 --out pi5/j1"""
 import argparse, glob, json, os, sys, time
@@ -359,7 +359,7 @@ for full, seed in JOBS:
         c = p1(te) if one else p0(te)
         if not one:
             c[use] = p1(te.loc[use])
-        if not is_rdm and name != 'nocap':     # 'nocap' = lr06 without the cap for horses with under 3 runs (the combine step re-applies caps of 3 to 8)
+        if not is_rdm and name != 'nocap' and 'N' not in flags:     # 'nocap' = lr06 without the cap for horses with under 3 runs (the combine step re-applies caps of 3 to 8)
             c = np.where(use, c, np.clip(c, -2, 2))           # run.py CTX_CAP_FEW for under 3 runs
         out[k][col] = te.f.values + c
     newf = [x for x in B if x not in F1]
