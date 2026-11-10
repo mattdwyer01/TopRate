@@ -171,6 +171,8 @@ print('\nrating RMSE on T1 by earlier runs (all inputs): ' + ' | '.join(
 
 # ---------------- T2: real complete fields with the dashboard Proj ----------------
 MODELS = {}
+B_START = SRC.index('# ---------------- T2:')          # recomputed: the dry run edits SRC
+B_END = SRC.index("for nm, (m, fl) in MODELS.items():\n    S2[")
 exec(compile(SRC[B_START:B_END], 'proj_top3_retrain.py[T2]', 'exec'))
 S2['s_direct'] = mD.predict(S2[V3A]) * TD
 print('\n\n===== T2: %d real complete fields (%s to %s) with the dashboard Proj =====' % (S2.race_id.nunique(), S2.date.min().date(), S2.date.max().date()))
