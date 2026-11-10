@@ -42,7 +42,7 @@ jobs:
           IN_KINDS: ${{ github.event.inputs.kinds }}
         run: |
           if [ -n "$IN_SINCE" ]; then SINCE="$IN_SINCE"; UNTIL="$IN_UNTIL"; KINDS="${IN_KINDS:-win}";
-          else read -r SINCE UNTIL KINDS < research/betfair_bsp.trigger; fi
+          else read -r SINCE UNTIL KINDS _REST < research/betfair_bsp.trigger; fi
           ARGS=(--since "$SINCE" --kinds "${KINDS:-win}")
           [ -n "$UNTIL" ] && ARGS+=(--until "$UNTIL")
           python -u betfair_bsp.py download "${ARGS[@]}"
