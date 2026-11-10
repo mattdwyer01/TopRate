@@ -41,7 +41,11 @@ TF_CAP = float(os.environ.get('PROJECTION_TF_CAP', '5.0'))        # rating point
 # 9 Nov 2026: the context step for horses with REL_MIN_RUNS+ earlier runs is stretched (held out, actual results move about 1.04 to 1.10x the predicted step,
 # 1.21x for 3 to 5 runs; a 1.2 stretch with the +-5 anchor gave winner log-lik +0.0067, se 0.0010, median miss 3.854 to 3.816). ctx.json 'stretch' overrides; 1 = off.
 CTX_STRETCH = os.environ.get('PROJECTION_CTX_STRETCH')
-CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '2.0'))   # rating points; 0 = no cap
+# Cap on the context step for a horse with under 3 earlier runs, rating points; 0 = no cap. 2 until 10 Nov 2026 (set on 23 Oct for the page-only model), now 8: with the
+# converted-history training the step for these horses is calibrated one for one (slope of actual on step 0.99 on 1,177 live runs) and the +-2 cap threw it away. Cap 8
+# against cap 2, winner log-lik: +0.0113 (se 0.0027) on 1,840 live complete fields since 9 Oct (models fitted before), +0.0057 (0.0010) on 13,025 held-out complete fields,
+# +0.0040 (0.0009) on the page-store test; rating RMSE of these horses 10.16 to 9.89 live. No cap is as good or slightly better on winners but steps of 20+ do occur.
+CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '8.0'))
 ASSUME_RIDER = os.environ.get('PROJECTION_ASSUME_RIDER', '1') == '1'   # 10 Nov 2026: a runner with no declared jockey is projected with its last rider, an unknown barrier as a middle gate (see fill_undeclared)
 WITHIN_RACE = os.environ.get('PROJECTION_WITHIN_RACE', '1') == '1'   # 10 Nov 2026: used only when ctx.json says a within-race pair exists ('wr'); 0 = the usual models alone
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
