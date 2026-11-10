@@ -178,6 +178,8 @@ VARIANTS = {
     "pre_half_slow": dict(kind="gbm", pre=True, w_sp=0.5, lr=0.01, leaves=4, mdl=800, seeds=(1, 2, 3, 4, 5)),
     "pre_half_6": dict(kind="gbm", pre=True, w_sp=0.5, seeds=(11, 12, 13, 14, 15, 16)),
     "pre_quarter": dict(kind="gbm", pre=True, w_sp=0.25),
+    # the version carried forward: no inputs that need the 800m positions of the same day's earlier races (not available before a race)
+    "final": dict(kind="gbm", pre=True, cal=True, drop=["lead_prev", "lead_x_style"], seeds=tuple(range(1, 11))),
     "lin": dict(kind="lin"),
     "pre_lin": dict(kind="lin", pre=True),
     "pre_mix": dict(kind="mix", pre=True),

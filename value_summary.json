@@ -1,0 +1,27 @@
+{
+ "first_day": "2026-10-09",
+ "last_day": "2026-11-08",
+ "days": 31,
+ "races": 1405,
+ "runners": 13507,
+ "total": {
+  "bets": 1497,
+  "wins": 217,
+  "win_pct": 14.5,
+  "model_pct": 15.48,
+  "betfair_pct": 13.94,
+  "avg_price": 12.23,
+  "profit_units": -57.7,
+  "roi_pct": -3.9,
+  "roi_ex10_pct": -17.4
+ },
+ "roi_90_range_pct": [
+  -17.5,
+  11.4
+ ],
+ "chance_above_zero_pct": 32,
+ "gain_over_betfair": -0.0026,
+ "gain_se": 0.0021,
+ "next_gate": 2000,
+ "verdict": "no read yet: 1497 of 2000 bets"
+}

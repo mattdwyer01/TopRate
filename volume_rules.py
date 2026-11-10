@@ -64,11 +64,12 @@ SKIP_SOURCES = {"duplicate entry"}
 
 RUNNER_COLS = ["date", "venue", "race", "race_id", "run_id", "horse", "tab_number", "barrier", "start_time", "scratched", "wprp_proj", "wprp_model",
                "fixed_win_price", "starting_price_sp", "going", "prize_money", "rs_label", "won", "finish_position", "interim_resulted", "resulted",
-               "field_source"]
+               "field_source", "state"]
 
 BET_COLS = ["logged_at", "mins_to_jump", "date", "venue", "race", "race_id", "run_id", "start_time", "horse", "tab_number", "barrier", "price_logged",
             "v1", "v2", "v3", "stake_v1", "stake_v2", "stake_v3", "pft", "proj", "top_proj", "off_top", "gap", "gap_rank", "field_n", "sp_frac", "top_is_bet", "n_qual_within1",
-            "going", "rs_label", "meeting_min_prize", "race_prize", "prev_races", "prev_win_first_third", "prev_win_sp", "prev_top3_sp", "won", "finish_position", "sp_final", "void", "settled_at"]
+            "going", "rs_label", "meeting_min_prize", "race_prize", "prev_races", "prev_win_first_third", "prev_win_sp", "prev_top3_sp", "won", "finish_position", "sp_final", "void", "settled_at",
+            "bsp", "bf_comm"]          # Betfair starting price and the commission rate for that state (10% NSW, 8% elsewhere), filled once Betfair's file is in
 RACE_COLS = ["checked_at", "mins_to_jump", "date", "venue", "race", "race_id", "start_time", "field_n", "reason", "v1_bets", "v2_bets"]
 
 
@@ -298,6 +299,29 @@ def cmd_log(a):
     print(f"logged {len(ids)} race(s): v1 {int(nb['v1'].sum())} bets, v2 {int(nb['v2'].sum())} bets, v3 {int(nb['v3'].sum())} bets (trip map {gen})")
 
 
+def fill_betfair(bets, rn):
+    """Betfair starting price for settled bets that have none yet (the files arrive a day or more after the race; nothing happens without them)"""
+    try:
+        import betfair_prices as bf
+    except Exception:
+        return 0
+    need = bets[bets["won"].notna() & bets["bsp"].isna() & (bets["void"].fillna(0) != 1)]
+    if need.empty or not os.path.isdir(bf.DIR):
+        return 0
+    look = bf.lookup(need["date"].unique())
+    n = 0
+    for i, r in need.iterrows():
+        p = look.get((str(r["date"])[:10], bf.norm(r["horse"])))
+        if p is None:
+            continue
+        rid = num(pd.Series([r["run_id"]])).iloc[0]
+        state = rn.loc[rid, "state"] if rid in rn.index and "state" in rn.columns else None
+        bets.at[i, "bsp"] = round(float(p), 2)
+        bets.at[i, "bf_comm"] = bf.commission(state)
+        n += 1
+    return n
+
+
 def cmd_settle(a):
     bets = _read_csv(BETS_LOG, BET_COLS)
     if bets.empty:
@@ -330,7 +354,9 @@ def cmd_settle(a):
             if pd.notna(sp):
                 bets.at[i, "sp_final"] = sp
                 n_sp += 1
+    n_bf = fill_betfair(bets, rn)
     bets.to_csv(BETS_LOG, index=False)
+    print(f"Betfair starting prices filled: {n_bf}")
     print(f"settled {n_set} bet(s), {n_void} void (scratched), {n_sp} starting price(s) filled; {int(bets['won'].isna().sum() - bets['void'].fillna(0).sum())} still open")
 
 
@@ -368,6 +394,19 @@ def _summ(b, rule, price_col):
            "returned": round(float(ret.sum()), 2)}
     out["profit"] = round(out["returned"] - out["staked"], 2)
     out["roi_pct"] = round(out["profit"] / out["staked"] * 100, 1) if out["staked"] else None
+    return out
+
+
+def _summ_bf(b, rule):
+    """the same bets paid at the Betfair starting price after commission (only bets whose Betfair price is in)"""
+    s = b[(b[rule] == 1) & (b["void"].fillna(0) != 1) & b["won"].notna() & b["bsp"].notna()]
+    st = s[f"stake_{rule}"]
+    ret = np.where(s["won"] == 1, st * (1 + (s["bsp"] - 1) * (1 - s["bf_comm"].fillna(0.08))), 0.0)
+    out = {"bets": int(len(s)), "staked": round(float(st.sum()), 2), "returned": round(float(ret.sum()), 2)}
+    out["profit"] = round(out["returned"] - out["staked"], 2)
+    out["roi_pct"] = round(out["profit"] / out["staked"] * 100, 1) if out["staked"] else None
+    fx = np.where(s["won"] == 1, st * s["price_logged"], 0.0).sum()
+    out["roi_logged_same_bets_pct"] = round((fx - st.sum()) / st.sum() * 100, 1) if out["staked"] else None
     return out
 
 
@@ -417,7 +456,7 @@ def build_report(b, races):
     b["price_sp"] = b["sp_final"].fillna(b["price_logged"])
     rep = {}
     for rule in ("v1", "v2", "v3"):
-        rep[rule] = {"at_logged_price": _summ(b, rule, "price_logged"), "at_starting_price": _summ(b, rule, "price_sp")}
+        rep[rule] = {"at_logged_price": _summ(b, rule, "price_logged"), "at_starting_price": _summ(b, rule, "price_sp"), "at_betfair": _summ_bf(b, rule)}
         by_day = []
         for dte, g in b.groupby("date"):
             s = _summ(g, rule, "price_logged")
@@ -442,6 +481,15 @@ def write_report(rep, path_md=REPORT_MD, path_json=SUMMARY_JSON):
     for rule, name in (("v1", "Volume v1"), ("v2", "Volume v2"), ("v3", "Volume v3 (P cut)")):
         a, s = rep[rule]["at_logged_price"], rep[rule]["at_starting_price"]
         L.append(f"| {name} | {a['races']} | {a['bets']} | {a['wins']} | ${a['staked']:.0f} | ${a['returned']:.0f} | ${a['profit']:.0f} | {a['roi_pct']}% | {s['roi_pct']}% |")
+    L += ["", "## The same bets at the Betfair starting price, after commission (10% NSW, 8% elsewhere)", "",
+          "Only bets whose Betfair price has arrived (Betfair publishes a day or more after the race).", "",
+          "| Rule | Bets with a Betfair price | Staked | Returned | Profit | ROI at Betfair | ROI at logged price, same bets |", "|---|---|---|---|---|---|---|"]
+    for rule, name in (("v1", "Volume v1"), ("v2", "Volume v2"), ("v3", "Volume v3 (P cut)")):
+        f = rep[rule].get("at_betfair") or {}
+        if f.get("bets"):
+            L.append(f"| {name} | {f['bets']} | ${f['staked']:.0f} | ${f['returned']:.0f} | ${f['profit']:.0f} | {f['roi_pct']}% | {f['roi_logged_same_bets_pct']}% |")
+        else:
+            L.append(f"| {name} | 0 | | | | | |")
     L += ["", "## By day (at logged price)", "", "| Date | v1 bets | v1 profit | v2 bets | v2 profit | v3 bets | v3 profit |", "|---|---|---|---|---|---|---|"]
     d1 = {x["date"]: x for x in rep["v1"]["by_day"]}
     d2 = {x["date"]: x for x in rep["v2"]["by_day"]}

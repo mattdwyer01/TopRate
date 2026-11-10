@@ -50,11 +50,14 @@ def asof_mean(df, key, val, k):
     return (m.cs.fillna(0) / (m.cn.fillna(0) + k)).values, m.cn.fillna(0).values
 
 
-def load(extra=(), keep_trials=False):
+def load(extra=(), keep_trials=False, more=None):
+    """more: extra raw result rows in the results files' columns (value_live.py adds the racing.com results after 8 Oct 2026)"""
     use = list(extra) + ["race_id", "date", "horse_id", "horse", "track", "distance", "going", "wpr", "weightCarried", "barrier", "priceStarting", "positionFinish",
            "marginFinish", "isBarrierTrial", "is_jumpout", "race_class", "jockey", "trainer", "horse_age", "horse_sex", "sire", "comments_steward", "comments_video"]
     fs = [f for f in sorted(glob.glob("race_results_20*.csv.gz")) if re.search(r"results_20(2[0-6])\.csv", f)]
     r = pd.concat([pd.read_csv(f, usecols=lambda c: c in use, low_memory=False) for f in fs], ignore_index=True)
+    if more is not None:
+        r = pd.concat([r, more[[c for c in more.columns if c in use]]], ignore_index=True)
     trials = r[(r.isBarrierTrial == True) | (r.is_jumpout == True)].copy() if keep_trials else None  # noqa: E712
     r = r[(r.isBarrierTrial != True) & (r.is_jumpout != True)]  # noqa: E712
     r = r[~r.race_class.astype(str).str.contains("Hurdle|Steeple", case=False)]

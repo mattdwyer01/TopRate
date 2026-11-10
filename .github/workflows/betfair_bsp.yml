@@ -5,8 +5,10 @@ name: Betfair BSP history (AU runner)
 # runner. The runner is shared with the live results poller, so a run fetches for at most 7 minutes; run it again
 # for the rest (dates done are in data/betfair_bsp/index.json).
 # Trigger: push a change to research/betfair_bsp.trigger (one line: since until kinds, e.g. "2025-01-01 2026-11-09 win"),
-# or run it by hand.
+# run it by hand, or the daily schedule (the last 6 days, so the Volume log and the value model forward test get their prices).
 on:
+  schedule:
+    - cron: "40 20 * * *"   # 07:40 Melbourne (daylight time)
   push:
     paths:
       - research/betfair_bsp.trigger
@@ -41,7 +43,8 @@ jobs:
           IN_UNTIL: ${{ github.event.inputs.until }}
           IN_KINDS: ${{ github.event.inputs.kinds }}
         run: |
-          if [ -n "$IN_SINCE" ]; then SINCE="$IN_SINCE"; UNTIL="$IN_UNTIL"; KINDS="${IN_KINDS:-win}";
+          if [ "${{ github.event_name }}" = "schedule" ]; then SINCE="$(TZ=Australia/Melbourne date -d '6 days ago' +%F)"; UNTIL=""; KINDS="win";
+          elif [ -n "$IN_SINCE" ]; then SINCE="$IN_SINCE"; UNTIL="$IN_UNTIL"; KINDS="${IN_KINDS:-win}";
           else read -r SINCE UNTIL KINDS _REST < research/betfair_bsp.trigger; fi
           ARGS=(--since "$SINCE" --kinds "${KINDS:-win}")
           [ -n "$UNTIL" ] && ARGS+=(--until "$UNTIL")

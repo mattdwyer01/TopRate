@@ -37,8 +37,8 @@ def horse_asof(d, key, k=3.0):
     return v, n
 
 
-def build():
-    r, T = VM.load(extra=["meeting_id", "position800m", "blinkers_on", "gear_changes", "weight_allowance"], keep_trials=True)
+def build(more=None):
+    r, T = VM.load(extra=["meeting_id", "position800m", "blinkers_on", "gear_changes", "weight_allowance"], keep_trials=True, more=more)
     r["date"] = pd.to_datetime(r.date)
     d = VM.features(r)
     g = d.groupby("horse_id")
