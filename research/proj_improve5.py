@@ -15,6 +15,9 @@ still improving when training ended. Variants (name:seed):
          run since (form franked or not), as of the day before
   jsw    jockey switch: today's jockey against the jockey of the last run (win rates and rating effect, as of today)
   tfu    trainer patterns as of the day before: overall, first up, at this venue, at this distance band, on wet, with this jockey; jockey at this venue
+  lfld   strength of the horse's last three fields (its figure against the other runners' then)
+  l2 / xt / lin  squared error / extra-random trees / linear leaves;  one  a single model for every run count;  cshort  no converted rows after 2025-03 (value of the newest ones);
+  nopg   converted rows only
   ped    pedigree block of batch 4      dirf  finishing-position inputs of batch 4       allx  all of the above
 Run: PYTHONPATH=.:projection:research PROJECTION_RATINGS=toprate python research/proj_improve5.py --jobs base:1,lr06:1 --out pi5/j1"""
 import argparse, glob, json, os, sys, time
@@ -252,6 +255,20 @@ def add_dirf(df):
     return C.add_field_rel(df, DIRF_BASE + ['weightCarried', 'barr_f'])
 
 
+LFLD = ['lfv1', 'lfv2', 'lfv3', 'lkf1', 'lkf2', 'lkf3']
+
+
+def add_lfld(df):
+    """strength of the horse's last three fields: its formula figure against the other runners' (and its rank in the field) at each of those runs."""
+    df = df.copy()
+    o = df.sort_values(['horse_id', 'date']); g = o.groupby('horse_id')
+    for k in (1, 2, 3):
+        df[f'lfv{k}'] = g.f_vs_fld.shift(k).reindex(df.index); df[f'lkf{k}'] = g.k_f.shift(k).reindex(df.index)
+    return df
+
+
+if want('lfld', 'ally'):
+    cv, pg = add_lfld(cv), add_lfld(pg); log('last-field strength done')
 if want('ped', 'allx'):
     cv, pg = add_ped(cv), add_ped(pg); log('pedigree done')
 if want('dirf', 'allx'):
@@ -277,13 +294,14 @@ log('train', len(tr), 'valid', len(va), 'tests', {k: len(v) for k, v in tests.it
 
 F0 = C.FEATS2 + C.TRIAL_FEATS
 F1 = C.FEATS2 + C.REL_FEATS2 + C.FIT_FEATS + C.TRIAL_FEATS
-ADD = {'ped': PED, 'dirf': DIRF, 'tfu': TFU, 'jsw': JSW, 'frank': FRK, 'allx': PED + DIRF + TFU + JSW + FRK}
+ADD = {'lfld': LFLD, 'ped': PED, 'dirf': DIRF, 'tfu': TFU, 'jsw': JSW, 'frank': FRK, 'allx': PED + DIRF + TFU + JSW + FRK}
 P06 = dict(learning_rate=0.06, n_estimators=10000)
 PAR = {'base': dict(learning_rate=0.03, n_estimators=4000), 'long': dict(learning_rate=0.03, n_estimators=16000),
        'big': dict(learning_rate=0.05, n_estimators=8000, num_leaves=127, min_child_samples=200),
        'deep': dict(learning_rate=0.05, n_estimators=6000, num_leaves=255, min_child_samples=400, colsample_bytree=0.6),
        'cs5': dict(P06, colsample_bytree=0.5), 'small': dict(P06, num_leaves=15, n_estimators=16000), 'reg': dict(P06, reg_lambda=30, min_child_samples=300),
-       'hub25': dict(P06, alpha=2.5), 'hub8': dict(P06, alpha=8.0)}
+       'hub25': dict(P06, alpha=2.5), 'hub8': dict(P06, alpha=8.0), 'l2': dict(P06, objective='regression'), 'xt': dict(P06, extra_trees=True),
+       'lin': dict(P06, linear_tree=True, linear_lambda=1.0)}
 rel = lambda d: d[d.n >= C.REL_MIN_RUNS]
 
 out = {k: t[['horse_id', 'date', 'wpr', 'positionFinish', 'n', 'd_last', 'field_size', 'vn', 'distance', 'cls']].copy() for k, t in tests.items()}
@@ -301,6 +319,10 @@ for name, seed in JOBS:
         wfn = lambda d: np.exp(-(CUT - d.date).dt.days.values / 1095.0)
     if name == 'wpg':
         wfn = lambda d: np.where(d.src == 'pg', 3.0, 1.0)
+    if name == 'cshort':       # value of the newest converted rows: drop those after 2025-03-31 from the fit
+        t0 = tr[(tr.src == 'pg') | (tr.date <= '2025-03-31')]
+    if name == 'nopg':         # converted rows only (complete fields), no runner-page training rows
+        t0, v0 = tr[tr.src == 'cv'], va[va.src == 'cv']
     if name == 'rdm':
         t0, v0 = tr.copy(), va.copy()
         for d in (t0, v0):
@@ -320,11 +342,14 @@ for name, seed in JOBS:
         return (lambda d: m.predict(d[Fs])), int(m.best_iteration_), pd.Series(m.booster_.feature_importance('gain'), index=Fs)
 
     p0, b0, _ = fit(A, t0, v0); log(name, seed, 'plain model trees', b0)
-    p1, b1, imp = fit(B, rel(t0), rel(v0)); log(name, seed, 'relevance model trees', b1)
+    one = name == 'one'        # one model with the relevance inputs for every horse
+    p1, b1, imp = fit(B, t0 if one else rel(t0), v0 if one else rel(v0)); log(name, seed, 'relevance model trees', b1)
     col = f'{name}_s{seed}'
     for k, te in tests.items():
         use = (te.n >= C.REL_MIN_RUNS).values
-        c = p0(te); c[use] = p1(te.loc[use])
+        c = p1(te) if one else p0(te)
+        if not one:
+            c[use] = p1(te.loc[use])
         if name != 'rdm':
             c = np.where(use, c, np.clip(c, -2, 2))           # run.py CTX_CAP_FEW for under 3 runs
         out[k][col] = te.f.values + c
