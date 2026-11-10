@@ -18,6 +18,8 @@ still improving when training ended. Variants (name:seed):
   lfld   strength of the horse's last three fields (its figure against the other runners' then)
   l2 / xt / lin  squared error / extra-random trees / linear leaves;  one  a single model for every run count;  cshort  no converted rows after 2025-03 (value of the newest ones);
   nopg   converted rows only
+  frm    more inputs as runner minus field mean and rank in field;  allz  ped + dirf + tfu + frank + lfld + frm
+  a name may end in .R (within-race target, as rdm), .C (CatBoost) or .RC, e.g. allx.R, dirf.RC
   ped    pedigree block of batch 4      dirf  finishing-position inputs of batch 4       allx  all of the above
 Run: PYTHONPATH=.:projection:research PROJECTION_RATINGS=toprate python research/proj_improve5.py --jobs base:1,lr06:1 --out pi5/j1"""
 import argparse, glob, json, os, sys, time
@@ -42,7 +44,7 @@ pg = C.training_frame_rel(True); pg = pg[pg.f.notna()].copy()
 cv['src'], pg['src'] = 'cv', 'pg'
 cv, pg = cv.reset_index(drop=True), pg.reset_index(drop=True)
 log('frames: converted', len(cv), 'page', len(pg))
-NEED = {n for n, _ in JOBS}
+NEED = {n.split('.')[0] for n, _ in JOBS}
 want = lambda *names: bool(NEED & set(names))
 
 # ---- static horse facts from the results files: foaling season (age), sex, sire, dam, dam-sire ----
@@ -267,21 +269,26 @@ def add_lfld(df):
     return df
 
 
-if want('lfld', 'ally'):
+if want('lfld', 'allz'):
     cv, pg = add_lfld(cv), add_lfld(pg); log('last-field strength done')
-if want('ped', 'allx'):
+if want('ped', 'allx', 'allz'):
     cv, pg = add_ped(cv), add_ped(pg); log('pedigree done')
-if want('dirf', 'allx'):
+if want('dirf', 'allx', 'allz'):
     cv, pg = add_dirf(cv), add_dirf(pg); log('finishing-position inputs done')
-if want('tfu', 'allx'):
+if want('tfu', 'allx', 'allz'):
     cv, pg = add_tfu(cv), add_tfu(pg); log('trainer patterns done')
 if want('jsw', 'allx'):
     cv, pg = add_jsw(cv), add_jsw(pg); log('jockey switch done')
-if want('frank', 'allx'):
+if want('frank', 'allx', 'allz'):
     FR = build_frank()
     cv, pg = add_frank(cv, FR), add_frank(pg, FR); log('collateral form done')
     for nm, d in (('converted', cv), ('page', pg)):
         print(nm, 'collateral coverage:', {c: round(float(d[c].notna().mean()), 3) for c in ('rl1', 'fk1', 'rl3')}, 'mean rivals run since (last race)', round(float(d.fkn1.mean()), 2), flush=True)
+
+FR_BASE = ['n', 'ldays', 'std4', 'max4', 'c_max', 'c_mean', 'sim_dist', 'sim_going', 'h_dist', 'wt_chg', 'dist_chg', 'trk_n', 'pair_n', 'style', 'dist_from_best', 'going_best_gap', 'tr_trel']
+FRM = [p_ + c for c in FR_BASE for p_ in ('r_', 'k_')]
+if want('frm', 'allz'):
+    cv, pg = C.add_field_rel(cv, FR_BASE), C.add_field_rel(pg, FR_BASE); log('more field-relative inputs done')
 
 classes = sorted(pg.cls.dropna().unique().tolist())
 for d in (cv, pg):
@@ -294,7 +301,7 @@ log('train', len(tr), 'valid', len(va), 'tests', {k: len(v) for k, v in tests.it
 
 F0 = C.FEATS2 + C.TRIAL_FEATS
 F1 = C.FEATS2 + C.REL_FEATS2 + C.FIT_FEATS + C.TRIAL_FEATS
-ADD = {'lfld': LFLD, 'ped': PED, 'dirf': DIRF, 'tfu': TFU, 'jsw': JSW, 'frank': FRK, 'allx': PED + DIRF + TFU + JSW + FRK}
+ADD = {'lfld': LFLD, 'frm': FRM, 'ped': PED, 'dirf': DIRF, 'tfu': TFU, 'jsw': JSW, 'frank': FRK, 'allx': PED + DIRF + TFU + JSW + FRK, 'allz': PED + DIRF + TFU + FRK + LFLD + FRM}
 P06 = dict(learning_rate=0.06, n_estimators=10000)
 PAR = {'base': dict(learning_rate=0.03, n_estimators=4000), 'long': dict(learning_rate=0.03, n_estimators=16000),
        'big': dict(learning_rate=0.05, n_estimators=8000, num_leaves=127, min_child_samples=200),
@@ -308,7 +315,9 @@ out = {k: t[['horse_id', 'date', 'wpr', 'positionFinish', 'n', 'd_last', 'field_
 for k, t in out.items():
     t['f'] = tests[k].f.values
 info = {}
-for name, seed in JOBS:
+for full, seed in JOBS:
+    name, _, flags = full.partition('.')
+    is_rdm, is_cat = (name == 'rdm' or 'R' in flags), (name == 'cat' or 'C' in flags)
     A, B = F0 + ADD.get(name, []), F1 + ADD.get(name, [])
     P = dict(num_leaves=31, min_child_samples=100, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, objective='huber', alpha=4.0, random_state=seed)
     P.update(PAR.get(name, P06))
@@ -323,15 +332,15 @@ for name, seed in JOBS:
         t0 = tr[(tr.src == 'pg') | (tr.date <= '2025-03-31')]
     if name == 'nopg':         # converted rows only (complete fields), no runner-page training rows
         t0, v0 = tr[tr.src == 'cv'], va[va.src == 'cv']
-    if name == 'rdm':
-        t0, v0 = tr.copy(), va.copy()
+    if is_rdm:
+        t0, v0 = t0.copy(), v0.copy()
         for d in (t0, v0):
             g = d.groupby('rk').resid
             d['resid_dm'] = (d.resid - g.transform('mean')).where(g.transform('size') >= 4)
         t0, v0, ycol = t0[t0.resid_dm.notna()], v0[v0.resid_dm.notna()], 'resid_dm'
 
     def fit(Fs, t, v):
-        if name == 'cat':
+        if is_cat:
             from catboost import CatBoostRegressor
             X = lambda d: d[Fs].assign(cls_c=d.cls_c.cat.codes.astype(float)) if 'cls_c' in Fs else d[Fs]
             m = CatBoostRegressor(loss_function='Huber:delta=4', eval_metric='Huber:delta=4', iterations=max(20, int(8000 * a.tree_scale)), learning_rate=0.06, depth=8, l2_leaf_reg=5,
@@ -341,16 +350,16 @@ for name, seed in JOBS:
         m = lgb.LGBMRegressor(**P).fit(t[Fs], t[ycol], sample_weight=None if wfn is None else wfn(t), eval_set=[(v[Fs], v[ycol])], callbacks=[lgb.early_stopping(150, verbose=False)])
         return (lambda d: m.predict(d[Fs])), int(m.best_iteration_), pd.Series(m.booster_.feature_importance('gain'), index=Fs)
 
-    p0, b0, _ = fit(A, t0, v0); log(name, seed, 'plain model trees', b0)
+    p0, b0, _ = fit(A, t0, v0); log(full, seed, 'plain model trees', b0)
     one = name == 'one'        # one model with the relevance inputs for every horse
-    p1, b1, imp = fit(B, t0 if one else rel(t0), v0 if one else rel(v0)); log(name, seed, 'relevance model trees', b1)
-    col = f'{name}_s{seed}'
+    p1, b1, imp = fit(B, t0 if one else rel(t0), v0 if one else rel(v0)); log(full, seed, 'relevance model trees', b1)
+    col = f'{full}_s{seed}'
     for k, te in tests.items():
         use = (te.n >= C.REL_MIN_RUNS).values
         c = p1(te) if one else p0(te)
         if not one:
             c[use] = p1(te.loc[use])
-        if name != 'rdm':
+        if not is_rdm:
             c = np.where(use, c, np.clip(c, -2, 2))           # run.py CTX_CAP_FEW for under 3 runs
         out[k][col] = te.f.values + c
     newf = [x for x in B if x not in F1]

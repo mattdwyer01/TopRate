@@ -29,7 +29,7 @@ for test in ('pg', 'cv'):
     pc = [c for c in T.columns if is_pred(c)]
     T['rk'] = T.date.astype(str) + '|' + T.vn.astype(str) + '|' + T.distance.astype(str) + '|' + T.field_size.astype(str) + '|' + T.cls.astype(str)
     names = sorted({c.rsplit('_s', 1)[0] for c in pc})
-    for nm in names:
+    for nm in [x for x in names if '.R' not in x]:
         cs = [c for c in pc if c.rsplit('_s', 1)[0] == nm]
         if len(cs) > 1:
             T['bag_' + nm] = T[cs].mean(axis=1); pc.append('bag_' + nm)
@@ -39,7 +39,22 @@ for test in ('pg', 'cv'):
         pc.remove('rdm_s1')
     if 'cat_s1' in T and 'lr06_s1' in T:
         T['cat+lr06'] = (T.cat_s1 + T.lr06_s1) / 2; pc.append('cat+lr06')
-    for c in ('base_s1', 'lr06_s1', 'long_s1', 'big_s1', 'allx_s1'):
+    # stacks: X = usual target, X.R = within-race target, X.C / X.RC = the CatBoost twins
+    for X in sorted({c[:-3] for c in pc if c.endswith('_s1') and '.' not in c}):
+        have = lambda sfx: f'{X}{sfx}_s1' in T
+        col = lambda sfx: f'{X}{sfx}_s1'
+        if have('.R'):
+            T[f'{X}|rdm'] = T[col('')] - dm(col('')) + dm(col('.R')); pc.append(f'{X}|rdm')
+        if have('.C'):
+            T[f'{X}|+cat'] = (T[col('')] + T[col('.C')]) / 2; pc.append(f'{X}|+cat')
+        if have('.R') and have('.C') and have('.RC'):
+            T['_L'] = (T[col('')] + T[col('.C')]) / 2; T['_D'] = (T[col('.R')] + T[col('.RC')]) / 2
+            T[f'{X}|rdm+cat'] = T._L - dm('_L') + dm('_D'); pc.append(f'{X}|rdm+cat')
+        if f'{X}.R_s2' in T and have('.R'):
+            T['_D'] = (T[col('.R')] + T[f'{X}.R_s2']) / 2
+            T[f'{X}|rdm 2 seeds'] = T[col('')] - dm(col('')) + dm('_D'); pc.append(f'{X}|rdm 2 seeds')
+    pc = [c for c in pc if not (is_pred(c) and '.R' in c.rsplit('_s', 1)[0])]      # a within-race model alone has no level
+    for c in ('base_s1', 'lr06_s1', 'allx_s1', 'lr06|rdm', 'allx|rdm', 'allx|rdm+cat', 'allz|rdm'):
         if c in T:
             for s in (1.1, 1.2, 1.3):
                 T[f'{c}*{s}'] = np.where(T.n >= 3, T.f + s * (T[c] - T.f), T[c]); pc.append(f'{c}*{s}')
