@@ -54,7 +54,7 @@ def main():
     else:
         pg_all = pg
     tr, va = pg_all[pg_all.date < es], pg_all[(pg_all.date >= es) & (pg_all.date < cut)]
-    params = dict(n_estimators=4000, learning_rate=0.03, num_leaves=31, min_child_samples=100, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, objective='huber', alpha=HUBER_ALPHA)
+    params = dict(n_estimators=int(os.environ.get('CTX_TREES', 4000)), learning_rate=0.03, num_leaves=31, min_child_samples=100, subsample=0.8, subsample_freq=1, colsample_bytree=0.8, reg_lambda=5, verbose=-1, objective='huber', alpha=HUBER_ALPHA)
     F0 = (C.FEATS2 if a.v2 else C.FEATS) + (C.TRIAL_FEATS if a.trials else [])
     F1 = F0 + (C.REL_FEATS2 if a.v2 else C.REL_FEATS) + (C.FIT_FEATS if a.fit_feats else [])
 
