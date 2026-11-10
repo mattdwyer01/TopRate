@@ -1,0 +1,76 @@
+name: "Proj improvement tests, batch 7: the cap for horses with under 3 runs"
+
+# 10 Nov 2026: research/proj_improve5.py variants named <inputs>[.R][.C] (R = within-race target, C = CatBoost) in parallel jobs, research/proj_live_fields_test.py
+# (models fitted before 9 Oct 2026, scored through the live path on every race in data/tr_results since), then research/proj_improve5_combine.py.
+# Commits research/proj_improve7.json and research/proj_live_fields_test.json to the branch it ran on only.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/beautiful-ptolemy-lf2x7x]
+    paths: [research/proj_improve7.trigger]
+
+permissions:
+  contents: write
+
+jobs:
+  fit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: m1, jobs: "lr06:1,nocap:1"}
+          - {name: m2, jobs: "nocap:2,nocap:3"}
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn pyarrow catboost
+      - name: Fit and predict
+        run: python -W ignore research/proj_improve5.py --jobs "${{ matrix.jobs }}" --out pi7/${{ matrix.name }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pi7-${{ matrix.name }}
+          path: pi7/
+          retention-days: 14
+
+  score:
+    needs: [fit]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas numpy pyarrow
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pi7-*
+          path: pi7
+      - name: Score
+        run: |
+          python -W ignore research/proj_improve5_combine.py pi7 --out research/proj_improve7.json
+          mkdir -p research/pi7_info && cp pi7/*/*_info.json research/pi7_info/ || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pi7-result
+          path: research/proj_improve7.json
+      - name: Commit to this branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add research/proj_improve7.json research/pi7_info
+          git commit -m "Proj improvement tests, batch 7: result" || echo nothing to commit
+          for i in 1 2 3 4 5 6; do git fetch origin ${{ github.ref_name }} && git rebase origin/${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && break; sleep $((i*5)); done

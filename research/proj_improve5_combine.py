@@ -53,6 +53,9 @@ for test in ('pg', 'cv'):
         if f'{X}.R_s2' in T and have('.R'):
             T['_D'] = (T[col('.R')] + T[f'{X}.R_s2']) / 2
             T[f'{X}|rdm 2 seeds'] = T[col('')] - dm(col('')) + dm('_D'); pc.append(f'{X}|rdm 2 seeds')
+    if 'nocap_s1' in T:
+        for cap in (3, 4, 6, 8, 10):
+            T[f'few-run cap {cap}'] = np.where(T.n < 3, T.f + np.clip(T.nocap_s1 - T.f, -cap, cap), T.nocap_s1); pc.append(f'few-run cap {cap}')
     pc = [c for c in pc if not (is_pred(c) and '.R' in c.rsplit('_s', 1)[0])]      # a within-race model alone has no level
     for c in ('base_s1', 'lr06_s1', 'allx_s1', 'lr06|rdm', 'allx|rdm', 'allx|rdm+cat', 'allz|rdm'):
         if c in T:

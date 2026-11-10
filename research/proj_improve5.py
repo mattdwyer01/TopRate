@@ -359,7 +359,7 @@ for full, seed in JOBS:
         c = p1(te) if one else p0(te)
         if not one:
             c[use] = p1(te.loc[use])
-        if not is_rdm:
+        if not is_rdm and name != 'nocap':     # 'nocap' = lr06 without the cap for horses with under 3 runs (the combine step re-applies caps of 3 to 8)
             c = np.where(use, c, np.clip(c, -2, 2))           # run.py CTX_CAP_FEW for under 3 runs
         out[k][col] = te.f.values + c
     newf = [x for x in B if x not in F1]

@@ -43,6 +43,7 @@ TF_CAP = float(os.environ.get('PROJECTION_TF_CAP', '5.0'))        # rating point
 CTX_STRETCH = os.environ.get('PROJECTION_CTX_STRETCH')
 CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '2.0'))   # rating points; 0 = no cap
 ASSUME_RIDER = os.environ.get('PROJECTION_ASSUME_RIDER', '1') == '1'   # 10 Nov 2026: a runner with no declared jockey is projected with its last rider, an unknown barrier as a middle gate (see fill_undeclared)
+WITHIN_RACE = os.environ.get('PROJECTION_WITHIN_RACE', '1') == '1'   # 10 Nov 2026: used only when ctx.json says a within-race pair exists ('wr'); 0 = the usual models alone
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
@@ -398,8 +399,18 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             Tc = R[['horse_id', 'date', 'jockey', 'trainer', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading'] + (['prize'] if 'prize' in R.columns else [])].assign(venue=R.track).reset_index(drop=True)
             if ASSUME_RIDER:
                 Tc = fill_undeclared(Tc)
-            f2, corr, rsk = CTX.predict(Tc, meta=cmeta, want_risk=True)
+            f2, corr, rsk, cwr = CTX.predict(Tc, meta=cmeta, want_risk=True, want_wr=True)
             R['risk'] = rsk     # chance of a bad run (display only, projection/train_risk.py)
+            if WITHIN_RACE and cmeta.get('wr') and not np.isnan(cwr).all():
+                # 10 Nov 2026: the race keeps the level the usual models give it; the differences between its runners come from the pair trained on the residual minus
+                # its race mean (winner log-lik +0.007 on both held-out tests and on the live complete fields, research/proj_improve5.py, proj_live_fields_test.py)
+                okw = ~np.isnan(corr) & ~np.isnan(cwr)
+                gid = R.race_id.values
+                lvl = pd.Series(np.where(okw, corr, np.nan)).groupby(gid).transform('mean').values
+                dv = pd.Series(np.where(okw, cwr, np.nan))
+                dv = (dv - dv.groupby(gid).transform('mean')).values
+                cnt = pd.Series(okw.astype(float)).groupby(gid).transform('sum').values
+                corr = np.where(okw & (cnt >= 2), lvl + dv, corr)
             use = has & ~np.isnan(corr)
             stretch = float(CTX_STRETCH) if CTX_STRETCH else float(cmeta.get('stretch', 1.2))
             corr = np.where(np.nan_to_num(fn) >= CTX.REL_MIN_RUNS, corr * stretch, corr)
