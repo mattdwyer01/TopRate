@@ -292,6 +292,7 @@ checked_at,mins_to_jump,date,venue,race,race_id,start_time,field_n,reason,v1_bet
 2026-11-10T03:25:55Z,4.1,2026-11-10,Mornington,3,1829825,2026-11-10T03:30:00+00:00,9,"first starter, light-history or no-Proj runner",0,0
 2026-11-10T03:51:05Z,8.9,2026-11-10,Mornington,4,1829828,2026-11-10T04:00:00+00:00,12,ok,2,1
 2026-11-10T04:01:18Z,3.7,2026-11-10,Queanbeyan,4,1829773,2026-11-10T04:05:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
-2026-11-10T04:21:03Z,18.9,2026-11-10,Queanbeyan,5,1829769,2026-11-10T04:40:00+00:00,10,"first starter, light-history or no-Proj runner",0,0
-2026-11-10T04:21:03Z,38.9,2026-11-10,Mornington,6,1829827,2026-11-10T05:00:00+00:00,9,ok,0,0
 2026-11-10T04:21:03Z,8.9,2026-11-10,Mornington,5,1829830,2026-11-10T04:30:00+00:00,12,ok,2,2
+2026-11-10T04:35:58Z,39.0,2026-11-10,Queanbeyan,6,1829768,2026-11-10T05:15:00+00:00,6,ok,1,0
+2026-11-10T04:35:58Z,4.0,2026-11-10,Queanbeyan,5,1829769,2026-11-10T04:40:00+00:00,10,"first starter, light-history or no-Proj runner",0,0
+2026-11-10T04:35:58Z,24.0,2026-11-10,Mornington,6,1829827,2026-11-10T05:00:00+00:00,9,ok,0,0
