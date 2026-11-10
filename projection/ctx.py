@@ -59,6 +59,11 @@ PREP_GAP = 60      # days between runs that start a new preparation
 # converted-history rows see the trials those horses had. Lengths behind the venue/distance trial par use 0.147 s a length (the speed-figure conversion).
 TRIAL_FEATS = ['tr_n_prep', 'tr_n90', 'tr_days', 'tr_fin', 'tr_won', 'tr_mgn', 'tr_trel', 'tr_best_fin', 'tr_best_trel', 'tr_jo']
 _TRIALS = {}
+# names of the extra inputs built by projection/ctx_ext.py (kept here so predict() can tell whether a model uses them without importing that module)
+EXT_NAMES = set(['sire_eff', 'sire_lvl', 'sire_n', 'sire_dist_eff', 'sire_wet_eff', 'dsire_eff', 'dsire_lvl', 'dam_eff', 'dam_lvl', 'dam_n', 'trn_yng_eff', 'trn_yng_n',
+                 'age', 'sex_c', 'win8', 'plc8', 'm4_finpct', 'm4_mfin', 'm8', 'max8', 'trn_eff', 'trn_n', 'trn_fu_eff', 'trn_fu_n', 'trn_ven_eff', 'trn_ven_n', 'jk_ven_eff',
+                 'tj_eff', 'tj_n', 'trn_db_eff', 'trn_wet_eff', 'rl_w', 'fk_w'] + [f'{p}{k}' for k in (1, 2, 3) for p in ('rl', 'rln', 'fk', 'fkd', 'fkn')]
+                + [p + c for c in ('age', 'win8', 'plc8', 'm4_finpct', 'm4_mfin', 'm8', 'max8', 'weightCarried', 'barr_f') for p in ('r_', 'k_')])
 SPD_FEATS = ['sp1', 'sp2', 'sp3', 'sp4', 'n_sp', 'sp_ewm4', 'sp_max4', 'sp_std4', 'spd_vs_f', 'sd1', 'sd2', 'sd3', 'sd4', 'sd_mean4']     # the time-based block (speed figures), optional
 SPD_A, SPD_B = 79.15, 1.33                         # speed figure (lengths vs par) to the rating scale, lib/speed.ts speedRatingOnScale
 
@@ -618,7 +623,7 @@ def _cls(series, classes):
     return pd.Categorical(series, categories=classes)
 
 
-def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip='default', want_risk=False):
+def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip='default', want_risk=False, src=None):
     """T: one row per runner to project, columns horse_id, date, jockey, venue, distance, going, weightCarried, barrier, field_size, race_class, trackGrading.
     Returns (formula projection, correction), both NaN where the horse has no earlier page run; with want_risk=True a third array: the chance of a bad run (rating more than
     risk.json bad_points below the formula figure, models_tr/risk_model.txt, projection/train_risk.py), NaN where there is no formula figure or no risk model. Horses with REL_MIN_RUNS or more earlier runs take the relevance model
@@ -661,6 +666,12 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip
     X['cls_c'] = _cls(X.cls, meta['classes'])
     corr = np.full(len(X), np.nan)
     ok = X.f.notna().values
+    if ok.any() and any(c in EXT_NAMES for c in meta.get('feats', FEATS) + (meta.get('rel_feats') or [])):
+        # extra inputs (10 Nov 2026, projection/ctx_ext.py): pedigree, finishing-position, trainer patterns, collateral form; the same builder as training,
+        # computed over the runners with a formula figure (the population the field-relative columns compare within)
+        import ctx_ext as EXT
+        Xe = EXT.add_all(X.loc[ok], rp, src)
+        X = pd.concat([X.drop(columns=[c for c in EXT.EXT_FEATS if c in X.columns]), Xe[EXT.EXT_FEATS].reindex(X.index)], axis=1)
     if ok.any():
         corr[ok] = booster.predict(X.loc[ok, meta.get('feats', FEATS)])
     if rel_booster is not None:
