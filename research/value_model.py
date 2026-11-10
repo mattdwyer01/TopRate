@@ -10,7 +10,8 @@ form level and shape against the field, last-run excuses (steward / video commen
 spell and back-up, class and distance changes, draw, and how each jockey, trainer, sire and venue draw has done
 AGAINST THE PRICE in the past (as-of, shrunk). No price history other than the BSP itself.
 
-Split: fit 2025-01 to 2025-09, early stop and pick thresholds on 2025-10 to 2025-12, test once on 2026.
+Walk-forward: fit on everything before October of a year, early stop on that year's last quarter, test on the next year
+(2024, 2025, 2026). The betting rule is fixed: model chance x net return > 1.00 and BSP under $30. VM_SINGLE=1 runs one split.
   PYTHONPATH=. python research/value_model.py
 """
 import glob
@@ -52,7 +53,7 @@ def asof_mean(df, key, val, k):
 def load():
     use = ["race_id", "date", "horse_id", "horse", "track", "distance", "going", "wpr", "weightCarried", "barrier", "priceStarting", "positionFinish",
            "marginFinish", "isBarrierTrial", "is_jumpout", "race_class", "jockey", "trainer", "horse_age", "horse_sex", "sire", "comments_steward", "comments_video"]
-    fs = [f for f in sorted(glob.glob("race_results_20*.csv.gz")) if re.search(r"results_20(2[2-6])\.csv", f)]
+    fs = [f for f in sorted(glob.glob("race_results_20*.csv.gz")) if re.search(r"results_20(2[0-6])\.csv", f)]
     r = pd.concat([pd.read_csv(f, usecols=lambda c: c in use, low_memory=False) for f in fs], ignore_index=True)
     r = r[(r.isBarrierTrial != True) & (r.is_jumpout != True)]  # noqa: E712
     r = r[~r.race_class.astype(str).str.contains("Hurdle|Steeple", case=False)]
@@ -168,7 +169,7 @@ def main():
     r = load()
     r["date"] = pd.to_datetime(r.date)
     d = features(r)
-    d = d[d.date >= "2024-12-31"].copy()
+    d = d[d.date >= "2022-12-31"].copy()
     d["ds"] = d.date.dt.strftime("%Y-%m-%d")
     d["hn"] = d.horse.map(norm)
     d = d.merge(b[["date", "hn", "bsp", "win_lose"]].rename(columns={"date": "ds"}), on=["ds", "hn"], how="left")
@@ -197,11 +198,39 @@ def main():
     print("winner log-lik on %d races: SP (margin removed) %.4f, Betfair %.4f, Betfair better by %+.4f (se %.4f)" % (
         len(w), np.log(w.spm).mean(), np.log(w.pm).mean(), dif.mean(), dif.std() / np.sqrt(len(w))))
 
-    tr, va, te = d[d.ds < FIT_END], d[(d.ds >= FIT_END) & (d.ds < VAL_END)], d[d.ds >= VAL_END].copy()
+    folds = [("2023-10-01", "2024-01-01", "2025-01-01"), ("2024-10-01", "2025-01-01", "2026-01-01"), ("2025-10-01", "2026-01-01", "2027-01-01")]
+    if os.environ.get("VM_SINGLE") == "1":
+        folds = [(FIT_END, VAL_END, "2027-01-01")]
+    allte = []
+    for fit_end, val_end, test_end in folds:
+        print("\n\n########## fit to %s, early stop to %s, test to %s ##########" % (fit_end, val_end, test_end))
+        te = run(d, FE, fit_end, val_end, test_end)
+        if te is not None:
+            allte.append(te)
+    if len(allte) > 1:
+        A = pd.concat(allte)
+        print("\n\n########## all test years together; rule fixed before the 2024 and 2025 tests were seen: edge > 1.00, BSP under $30 ##########")
+        x = A[(A.ev > 1.0) & (A.bsp < 30)].copy()
+        x["pnl"] = x.won * (x.bsp - 1) * (1 - COMM) - (1 - x.won)
+        days = x.groupby("ds").pnl.agg(["sum", "size"])
+        rng = np.random.default_rng(1)
+        bs = np.array([(lambda s_: s_["sum"].sum() / s_["size"].sum())(days.sample(len(days), replace=True, random_state=int(rng.integers(1e9)))) for _ in range(2000)])
+        print(roi_line("value bets, all test years", x))
+        print("90%% range by day %+.1f%% to %+.1f%%, chance above zero %.0f%%; model said %.2f%% winners, Betfair %.2f%%, actual %.2f%%" % (
+            100 * np.quantile(bs, 0.05), 100 * np.quantile(bs, 0.95), 100 * (bs > 0).mean(), 100 * x.p.mean(), 100 * x.pm.mean(), 100 * x.won.mean()))
+        print(x.assign(q=x.ds.str[:4] + "Q" + ((x.ds.str[5:7].astype(int) - 1) // 3 + 1).astype(str)).groupby("q").pnl.agg(["size", "mean"]).round(3).T.to_string())
+        w = A[A.won == 1]
+        dif = np.log(w.p) - np.log(w.pm)
+        print("winner log-lik gain over Betfair, all test years: %+.4f (se %.4f) on %d races" % (dif.mean(), dif.std() / np.sqrt(len(w)), len(w)))
+        A[["ds", "race_id", "horse", "bsp", "pm", "p", "vp", "ev", "won"]].to_csv(os.environ.get("VM_OUT", "/tmp/value_model_test.csv.gz"), index=False)
+
+
+def run(d, FE, FIT_END, VAL_END, TEST_END):
+    tr, va, te = d[d.ds < FIT_END], d[(d.ds >= FIT_END) & (d.ds < VAL_END)], d[(d.ds >= VAL_END) & (d.ds < TEST_END)].copy()
     print("fit %d races, validation %d, test %d" % (tr.race_id.nunique(), va.race_id.nunique(), te.race_id.nunique()))
-    if tr.race_id.nunique() < 500 or va.race_id.nunique() < 200:
+    if tr.race_id.nunique() < 500 or va.race_id.nunique() < 200 or te.race_id.nunique() < 200:
         print("not enough Betfair history downloaded yet for the split")
-        return
+        return None
 
     def obj(df):
         s, st = ginfo(df)
@@ -256,8 +285,9 @@ def main():
             print(roi_line("  > 1.00 and BSP $%g-%g" % (lo, hi), df[(df.ev > 1.0) & (df.bsp >= lo) & (df.bsp < hi)]))
         print(roi_line("top value point runner of each race", df[df.vp == df.groupby("race_id").vp.transform("max")]))
         print(roi_line("all runners (reference)", df))
-    out = te[["ds", "race_id", "horse", "bsp", "pm", "p", "vp", "ev", "won"]]
-    out.to_csv(os.environ.get("VM_OUT", "/tmp/value_model_test.csv.gz"), index=False)
+        if name.startswith("TEST"):
+            print(roi_line("RULE: edge > 1.00 and BSP under $30", df[(df.ev > 1.0) & (df.bsp < 30)]))
+    return te
 
 
 if __name__ == "__main__":

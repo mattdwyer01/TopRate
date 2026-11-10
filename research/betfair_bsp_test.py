@@ -29,8 +29,7 @@ def norm(s):
 
 def load_bsp():
     fs = sorted(glob.glob("data/betfair_bsp/win_*.csv.gz"))
-    b = pd.concat([pd.read_csv(f) for f in fs], ignore_index=True)
-    b.columns = [c.lower() for c in b.columns]
+    b = pd.concat([pd.read_csv(f).rename(columns=lambda c: c.strip().lower()) for f in fs], ignore_index=True)   # older files use upper-case headers
     b = b.drop_duplicates(["event_id", "selection_id"])
     t = pd.to_datetime(b.event_dt, format="%d-%m-%Y %H:%M", errors="coerce").dt.tz_localize("UTC")
     b["date"] = t.dt.tz_convert("Australia/Melbourne").dt.strftime("%Y-%m-%d")
