@@ -30,7 +30,17 @@ base['resid'] = base.wpr - base.f
 T = sub[['horse_id', 'date', 'jockey', 'trainer', 'vn', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading', 'prize']].rename(columns={'vn': 'venue'}).reset_index(drop=True) if 'trainer' in sub.columns else None
 if T is None:
     sys.exit('no trainer column on the training frame (needs --v2)')
-f2, corr = C.predict(T, meta=meta, rp=base)
+wr_live = None
+if meta.get('wr') and os.path.exists(os.path.join(C.M, 'ctx_model_wr.txt')):
+    f2, corr, wr_live = C.predict(T, meta=meta, rp=base, want_wr=True)
+    w0 = lgb.Booster(model_file=os.path.join(C.M, 'ctx_model_wr.txt')); w1 = lgb.Booster(model_file=os.path.join(C.M, 'ctx_rel_model_wr.txt'))
+    train_wr = np.full(len(sub), np.nan)
+    train_wr[has] = w0.predict(sub.loc[has, meta['feats']])
+    train_wr[use] = w1.predict(sub.loc[use, meta['rel_feats']])
+    dw = np.abs(wr_live - train_wr); okw = ~np.isnan(wr_live) & ~np.isnan(train_wr)
+    print(f'within-race pair: runs {okw.sum()}, max |live - training| {np.nanmax(dw[okw]):.6f}, mean {np.nanmean(dw[okw]):.6f}, share over 0.01: {np.mean(dw[okw] > 0.01):.4f}')
+else:
+    f2, corr = C.predict(T, meta=meta, rp=base)
 d = np.abs(corr - train_corr)
 ok = ~np.isnan(corr) & ~np.isnan(train_corr)
 print(f'runs {len(sub)}, with correction {ok.sum()}, max |live - training| correction {np.nanmax(d[ok]):.6f}, mean {np.nanmean(d[ok]):.6f}, share over 0.01: {np.mean(d[ok] > 0.01):.4f}')
