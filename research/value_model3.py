@@ -9,6 +9,7 @@ Tweaks:
   lin     a linear version of the correction (conditional logit, ridge), and its average with the tree model
   slow    smaller trees, slower learning, more seeds
   noprice the price is the offset only, not also an input
+  cal     the 2020-22 starting prices straightened first (they under-rate favourites; the Betfair price does not), so the extra history teaches form, not price bias
   thr     the bet threshold chosen on the validation quarter instead of fixed at 1.00
   PYTHONPATH=. python research/value_model3.py build        (once, about 5 minutes: writes /tmp/value_model3_frame.pkl)
   PYTHONPATH=. python research/value_model3.py run [names]  (ref pre pre_half slow noprice lin pre_lin ...)
@@ -169,6 +170,14 @@ VARIANTS = {
     "pre_slow": dict(kind="gbm", pre=True, lr=0.01, leaves=4, mdl=800, seeds=(1, 2, 3, 4, 5)),
     "noprice": dict(kind="gbm", drop=["lpm", "fav", "pm_rank"]),
     "pre_noprice": dict(kind="gbm", pre=True, drop=["lpm", "fav", "pm_rank"]),
+    "precal": dict(kind="gbm", pre=True, cal=True),
+    "precal_noprice": dict(kind="gbm", pre=True, cal=True, drop=["lpm", "fav", "pm_rank"]),
+    "precal_slow": dict(kind="gbm", pre=True, cal=True, lr=0.01, leaves=4, mdl=800, seeds=(1, 2, 3, 4, 5)),
+    "precal_mix": dict(kind="mix", pre=True, cal=True),
+    "precal_half": dict(kind="gbm", pre=True, cal=True, w_sp=0.5),
+    "pre_half_slow": dict(kind="gbm", pre=True, w_sp=0.5, lr=0.01, leaves=4, mdl=800, seeds=(1, 2, 3, 4, 5)),
+    "pre_half_6": dict(kind="gbm", pre=True, w_sp=0.5, seeds=(11, 12, 13, 14, 15, 16)),
+    "pre_quarter": dict(kind="gbm", pre=True, w_sp=0.25),
     "lin": dict(kind="lin"),
     "pre_lin": dict(kind="lin", pre=True),
     "pre_mix": dict(kind="mix", pre=True),
@@ -176,10 +185,18 @@ VARIANTS = {
 
 
 def run(names):
-    d = pd.read_pickle(CACHE)
+    d0 = pd.read_pickle(CACHE)
+    # the starting price with its margin removed still under-rates favourites; "cal" straightens it (one slope on ln chance, fitted on the 2020-22 rows)
+    sp = d0[d0.src == "sp"]
+    sl = np.linspace(0.9, 1.3, 41)
+    a = float(sl[int(np.argmax([np.log(VM.soft(sp, x * sp.lpm.values)[sp.won.values == 1]).mean() for x in sl]))])
+    dcal = d0.copy()
+    dcal.loc[dcal.src == "sp", "lpm"] = np.log(VM.soft(sp, a * sp.lpm.values))
+    print("slope that straightens the starting price: %.2f" % a, flush=True)
     store = {}
     for name in names:
         v = VARIANTS[name]
+        d = dcal if v.get("cal") else d0
         FE = [c for c in FE_ALL if c not in v.get("drop", [])]
         parts = []
         for fit_end, val_end, test_end in FOLDS:
