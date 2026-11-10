@@ -285,5 +285,6 @@ checked_at,mins_to_jump,date,venue,race,race_id,start_time,field_n,reason,v1_bet
 2026-11-09T06:15:55Z,39.1,2026-11-09,Lismore,7,1829625,2026-11-09T06:55:00+00:00,4,field under 5,0,0
 2026-11-09T06:15:55Z,14.1,2026-11-09,Scone,7,1829632,2026-11-09T06:30:00+00:00,13,"first starter, light-history or no-Proj runner",0,0
 2026-11-10T02:11:20Z,3.7,2026-11-10,Queanbeyan,1,1829772,2026-11-10T02:15:00+00:00,9,ok,0,0
-2026-11-10T02:11:20Z,38.7,2026-11-10,Queanbeyan,2,1829774,2026-11-10T02:50:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
-2026-11-10T02:11:20Z,18.7,2026-11-10,Mornington,1,1829826,2026-11-10T02:30:00+00:00,11,ok,0,0
+2026-11-10T02:21:01Z,29.0,2026-11-10,Queanbeyan,2,1829774,2026-11-10T02:50:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
+2026-11-10T02:21:01Z,39.0,2026-11-10,Mornington,2,1829824,2026-11-10T03:00:00+00:00,7,"first starter, light-history or no-Proj runner",0,0
+2026-11-10T02:21:01Z,9.0,2026-11-10,Mornington,1,1829826,2026-11-10T02:30:00+00:00,11,ok,0,0
