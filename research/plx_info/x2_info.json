@@ -1,0 +1,32 @@
+{
+ "ped": {
+  "new_share": 0.0577,
+  "top_new": {
+   "dsire_lvl": 0.0124,
+   "dsire_eff": 0.0106,
+   "trn_yng_eff": 0.0079,
+   "trn_yng_n": 0.0051,
+   "sire_dist_eff": 0.0045,
+   "sire_n": 0.004,
+   "sire_wet_eff": 0.0034,
+   "sire_lvl": 0.0023,
+   "sire_eff": 0.002,
+   "dam_lvl": 0.0019
+  }
+ },
+ "dirf": {
+  "new_share": 0.0819,
+  "top_new": {
+   "r_age": 0.0118,
+   "r_m8": 0.01,
+   "r_barr_f": 0.0081,
+   "m4_mfin": 0.007,
+   "r_weightCarried": 0.0066,
+   "r_m4_finpct": 0.0057,
+   "k_weightCarried": 0.0035,
+   "m8": 0.0031,
+   "r_m4_mfin": 0.0024,
+   "k_m8": 0.0023
+  }
+ }
+}

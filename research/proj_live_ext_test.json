@@ -1,0 +1,182 @@
+{
+ "base (live steps)": {
+  "races": 1827,
+  "win_ll": -1.89532,
+  "top_pick": 0.3076,
+  "winner_top3": 0.6415,
+  "gain": 0.0,
+  "se": 0.0,
+  "halves": [
+   0.0,
+   0.0
+  ],
+  "rmse": 8.466,
+  "mae": 5.548,
+  "within3": 0.3191
+ },
+ "ext (live steps)": {
+  "races": 1827,
+  "win_ll": -1.89071,
+  "top_pick": 0.3103,
+  "winner_top3": 0.636,
+  "gain": 0.00461,
+  "se": 0.00405,
+  "halves": [
+   0.00185,
+   0.00724
+  ],
+  "rmse": 8.478,
+  "mae": 5.548,
+  "within3": 0.3191
+ },
+ "ped (live steps)": {
+  "races": 1827,
+  "win_ll": -1.89466,
+  "top_pick": 0.3131,
+  "winner_top3": 0.647,
+  "gain": 0.00066,
+  "se": 0.00246,
+  "halves": [
+   0.00015,
+   0.00114
+  ],
+  "rmse": 8.5,
+  "mae": 5.564,
+  "within3": 0.3194
+ },
+ "dirf (live steps)": {
+  "races": 1827,
+  "win_ll": -1.89561,
+  "top_pick": 0.3136,
+  "winner_top3": 0.6448,
+  "gain": -0.00029,
+  "se": 0.00242,
+  "halves": [
+   -0.00328,
+   0.00255
+  ],
+  "rmse": 8.478,
+  "mae": 5.547,
+  "within3": 0.3211
+ },
+ "tfu (live steps)": {
+  "races": 1827,
+  "win_ll": -1.88612,
+  "top_pick": 0.3158,
+  "winner_top3": 0.6513,
+  "gain": 0.0092,
+  "se": 0.00262,
+  "halves": [
+   0.00986,
+   0.00858
+  ],
+  "rmse": 8.441,
+  "mae": 5.537,
+  "within3": 0.3191
+ },
+ "frk (live steps)": {
+  "races": 1827,
+  "win_ll": -1.89382,
+  "top_pick": 0.3082,
+  "winner_top3": 0.6546,
+  "gain": 0.0015,
+  "se": 0.00292,
+  "halves": [
+   0.00054,
+   0.00241
+  ],
+  "rmse": 8.458,
+  "mae": 5.538,
+  "within3": 0.3194
+ },
+ "base (raw step)": {
+  "races": 1827,
+  "win_ll": -1.89463,
+  "top_pick": 0.3065,
+  "winner_top3": 0.6355,
+  "gain": 0.0,
+  "se": 0.0,
+  "halves": [
+   0.0,
+   0.0
+  ],
+  "rmse": 8.382,
+  "mae": 5.504,
+  "within3": 0.3187
+ },
+ "ext (raw step)": {
+  "races": 1827,
+  "win_ll": -1.88779,
+  "top_pick": 0.3076,
+  "winner_top3": 0.6437,
+  "gain": 0.00685,
+  "se": 0.00363,
+  "halves": [
+   0.00298,
+   0.01053
+  ],
+  "rmse": 8.388,
+  "mae": 5.493,
+  "within3": 0.3202
+ },
+ "ped (raw step)": {
+  "races": 1827,
+  "win_ll": -1.89352,
+  "top_pick": 0.3021,
+  "winner_top3": 0.6404,
+  "gain": 0.00111,
+  "se": 0.00225,
+  "halves": [
+   -0.0012,
+   0.00331
+  ],
+  "rmse": 8.416,
+  "mae": 5.515,
+  "within3": 0.32
+ },
+ "dirf (raw step)": {
+  "races": 1827,
+  "win_ll": -1.89519,
+  "top_pick": 0.3016,
+  "winner_top3": 0.6459,
+  "gain": -0.00055,
+  "se": 0.00218,
+  "halves": [
+   -0.00384,
+   0.00257
+  ],
+  "rmse": 8.39,
+  "mae": 5.503,
+  "within3": 0.3204
+ },
+ "tfu (raw step)": {
+  "races": 1827,
+  "win_ll": -1.88542,
+  "top_pick": 0.3082,
+  "winner_top3": 0.6492,
+  "gain": 0.00921,
+  "se": 0.00243,
+  "halves": [
+   0.00754,
+   0.0108
+  ],
+  "rmse": 8.356,
+  "mae": 5.493,
+  "within3": 0.3189
+ },
+ "frk (raw step)": {
+  "races": 1827,
+  "win_ll": -1.89334,
+  "top_pick": 0.3005,
+  "winner_top3": 0.6492,
+  "gain": 0.0013,
+  "se": 0.00259,
+  "halves": [
+   -0.0012,
+   0.00367
+  ],
+  "rmse": 8.373,
+  "mae": 5.491,
+  "within3": 0.3196
+ }
+}
