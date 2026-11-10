@@ -1,0 +1,16 @@
+{
+ "nocap_s2": {
+  "trees": 1817,
+  "trees_plain": 1887,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "nocap_s3": {
+  "trees": 2022,
+  "trees_plain": 1983,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}
