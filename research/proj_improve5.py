@@ -8,6 +8,7 @@ still improving when training ended. Variants (name:seed):
   cs5    50% columns per tree     small  15 leaves     reg  heavier regularisation     hub25 / hub8  Huber alpha 2.5 / 8
   wrec   recency weights (3 year decay)       wpg   runner-page rows weighted x3
   rdm    target = residual minus its race mean (races of 4+ rows); the combine step keeps lr06's race level and takes the within-race order from this one
+         (RESULT: its apparent +0.007 was the missing cap for under-3-run horses on these columns; against the uncapped usual model it adds nothing, see lr06.N in batch 8)
   cat    CatBoost on the same inputs (a different learner, also averaged with lr06)
   h16    converted history from 2016 instead of 2020 (run with --conv-from 2016)
  new inputs (lr06 settings)

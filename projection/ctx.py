@@ -618,7 +618,7 @@ def _cls(series, classes):
     return pd.Categorical(series, categories=classes)
 
 
-def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip='default', want_risk=False, want_wr=False):
+def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip='default', want_risk=False):
     """T: one row per runner to project, columns horse_id, date, jockey, venue, distance, going, weightCarried, barrier, field_size, race_class, trackGrading.
     Returns (formula projection, correction), both NaN where the horse has no earlier page run; with want_risk=True a third array: the chance of a bad run (rating more than
     risk.json bad_points below the formula figure, models_tr/risk_model.txt, projection/train_risk.py), NaN where there is no formula figure or no risk model. Horses with REL_MIN_RUNS or more earlier runs take the relevance model
@@ -678,21 +678,11 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip
             if any(c in meta['rel_feats'] for c in SPD_FEATS):
                 Xr = pd.concat([Xr, speed_features(Xr, rp)], axis=1)
             corr[use] = rel_booster.predict(Xr[meta['rel_feats']])
-    wr = np.full(len(X), np.nan)
-    if want_wr and meta.get('wr'):
-        # within-race pair (10 Nov 2026, train_ctx.py --within-race): the same inputs fitted on the residual minus its race mean. run.py keeps the usual models' race level
-        # and takes the differences between the runners of a race from this pair.
-        w0, w1 = os.path.join(M, 'ctx_model_wr.txt'), os.path.join(M, 'ctx_rel_model_wr.txt')
-        if os.path.exists(w0) and os.path.exists(w1):
-            if ok.any():
-                wr[ok] = lgb.Booster(model_file=w0).predict(X.loc[ok, meta.get('feats', FEATS)])
-            if rel_booster is not None and use.any():
-                wr[use] = lgb.Booster(model_file=w1).predict(Xr[meta['rel_feats']])
     if want_risk:
         risk = np.full(len(X), np.nan)
         rf, rm = os.path.join(M, 'risk_model.txt'), os.path.join(M, 'risk.json')
         if ok.any() and os.path.exists(rf) and os.path.exists(rm):
             rb = lgb.Booster(model_file=rf)
             risk[ok] = rb.predict(X.loc[ok, json.load(open(rm))['feats']])
-        return (X.f.values, corr, risk, wr) if want_wr else (X.f.values, corr, risk)
-    return (X.f.values, corr, wr) if want_wr else (X.f.values, corr)
+        return X.f.values, corr, risk
+    return X.f.values, corr
