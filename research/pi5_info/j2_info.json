@@ -1,0 +1,16 @@
+{
+ "lr06_s1": {
+  "trees": 2059,
+  "trees_plain": 2205,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "lr06_s2": {
+  "trees": 1817,
+  "trees_plain": 1887,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}

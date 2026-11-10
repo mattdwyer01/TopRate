@@ -1,0 +1,16 @@
+{
+ "base_s1": {
+  "trees": 3999,
+  "trees_plain": 4000,
+  "cap": 4000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "long_s1": {
+  "trees": 4068,
+  "trees_plain": 4023,
+  "cap": 16000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}
