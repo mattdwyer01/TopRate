@@ -33,5 +33,7 @@ jobs:
           run-id: 40280640127
           github-token: ${{ github.token }}
       - run: cp /tmp/dv3/direct_ctx_feats.pkl /tmp/direct_ctx_feats.pkl
+      - name: Dry run on a small sample (catches errors early)
+        run: JOINT_DRY=1 python -u -W ignore research/proj_joint_loss.py > /tmp/dry.txt 2>&1 || { tail -30 /tmp/dry.txt; exit 1; }
       - name: Joint loss
         run: python -u -W ignore research/proj_joint_loss.py

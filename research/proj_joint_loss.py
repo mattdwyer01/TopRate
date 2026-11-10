@@ -21,6 +21,12 @@ A_END = SRC.index('# ===================== Plackett-Luce')
 B_START = SRC.index('# ---------------- T2:')
 B_END = SRC.index("for nm, (m, fl) in MODELS.items():\n    S2[")
 exec(compile(SRC[:A_END], 'proj_top3_retrain.py[features]', 'exec'))      # noqa: defines d, tr, va, te, V3A, XC, BASE2, helpers
+L0 = SRC.index('def lines(df, rating, name')
+exec(compile(SRC[L0:SRC.index('# ---------- scale choice')], 'proj_top3_retrain.py[lines]', 'exec'))
+DRY = os.environ.get('JOINT_DRY') == '1'          # quick end-to-end pass on a small sample, to catch errors before the long run
+ROUNDS = 20 if DRY else 3000
+if DRY:
+    tr = tr[tr.race_id.isin(tr.race_id.unique()[:3000])]
 
 BETA = 0.20
 DELTA = 4.0
@@ -65,7 +71,7 @@ def train_joint(feats, lam):
              objective=fobj, metric='None')
     dtr = lgb.Dataset(tr[feats], label=tr.win.values, init_score=np.full(len(tr), BASE))
     dva = lgb.Dataset(va[feats], label=va.win.values, init_score=np.full(len(va), BASE), reference=dtr)
-    m = lgb.train(P, dtr, num_boost_round=3000, valid_sets=[dva], feval=feval, callbacks=[lgb.early_stopping(80, verbose=False)])
+    m = lgb.train(P, dtr, num_boost_round=ROUNDS, valid_sets=[dva], feval=feval, callbacks=[lgb.early_stopping(80, verbose=False)])
     return m
 
 
@@ -128,6 +134,9 @@ for sname, feats in SETS.items():
         for df in (va, te):
             df[f'j_{sname}_{lam}'] = BASE + m.predict(df[feats])
         print(f'trained {sname} lam {lam:g}: {m.best_iteration} trees', flush=True)
+if DRY:
+    SRC = SRC.replace('num_boost_round=3000', 'num_boost_round=20')
+    exec(compile(SRC[SRC.index('def train_b3'):SRC.index('def metrics(')], 'b3', 'exec'))
 mD, TD = train_b3(V3A)
 for df in (va, te):
     df['s_direct'] = mD.predict(df[V3A]) * TD            # ln chance up to a race constant
