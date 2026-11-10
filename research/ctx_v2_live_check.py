@@ -10,6 +10,11 @@ ap = argparse.ArgumentParser(); ap.add_argument('--days', type=int, default=12);
 meta = json.load(open(os.path.join(C.M, 'ctx.json')))
 v2 = 'jw' in meta['feats']
 rp = C.training_frame_rel(v2)
+if meta.get('ext'):
+    # extra inputs (ctx_ext.py): the training frame's values come from the same builder over the rows with a formula figure, reading the complete-field table
+    import ctx_ext as EXT
+    pe = EXT.add_all(rp[rp.f.notna()].copy(), rp, EXT.load_src())
+    rp = pd.concat([rp, pe[EXT.EXT_FEATS].reindex(rp.index)], axis=1)
 last = rp.date.max()
 # whole fields, first starters included: the field-relative block ranks a runner against every runner of the race, as the live path sees the declared field
 sub = rp[rp.date > last - pd.Timedelta(days=a.days)].copy()

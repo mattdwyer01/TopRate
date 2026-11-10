@@ -670,8 +670,14 @@ def predict(T, meta=None, booster=None, rp=None, rel_booster=None, co=None, clip
         # extra inputs (10 Nov 2026, projection/ctx_ext.py): pedigree, finishing-position, trainer patterns, collateral form; the same builder as training,
         # computed over the runners with a formula figure (the population the field-relative columns compare within)
         import ctx_ext as EXT
-        Xe = EXT.add_all(X.loc[ok], rp, src)
-        X = pd.concat([X.drop(columns=[c for c in EXT.EXT_FEATS if c in X.columns]), Xe[EXT.EXT_FEATS].reindex(X.index)], axis=1)
+        try:
+            Xe = EXT.add_all(X.loc[ok], rp, src)[EXT.EXT_FEATS]
+        except Exception as e:
+            if os.environ.get('PROJECTION_EXT_SOFT') != '1':
+                raise
+            print(f'  EXTRA INPUTS FAILED, projected with them blank: {e!r}')
+            Xe = pd.DataFrame(np.nan, index=X.index[ok], columns=EXT.EXT_FEATS)
+        X = pd.concat([X.drop(columns=[c for c in EXT.EXT_FEATS if c in X.columns]), Xe.reindex(X.index)], axis=1)
     if ok.any():
         corr[ok] = booster.predict(X.loc[ok, meta.get('feats', FEATS)])
     if rel_booster is not None:

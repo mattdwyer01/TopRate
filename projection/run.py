@@ -46,6 +46,7 @@ CTX_STRETCH = os.environ.get('PROJECTION_CTX_STRETCH')
 # against cap 2, winner log-lik: +0.0113 (se 0.0027) on 1,840 live complete fields since 9 Oct (models fitted before), +0.0057 (0.0010) on 13,025 held-out complete fields,
 # +0.0040 (0.0009) on the page-store test; rating RMSE of these horses 10.16 to 9.89 live. No cap is as good or slightly better on winners but steps of 20+ do occur.
 CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '8.0'))
+os.environ.setdefault('PROJECTION_EXT_SOFT', '1')   # a failure building the extra inputs (ctx_ext.py) must not stop the live projection: they go blank and it says so
 ASSUME_RIDER = os.environ.get('PROJECTION_ASSUME_RIDER', '1') == '1'   # 10 Nov 2026: a runner with no declared jockey is projected with its last rider, an unknown barrier as a middle gate (see fill_undeclared)
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
@@ -502,6 +503,16 @@ def main():
         os.makedirs(CACHE, exist_ok=True)
         pd.to_pickle(store, os.path.join(CACHE, 'tables.pkl'))
         print('cache built through', store['built_through'])
+        if FORMULA_PROJ and CTX_PROJ:
+            # the complete-field table the extra Proj inputs read (ctx_ext.py), rebuilt daily so the as-of statistics include yesterday's results
+            try:
+                if json.load(open(os.path.join(M, 'ctx.json'))).get('ext'):
+                    import ctx_ext as EXT
+                    src = EXT.build_src()
+                    EXT.save_src(src, os.path.join(CACHE, EXT.SRC_FILE))
+                    print('complete-field table built:', len(src), 'runs to', str(src.date.max().date()))
+            except Exception as e:
+                print('  complete-field table NOT built (the next projection builds it itself):', e)
         return
     tables = pd.read_pickle(os.path.join(CACHE, 'tables.pkl')) if a.fast else None
     T, done, raw = load_upcoming(a.today, H, a.backfill_days)
