@@ -1,0 +1,37 @@
+name: "Proj joint loss: rating plus winner (research)"
+
+# Research run (10 Nov 2026): research/proj_joint_loss.py. Reuses the context features built by the direct-v3 run
+# (artifact direct-v3, run 40280640127). Nothing is committed; results are in the job log.
+on:
+  workflow_dispatch:
+  push:
+    paths: [research/proj_joint_loss.trigger]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy scikit-learn
+      - uses: actions/download-artifact@v4
+        with:
+          name: direct-v3
+          path: /tmp/dv3
+          run-id: 40280640127
+          github-token: ${{ github.token }}
+      - run: cp /tmp/dv3/direct_ctx_feats.pkl /tmp/direct_ctx_feats.pkl
+      - name: Joint loss
+        run: python -u -W ignore research/proj_joint_loss.py
