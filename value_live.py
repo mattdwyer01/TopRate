@@ -1,8 +1,8 @@
 """Forward test of the value model (the correction to the Betfair starting price), 10 Nov 2026. Research only: it places no bets.
 
 The model in value_model/ is LOCKED (trained on races to 8 Oct 2026, see `lock`). Every race after that date is out of sample.
-Once Betfair's price file and the racing.com results for a day are in, `score` builds that day's inputs exactly as the backtest
-did (research/value_model2.build on the results files plus the racing.com results after 8 Oct), applies the fixed rule
+Once Betfair's price file and the result pages for a day are in, `score` builds that day's inputs exactly as the backtest
+did (research/value_model2.build on the results files plus TopRate's stored result pages after 8 Oct), applies the fixed rule
 (model chance x net return > 1.00 and Betfair starting price under $30, commission 10% NSW / 8% elsewhere) and writes
 data/value_log/<date>.csv.gz (every scored runner, bet flag, result). `report` writes value_report.md.
 
@@ -99,62 +99,55 @@ def cmd_lock():
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# racing.com results after 8 Oct 2026, put into the results files' columns
-
-def _page_runs():
-    rows = []
-    for f in sorted(glob.glob(os.path.join(ROOT, "data", "tr_form", "2026-*.json.gz"))):
-        if os.path.basename(f)[:7] < "2026-10":
-            continue
-        with gzip.open(f, "rt") as fh:
-            for r in json.load(fh).get("runs", {}).values():
-                rows.append((r.get("horse_id"), r.get("date"), r.get("position800m"), r.get("commentsSteward"), r.get("raceNumber"), r.get("meetingId")))
-    t = pd.DataFrame(rows, columns=["horse_id", "date", "position800m", "comments_steward", "race_no", "page_meeting"])
-    for c in ("horse_id", "position800m", "race_no", "page_meeting"):
-        t[c] = pd.to_numeric(t[c], errors="coerce")
-    return t.dropna(subset=["horse_id", "date"]).drop_duplicates(["horse_id", "date"], keep="last")
-
+# races after 8 Oct 2026, put into the results files' columns
 
 def recent_rows():
-    """racing.com results from 9 Oct 2026 as extra history / target rows. The rating is TopRate's page rating on the plain scale where the horse
-    has one (the racing.com file's own rating is on another scale), 800m position and steward comment come from the runner pages,
-    sire from the older results files. Track names are mapped onto the older files' names."""
+    """Every race after 8 Oct 2026 from TopRate's stored result pages (data/tr_results) as extra history / target rows in the results files' columns.
+    Those pages are the same source as the older results files: TopRate ids and names, the plain rating of EVERY runner, 800m position, steward and
+    video comments, starting price. (The first version read the racing.com results, where a quarter of runs had no rating; races holding such a horse
+    lost 41% in the first forward month, so the source was switched on 11 Nov 2026 and the month scored again.) Sire comes from the older results
+    files, age and sex from runners.csv. Races are keyed by meeting and race number so the day's draw lean reads the earlier races in order."""
     from rc_field_rows import norm_venue
-    os.environ.setdefault("PROJECTION_RATINGS", "toprate")
-    from projection import features as PF
-    rc = pd.read_csv(RC_RESULTS, low_memory=False)
-    rc = rc[rc.date > TRAINED_TO].copy()
-    old = pd.concat([pd.read_csv(f, usecols=["horse_id", "sire", "track"], low_memory=False) for f in sorted(glob.glob(os.path.join(ROOT, "race_results_202[3-6].csv.gz")))])
+    rows = []
+    for f in sorted(glob.glob(os.path.join(ROOT, "data", "tr_results", "*.json.gz"))):
+        d = os.path.basename(f)[:10]
+        if d <= TRAINED_TO:
+            continue
+        with gzip.open(f, "rt") as fh:
+            races = json.load(fh).get("races", {})
+        for rid, race in races.items():
+            for u in race.get("runners") or []:
+                if u.get("horseId") is None:
+                    continue
+                rows.append(dict(race_id_tr=rid, date=d, horse_id=u["horseId"], horse=u.get("horse"), track=race.get("venue"), race_no=race.get("race"),
+                                 distance=race.get("distance"), going=race.get("going"), race_class=race.get("class"), wpr=u.get("wpr"),
+                                 weightCarried=u.get("weightCarried"), barrier=u.get("barrier"), priceStarting=u.get("priceStarting"),
+                                 positionFinish=u.get("positionFinish"), marginFinish=u.get("marginFinish"), position800m=u.get("position800m"),
+                                 jockey=u.get("jockey"), trainer=u.get("trainer"), comments_steward=u.get("commentsSteward"), comments_video=u.get("commentsVideo")))
+    rc = pd.DataFrame(rows)
+    for c in ("horse_id", "race_no", "wpr", "position800m"):
+        rc[c] = pd.to_numeric(rc[c], errors="coerce")
+    old = pd.concat([pd.read_csv(f, usecols=["horse_id", "sire", "track", "horse_sex"], low_memory=False) for f in sorted(glob.glob(os.path.join(ROOT, "race_results_202[3-6].csv.gz")))])
     names = {norm_venue(t): t for t in old.track.dropna().unique()}
     rc["track"] = rc.track.map(lambda t: names.get(norm_venue(t), t))
+    last = old.drop_duplicates("horse_id", keep="last").set_index("horse_id")
     rc["sire"] = rc.horse_id.map(old.dropna(subset=["sire"]).drop_duplicates("horse_id", keep="last").set_index("horse_id").sire)
-    tl = PF.tr_lookup()
-    key = pd.MultiIndex.from_arrays([pd.to_numeric(rc.horse_id, errors="coerce"), pd.to_datetime(rc.date)])
-    rc["wpr_rc"] = rc.wpr
-    rc["wpr"] = tl.reindex(key).values
-    rc = rc.merge(_page_runs(), on=["horse_id", "date"], how="left")
-    rn = pd.read_csv(os.path.join(ROOT, "runners.csv"), usecols=["date", "horse_id", "race", "horse_age"], low_memory=False)
+    rn = pd.read_csv(os.path.join(ROOT, "runners.csv"), usecols=["date", "horse_id", "horse_age", "horse_sex"], low_memory=False)
     rn = rn[rn.date > TRAINED_TO].drop_duplicates(["date", "horse_id"], keep="last")
-    rc = rc.merge(rn.rename(columns={"race": "race_rn", "horse_age": "age_rn"}), on=["date", "horse_id"], how="left")
-    rc["horse_age"] = pd.to_numeric(rc.horse_age, errors="coerce").fillna(rc.age_rn)
-    # the racing.com race ids do not follow the race order, and the day's draw lean reads the EARLIER races, so re-key each race as meeting x race number
-    rc["race_no"] = rc.race_no.fillna(rc.race_rn)
-    no = rc.groupby("race_id").race_no.median()
-    R = rc.groupby("race_id").agg(date=("date", "first"), track=("track", "first")).reset_index()
-    R["no"] = R.race_id.map(no)
-    R["no"] = R.no.fillna(50 + R.groupby(["date", "track"]).race_id.rank())
+    rc = rc.merge(rn, on=["date", "horse_id"], how="left")
+    rc["horse_sex"] = rc.horse_sex.fillna(rc.horse_id.map(last.horse_sex))
+    R = rc.groupby("race_id_tr").agg(date=("date", "first"), track=("track", "first"), no=("race_no", "first")).reset_index()
+    R["no"] = R.no.fillna(50 + R.groupby(["date", "track"]).race_id_tr.rank())
     R["mk"] = R.date + "|" + R.track.astype(str)
     R["meeting_id"] = 9_000_000 + R.mk.map({k: i for i, k in enumerate(sorted(R.mk.unique()))})
-    R["new_id"] = (8_000_000_000_000 + (R.meeting_id - 9_000_000) * 1000 + R.no.round() * 10 + R.groupby(["mk", "no"]).cumcount()).astype("int64")
-    rc = rc.merge(R[["race_id", "meeting_id", "new_id"]], on="race_id")
-    rc["race_id_rc"], rc["race_id"] = rc.race_id, rc.new_id
-    rc["comments_video"] = np.nan
+    R["race_id"] = (8_000_000_000_000 + (R.meeting_id - 9_000_000) * 1000 + R.no.round() * 10 + R.groupby(["mk", "no"]).cumcount()).astype("int64")
+    rc = rc.merge(R[["race_id_tr", "meeting_id", "race_id"]], on="race_id_tr")
     rc["isBarrierTrial"], rc["is_jumpout"] = False, False
     for c in ("blinkers_on", "gear_changes", "weight_allowance"):
         rc[c] = np.nan
-    cov = rc.wpr.notna().mean()
-    print("racing.com rows after %s: %d (%s to %s), page rating for %.0f%%, 800m position %.0f%%, race number %.0f%%, sire %.0f%%" % (
-        TRAINED_TO, len(rc), rc.date.min(), rc.date.max(), 100 * cov, 100 * rc.position800m.notna().mean(), 100 * no.notna().mean(), 100 * rc.sire.notna().mean()))
+    print("result-page rows after %s: %d in %d races (%s to %s), rating for %.0f%%, 800m position %.0f%%, sire %.0f%%, age %.0f%%" % (
+        TRAINED_TO, len(rc), rc.race_id.nunique(), rc.date.min(), rc.date.max(), 100 * rc.wpr.notna().mean(), 100 * rc.position800m.notna().mean(),
+        100 * rc.sire.notna().mean(), 100 * rc.horse_age.notna().mean()))
     return rc
 
 
@@ -211,7 +204,7 @@ def cmd_score(redo=False):
     d["bet"] = ((d.ev > EV_MIN) & (d.bsp < BSP_MAX)).astype(int)
     d["pnl"] = np.where(d.bet == 1, d.won * (d.bsp - 1) * (1 - d.comm) - (1 - d.won), 0.0)
     d["scored_at"] = pd.Timestamp.now("UTC").strftime("%Y-%m-%dT%H:%MZ")
-    cols = ["ds", "track", "race_id", "race_id_rc", "horse", "horse_id", "barrier", "nr", "bsp", "comm", "pm", "p_model", "value_pts", "ev", "bet", "won", "pnl", "scored_at"]
+    cols = ["ds", "track", "race_id", "race_id_tr", "horse", "horse_id", "barrier", "nr", "bsp", "comm", "pm", "p_model", "value_pts", "ev", "bet", "won", "pnl", "scored_at"]
     for day, x in d.groupby("ds"):
         x[[k for k in cols if k in x.columns]].round(5).to_csv(os.path.join(LOG_DIR, day + ".csv.gz"), index=False)
         print("%s: %d races, %d runners, %d bets, %+.1f units" % (day, x.race_id.nunique(), len(x), int(x.bet.sum()), x.pnl.sum()))

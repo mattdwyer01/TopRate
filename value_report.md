@@ -4,28 +4,28 @@ The model was locked on races to 2026-10-08. Every race below is later than that
 
 Pass rule, fixed before the first day was scored: first read at 2000 bets, final read at 6000. Pass = return above zero without the 10 best winners, and the bets win more often than the Betfair price implied.
 
-**no read yet: 1497 of 2000 bets**
+**no read yet: 1407 of 2000 bets**
 
-2026-10-09 to 2026-11-08: 31 days, 1405 races scored, 13507 runners.
+2026-10-09 to 2026-11-08: 31 days, 1466 races scored, 14074 runners.
 
 | | Bets | Wins | Won | Model said | Betfair said | Avg price | Profit (units) | Return | Return without 10 best |
 |---|---|---|---|---|---|---|---|---|---|
-| All bets | 1497 | 217 | 14.5% | 15.5% | 13.9% | $12.23 | -57.7 | -3.9% | -17.4% |
-| Under $6 | 394 | 128 | 32.5% | 33.7% | 30.8% | $3.74 | +9.6 | +2.4% | -8.2% |
-| $6 to $12 | 419 | 45 | 10.7% | 13.2% | 11.7% | $8.92 | -71.1 | -17.0% | -37.7% |
-| $12 to $30 | 684 | 44 | 6.4% | 6.4% | 5.6% | $19.14 | +3.7 | +0.5% | -29.1% |
-| NSW | 318 | 51 | 16.0% | 16.1% | 14.3% | $12.04 | +25.1 | +7.9% | -33.3% |
-| Other states | 1179 | 166 | 14.1% | 15.3% | 13.8% | $12.28 | -82.8 | -7.0% | -24.2% |
+| All bets | 1407 | 211 | 15.0% | 15.7% | 14.1% | $12.20 | +1.3 | +0.1% | -14.5% |
+| Under $6 | 367 | 122 | 33.2% | 34.6% | 31.6% | $3.64 | +8.2 | +2.2% | -9.1% |
+| $6 to $12 | 395 | 45 | 11.4% | 13.2% | 11.7% | $8.94 | -44.8 | -11.3% | -33.7% |
+| $12 to $30 | 645 | 44 | 6.8% | 6.4% | 5.6% | $19.07 | +37.9 | +5.9% | -26.0% |
+| NSW | 286 | 45 | 15.7% | 16.8% | 14.8% | $11.52 | +12.9 | +4.5% | -38.6% |
+| Other states | 1121 | 166 | 14.8% | 15.4% | 13.9% | $12.38 | -11.6 | -1.0% | -19.3% |
 
-Return range from resampling days (90%): -17.5% to +11.4%; chance the return is above zero: 32%.
-Winner log-likelihood gain over the Betfair price: -0.0026 a race (standard error 0.0021).
+Return range from resampling days (90%): -10.1% to +10.7%; chance the return is above zero: 50%.
+Winner log-likelihood gain over the Betfair price: -0.0007 a race (standard error 0.0020).
 
 ## By week
 
 | Week starting | Bets | Wins | Profit (units) | Return |
 |---|---|---|---|---|
-| 2026-10-05 | 180 | 25 | +9.9 | +5.5% |
-| 2026-10-12 | 326 | 50 | -27.6 | -8.5% |
-| 2026-10-19 | 329 | 59 | +115.4 | +35.1% |
-| 2026-10-26 | 339 | 42 | -59.3 | -17.5% |
-| 2026-11-02 | 323 | 41 | -96.2 | -29.8% |
+| 2026-10-05 | 187 | 23 | -26.0 | -13.9% |
+| 2026-10-12 | 292 | 52 | +91.1 | +31.2% |
+| 2026-10-19 | 300 | 45 | -9.2 | -3.1% |
+| 2026-10-26 | 314 | 42 | -39.0 | -12.4% |
+| 2026-11-02 | 314 | 49 | -15.6 | -5.0% |
