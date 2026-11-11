@@ -798,6 +798,27 @@ def direct_chance(race_id, tab, race_date):
         return None
 
 
+def patch_direct_scores(path="toprate_data.json"):
+    """Write the direct model scores (data/direct_scores) into today's and later races of the payload, without a rebuild.
+    daily.yml scores the direct model after the payload is built, so this puts the scores on the page in the same run
+    instead of the next one. Only the runner key `dm` and RUN_ISO change; the history file is not touched. Returns the number of runners changed."""
+    path = Path(path)
+    data = json.load(open(path, encoding="utf-8"))
+    _DIRECT_CACHE.clear()
+    n = 0
+    for race in data.get("RACES") or []:
+        for u in race.get("runners") or []:
+            v = direct_chance(race.get("race_id"), u.get("tab"), race.get("date"))
+            if v is not None and u.get("dm") != v:
+                u["dm"] = v
+                n += 1
+    if n:
+        data["RUN_ISO"] = datetime.now(timezone.utc).isoformat()
+        _write_data_json(path, json.dumps(data, separators=(",", ":")))
+    print(f"direct scores: {n} runner(s) updated in {path.name}")
+    return n
+
+
 def peak_last_year(horse_id, race_date):
     """Highest runner-page rating in the 365 days before race_date (the race day itself excluded), or None."""
     try:
@@ -2466,6 +2487,7 @@ def main():
     parser.add_argument("--no-html",    action="store_true", help="Skip HTML rebuild")
     parser.add_argument("--date",       help="Merge the racing.com fields of one date (YYYY-MM-DD); default is every date from today on")
     parser.add_argument("--publish",    action="store_true", help="After rebuilding, push HTML to GitHub Pages")
+    parser.add_argument("--patch-direct", action="store_true", help="write the direct model scores into the payload (no rebuild) and exit")
     parser.add_argument("--rebuild-only", action="store_true",
                         help="Skip the field merge and the projection step and just rebuild the payload from the existing CSV, then "
                              "(with --publish) push it.")
@@ -2481,6 +2503,10 @@ def main():
     print(f"\n{'='*60}")
     print(f"Daily — {datetime.now():%Y-%m-%d %H:%M}")
     print(f"{'='*60}\n")
+
+    if args.patch_direct:
+        patch_direct_scores()
+        return
 
     runners_df = load_runners()
     n_existing = len(runners_df)

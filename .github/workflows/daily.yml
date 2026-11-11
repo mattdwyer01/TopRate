@@ -250,11 +250,12 @@ jobs:
 
       # Direct finishing-position model scores for today and the next two days (about 1 minute), read by the payload as `dm` and blended into the Rating
       # by the frontend (lib/raceModel.ts DIRECT_SHARE). Best effort: with no score for a race the Rating is the Proj alone. The payload is built earlier in
-      # this job, so a new score reaches the page on the next run.
+      # this job, so the second command writes the new scores into it (runner key dm only, no rebuild).
       - name: Score the direct model (best effort)
         run: |
           START=$(TZ=Australia/Melbourne date +%Y-%m-%d)
           timeout 900 python direct_score.py score --from "$START" --days 3 || echo "direct score skipped"
+          python toprate_daily.py --patch-direct || echo "direct score patch skipped"
 
       - name: Commit and push if changed
         run: |
