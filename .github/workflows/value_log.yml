@@ -1,0 +1,49 @@
+name: Value model forward test
+
+# 10 Nov 2026. Scores each day's races with the LOCKED value model (value_model/, trained on races to 8 Oct 2026) once Betfair's starting price file and the
+# racing.com results for that day are in, and writes data/value_log/<date>.csv.gz, value_report.md and value_summary.json (value_live.py). Research only: it
+# changes no rating and places no bets. Commits only those files.
+
+on:
+  schedule:
+    - cron: "50 22 * * *"   # 09:50 Melbourne (daylight time), after betfair_bsp.yml (20:40 UTC) and the racing.com results
+  workflow_dispatch:
+    inputs:
+      redo:
+        description: "yes = score every day again"
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: value-log
+  cancel-in-progress: false
+
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas numpy lightgbm scipy
+      - name: Score and report
+        run: PYTHONPATH=. python -u value_live.py score ${{ inputs.redo == 'yes' && '--redo' || '' }}
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          stage() { git add data/value_log value_report.md value_summary.json 2>/dev/null; true; }
+          stage
+          git diff --cached --quiet && { echo "nothing new"; exit 0; }
+          git commit -q -m "Value model forward log $(date -u +%FT%H:%MZ)"
+          for i in 1 2 3 4 5; do
+            git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            git fetch -q origin "${GITHUB_REF_NAME}" && git reset -q --mixed "origin/${GITHUB_REF_NAME}" && stage && git commit -q -m "Value model forward log $(date -u +%FT%H:%MZ)" || true
+            sleep $((i * 5))
+          done
+          exit 1

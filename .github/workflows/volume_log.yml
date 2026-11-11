@@ -32,6 +32,8 @@ jobs:
           fetch-depth: 1
           sparse-checkout: |
             volume_rules.py
+            betfair_prices.py
+            data/betfair_bsp/win_202[6-9]-*
             volume_overrides.json
             volume_bets_log.csv
             volume_races_log.csv
