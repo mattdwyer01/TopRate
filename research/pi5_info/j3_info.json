@@ -1,0 +1,16 @@
+{
+ "big_s1": {
+  "trees": 1209,
+  "trees_plain": 937,
+  "cap": 8000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "deep_s1": {
+  "trees": 901,
+  "trees_plain": 727,
+  "cap": 6000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}

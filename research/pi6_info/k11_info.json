@@ -1,0 +1,27 @@
+{
+ "allx.R_s2": {
+  "trees": 3048,
+  "trees_plain": 2076,
+  "cap": 10000,
+  "new_share": 0.2799,
+  "top_new": {
+   "rl_w": 0.0374,
+   "r_age": 0.01,
+   "trn_eff": 0.01,
+   "dsire_eff": 0.0073,
+   "trn_fu_eff": 0.0068,
+   "r_weightCarried": 0.0064,
+   "jeff_d": 0.0063,
+   "r_barr_f": 0.0063,
+   "dsire_lvl": 0.0061,
+   "trn_yng_n": 0.0054
+  }
+ },
+ "lr06.R_s2": {
+  "trees": 1797,
+  "trees_plain": 1714,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}

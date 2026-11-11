@@ -1,0 +1,72 @@
+name: "Proj extra inputs: live complete-fields test"
+
+# 10 Nov 2026: research/proj_live_ext_test.py. Each job builds the frames with the extra inputs from projection/ctx_ext.py (one builder for training rows and live
+# runners), fits its variants on runs before 9 Oct 2026 and projects every race in data/tr_results since through the live path; the score job compares them.
+# Commits research/proj_live_ext_test.json to the branch it ran on only.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/beautiful-ptolemy-lf2x7x]
+    paths: [research/proj_live_ext.trigger]
+
+permissions:
+  contents: write
+
+jobs:
+  fit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: x1, variants: "base,ext"}
+          - {name: x2, variants: "ped,dirf"}
+          - {name: x3, variants: "tfu,frk"}
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy
+      - name: Fit before 9 Oct and project the live fields
+        run: python -W ignore research/proj_live_ext_test.py --variants "${{ matrix.variants }}" --out plx/${{ matrix.name }}.pkl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plx-${{ matrix.name }}
+          path: plx/
+          retention-days: 14
+
+  score:
+    needs: fit
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pandas numpy pyarrow
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: plx-*
+          path: plx
+      - name: Score
+        run: |
+          python -W ignore research/proj_live_ext_test.py --score plx
+          mkdir -p research/plx_info && cp plx/*/*_info.json research/plx_info/ || true
+      - name: Commit to this branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add research/proj_live_ext_test.json research/plx_info
+          git commit -m "Proj extra inputs, live complete-fields test: result" || echo nothing to commit
+          for i in 1 2 3 4 5 6; do git fetch origin ${{ github.ref_name }} && git rebase origin/${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && break; sleep $((i*5)); done

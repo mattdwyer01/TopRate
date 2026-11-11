@@ -41,7 +41,13 @@ TF_CAP = float(os.environ.get('PROJECTION_TF_CAP', '5.0'))        # rating point
 # 9 Nov 2026: the context step for horses with REL_MIN_RUNS+ earlier runs is stretched (held out, actual results move about 1.04 to 1.10x the predicted step,
 # 1.21x for 3 to 5 runs; a 1.2 stretch with the +-5 anchor gave winner log-lik +0.0067, se 0.0010, median miss 3.854 to 3.816). ctx.json 'stretch' overrides; 1 = off.
 CTX_STRETCH = os.environ.get('PROJECTION_CTX_STRETCH')
-CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '2.0'))   # rating points; 0 = no cap
+# Cap on the context step for a horse with under 3 earlier runs, rating points; 0 = no cap. 2 until 10 Nov 2026 (set on 23 Oct for the page-only model), now 8: with the
+# converted-history training the step for these horses is calibrated one for one (slope of actual on step 0.99 on 1,177 live runs) and the +-2 cap threw it away. Cap 8
+# against cap 2, winner log-lik: +0.0113 (se 0.0027) on 1,840 live complete fields since 9 Oct (models fitted before), +0.0057 (0.0010) on 13,025 held-out complete fields,
+# +0.0040 (0.0009) on the page-store test; rating RMSE of these horses 10.16 to 9.89 live. No cap is as good or slightly better on winners but steps of 20+ do occur.
+CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '8.0'))
+os.environ.setdefault('PROJECTION_EXT_SOFT', '1')   # a failure building the extra inputs (ctx_ext.py) must not stop the live projection: they go blank and it says so
+ASSUME_RIDER = os.environ.get('PROJECTION_ASSUME_RIDER', '1') == '1'   # 10 Nov 2026: a runner with no declared jockey is projected with its last rider, an unknown barrier as a middle gate (see fill_undeclared)
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
@@ -180,6 +186,43 @@ def booster(path):
 
 def clean_name(s):
     return s.astype(str).str.lower().str.replace(r'\s*\([a-z]{2,3}\)\s*$', '', regex=True).str.replace(r'[^a-z0-9 ]', '', regex=True).str.strip()
+
+
+def fill_undeclared(Tc):
+    """Blank live inputs for the context model (10 Nov 2026). A runner with no declared jockey used to be read as ridden by an unknown jockey: on 2,213 declared runners
+    (6 to 10 Nov 2026) blanking the jockey moved the context step by -0.88 on average (root mean square 1.28, 10% of runners by more than 2 points) and, with 30% of riders
+    blank, changed the top pick in 12% of races. With the horse's last rider instead (today's rider for 90% of runners) the step is within 0.38 of the full-information one
+    (mean 0.00) and the top pick changes in 0.8% of races. A barrier not drawn yet (0 or blank) read as the inside gate: a middle gate halves that error (share of runners
+    moved more than 1 point 19% to 10%). Never raises: on any problem the inputs are returned as they came."""
+    try:
+        Tc = Tc.copy()
+        jk = Tc.jockey.astype(str).str.strip()
+        blank = Tc.jockey.isna() | jk.isin(['', 'nan', 'None'])
+        if blank.any():
+            rp = F.runner_page_runs()
+            rp = rp[rp.jockey.notna() & ~rp.jockey.astype(str).str.strip().isin(['', 'nan', 'None'])].sort_values(['horse_id', 'date'])
+            byh = {h: (g.date.values, g.jockey.values) for h, g in rp[rp.horse_id.isin(pd.to_numeric(Tc.horse_id[blank], errors='coerce'))].groupby('horse_id')}
+            hid = pd.to_numeric(Tc.horse_id, errors='coerce').values
+            dts = pd.to_datetime(Tc.date).values
+            n = 0
+            for i in np.where(blank.values)[0]:
+                a = byh.get(hid[i])
+                if a is None:
+                    continue
+                j = int(np.searchsorted(a[0], dts[i], side='left'))
+                if j > 0:
+                    Tc.iloc[i, Tc.columns.get_loc('jockey')] = a[1][j - 1]
+                    n += 1
+            print(f'  no declared jockey: {int(blank.sum())} runners, {n} projected with their last rider')
+        bar, fs = pd.to_numeric(Tc.barrier, errors='coerce'), pd.to_numeric(Tc.field_size, errors='coerce')
+        nob = (bar.isna() | (bar <= 0)) & fs.notna()
+        if nob.any():
+            Tc['barrier'] = bar.where(~nob, (fs + 1) / 2.0)
+            print(f'  barrier not drawn: {int(nob.sum())} runners projected from a middle gate')
+        return Tc
+    except Exception as e:
+        print(f'  fill_undeclared skipped: {e}')
+        return Tc
 
 
 def load_upcoming(today, hist, backfill_days=0):
@@ -358,6 +401,8 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
             import ctx as CTX
             cmeta = json.load(open(os.path.join(M, 'ctx.json')))
             Tc = R[['horse_id', 'date', 'jockey', 'trainer', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading'] + (['prize'] if 'prize' in R.columns else [])].assign(venue=R.track).reset_index(drop=True)
+            if ASSUME_RIDER:
+                Tc = fill_undeclared(Tc)
             f2, corr, rsk = CTX.predict(Tc, meta=cmeta, want_risk=True)
             R['risk'] = rsk     # chance of a bad run (display only, projection/train_risk.py)
             use = has & ~np.isnan(corr)
@@ -458,6 +503,16 @@ def main():
         os.makedirs(CACHE, exist_ok=True)
         pd.to_pickle(store, os.path.join(CACHE, 'tables.pkl'))
         print('cache built through', store['built_through'])
+        if FORMULA_PROJ and CTX_PROJ:
+            # the complete-field table the extra Proj inputs read (ctx_ext.py), rebuilt daily so the as-of statistics include yesterday's results
+            try:
+                if json.load(open(os.path.join(M, 'ctx.json'))).get('ext'):
+                    import ctx_ext as EXT
+                    src = EXT.build_src()
+                    EXT.save_src(src, os.path.join(CACHE, EXT.SRC_FILE))
+                    print('complete-field table built:', len(src), 'runs to', str(src.date.max().date()))
+            except Exception as e:
+                print('  complete-field table NOT built (the next projection builds it itself):', e)
         return
     tables = pd.read_pickle(os.path.join(CACHE, 'tables.pkl')) if a.fast else None
     T, done, raw = load_upcoming(a.today, H, a.backfill_days)

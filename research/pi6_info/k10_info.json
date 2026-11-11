@@ -1,0 +1,23 @@
+{
+ "cshort_s1": {
+  "trees": 1609,
+  "trees_plain": 1538,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "nopg_s1": {
+  "trees": 2334,
+  "trees_plain": 2085,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "l2_s1": {
+  "trees": 851,
+  "trees_plain": 705,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}

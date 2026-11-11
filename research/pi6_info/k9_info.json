@@ -1,0 +1,23 @@
+{
+ "lin_s1": {
+  "trees": 26,
+  "trees_plain": 29,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "one_s1": {
+  "trees": 1637,
+  "trees_plain": 2205,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "xt_s1": {
+  "trees": 3269,
+  "trees_plain": 2684,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}

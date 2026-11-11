@@ -1,0 +1,17 @@
+{
+ "ext": {
+  "new_share": 0.2283,
+  "top_new": {
+   "rl_w": 0.0198,
+   "trn_ven_eff": 0.0138,
+   "jk_ven_eff": 0.0129,
+   "dsire_eff": 0.0108,
+   "r_age": 0.0103,
+   "trn_eff": 0.0097,
+   "dsire_lvl": 0.0092,
+   "r_m8": 0.009,
+   "r_barr_f": 0.0076,
+   "trn_db_eff": 0.007
+  }
+ }
+}

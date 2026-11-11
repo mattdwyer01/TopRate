@@ -1,0 +1,38 @@
+{
+ "allx.N_s1": {
+  "trees": 2359,
+  "trees_plain": 2820,
+  "cap": 10000,
+  "new_share": 0.2425,
+  "top_new": {
+   "rl_w": 0.019,
+   "jk_ven_eff": 0.0145,
+   "trn_ven_eff": 0.0116,
+   "trn_eff": 0.0113,
+   "r_age": 0.011,
+   "r_m8": 0.0088,
+   "jeff_d": 0.0071,
+   "r_barr_f": 0.007,
+   "dsire_eff": 0.0067,
+   "fkd1": 0.0059
+  }
+ },
+ "allx.R_s1": {
+  "trees": 2628,
+  "trees_plain": 2522,
+  "cap": 10000,
+  "new_share": 0.2716,
+  "top_new": {
+   "rl_w": 0.0393,
+   "r_age": 0.0102,
+   "trn_eff": 0.0101,
+   "dsire_eff": 0.0075,
+   "trn_fu_eff": 0.0067,
+   "jeff_d": 0.0065,
+   "r_weightCarried": 0.0063,
+   "dsire_lvl": 0.006,
+   "rl1": 0.0056,
+   "trn_yng_n": 0.0055
+  }
+ }
+}

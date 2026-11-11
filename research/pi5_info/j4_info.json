@@ -1,0 +1,16 @@
+{
+ "cs5_s1": {
+  "trees": 2488,
+  "trees_plain": 1725,
+  "cap": 10000,
+  "new_share": 0.0,
+  "top_new": {}
+ },
+ "small_s1": {
+  "trees": 3902,
+  "trees_plain": 2950,
+  "cap": 16000,
+  "new_share": 0.0,
+  "top_new": {}
+ }
+}
