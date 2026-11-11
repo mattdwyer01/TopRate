@@ -8,7 +8,7 @@ Scoring applies the live post-model steps to every variant alike (stretch 1.2 fo
 import argparse, glob, gzip, json, os, sys, time
 import numpy as np, pandas as pd
 sys.path.insert(0, 'projection'); sys.path.insert(0, 'research')
-ap = argparse.ArgumentParser(); ap.add_argument('--variants', default='base,ext'); ap.add_argument('--out', default='plx/live.pkl'); ap.add_argument('--score')
+ap = argparse.ArgumentParser(); ap.add_argument('--variants', default='base,ext'); ap.add_argument('--out', default='plx/live.pkl'); ap.add_argument('--score'); ap.add_argument('--cat', action='store_true')
 ap.add_argument('--frac', type=float, default=1.0); ap.add_argument('--trees', type=int, default=2200); ap.add_argument('--lr', type=float, default=0.06); ap.add_argument('--from', dest='d0', default='2026-10-09')
 a = ap.parse_args()
 T0 = time.time(); log = lambda *x: print(f'[{(time.time() - T0) / 60:5.1f}m]', *x, flush=True)
@@ -67,6 +67,7 @@ def score(folder):
     print(f'runners {len(D)}, races {nr}, {D.date.min().date()} to {D.date.max().date()}; no page run {int(D.f.isna().sum())}; variants {variants}')
     for live in (True, False):
         ref, _, _ = wll(build(D.corr_base.values, live))
+        ref2 = wll(build(D.corr_tfu.values, live))[0] if 'corr_tfu' in D else None
         for v in variants:
             x = build(D['corr_' + v].values, live)
             s, top, t3 = wll(x)
@@ -76,8 +77,11 @@ def score(folder):
             res[k] = dict(races=int((~np.isnan(s)).sum()), win_ll=round(float(np.nanmean(s)), 5), top_pick=round(top, 4), winner_top3=round(t3, 4), gain=round(float(dd.mean()), 5),
                           se=round(float(dd.std() / np.sqrt(len(dd))), 5), halves=[round(float(np.nanmean(d[half == h])), 5) for h in (0, 1)],
                           rmse=round(float(np.sqrt((e ** 2).mean())), 3), mae=round(float(e.abs().mean()), 3), within3=round(float((e.abs() <= 3).mean()), 4))
+            if ref2 is not None:
+                d2 = s - ref2; d2 = d2[~np.isnan(d2)]
+                res[k]['vs_tfu'] = dict(gain=round(float(d2.mean()), 5), se=round(float(d2.std() / np.sqrt(len(d2))), 5), halves=[round(float(np.nanmean((s - ref2)[half == h])), 5) for h in (0, 1)])
             print(f'{k:22s}', res[k], flush=True)
-    json.dump(res, open('research/proj_live_ext_test.json', 'w'), indent=1)
+    json.dump(res, open(os.environ.get('PLX_OUT', 'research/proj_live_ext_test.json'), 'w'), indent=1)
 
 
 if a.score:
@@ -130,6 +134,20 @@ for v in VAR:
     meta = {'feats': A, 'rel_feats': B, 'classes': classes, 'rel_min_runs': C.REL_MIN_RUNS}
     f, corr = C.predict(L, meta=meta, booster=m0.booster_, rel_booster=m1.booster_, src=src)
     L['f'], L['corr_' + v] = f, corr
+    if a.cat:      # a CatBoost twin on the same inputs, alone and averaged with LightGBM (11 Nov 2026). Tree counts from the early-stopped fits of proj_improve5 (1,581 / 2,148)
+        from catboost import CatBoostRegressor
+        class Cat:
+            def __init__(self, d, Fs, it):
+                self.m = CatBoostRegressor(loss_function='Huber:delta=4', iterations=it, learning_rate=0.06, depth=8, l2_leaf_reg=5, random_seed=1, thread_count=4, verbose=500)
+                self.m.fit(self.X(d[Fs]), d.resid)
+            @staticmethod
+            def X(d):
+                return d.assign(cls_c=d.cls_c.cat.codes.astype(float)) if 'cls_c' in d.columns else d
+            def predict(self, d):
+                return self.m.predict(self.X(d))
+        c0 = Cat(tr, A, 1600); c1 = Cat(rel(tr), B, 2150); log('fitted CatBoost', v)
+        _, cc = C.predict(L, meta=meta, booster=c0, rel_booster=c1, src=src)
+        L['corr_' + v + '.cat'] = cc; L['corr_' + v + '.avg'] = (corr + cc) / 2
     if ADD[v]:
         imp = pd.Series(m1.booster_.feature_importance('gain'), index=B)
         info[v] = {'new_share': round(float(imp[ADD[v]].sum() / imp.sum()), 4), 'top_new': {x: round(float(y), 4) for x, y in (imp[ADD[v]] / imp.sum()).sort_values(ascending=False).head(10).items()}}
