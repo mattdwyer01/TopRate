@@ -23270,3 +23270,23 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-11-11T06:55:41+00:00,2026-11-11,BELMONT,2,VIC,Paying,Trifecta,3/6/2,74.1,"{""selections"":[3,6,2],""amount"":74.1}"
 2026-11-11T06:55:41+00:00,2026-11-11,BELMONT,2,VIC,Paying,FirstFour,3/6/2/7,132.3,"{""selections"":[3,6,2,7],""amount"":132.3}"
 2026-11-11T06:55:41+00:00,2026-11-11,BELMONT,2,VIC,Paying,RunningDouble,1/3,33.7,"{""selections"":[1,3],""amount"":33.7}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,DailyDouble,2/10,155.2,"{""selections"":[2,10],""amount"":155.2}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Quaddie,1/2/11/10,6746.4,"{""selections"":[1,2,11,10],""amount"":6746.4}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Treble,2/11/10,2003.1,"{""selections"":[2,11,10],""amount"":2003.1}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Win,10,18.8,"{""selections"":[10],""amount"":18.8}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Place,10,4,"{""selections"":[10],""amount"":4}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Place,4,4,"{""selections"":[4],""amount"":4}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Place,3,2.4,"{""selections"":[3],""amount"":2.4}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Quinella,10/4,79.1,"{""selections"":[10,4],""amount"":79.1}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Exacta,10/4,168.5,"{""selections"":[10,4],""amount"":168.5}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Duet,10/4,19.3,"{""selections"":[10,4],""amount"":19.3}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Duet,10/3,14.9,"{""selections"":[10,3],""amount"":14.9}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Duet,4/3,12.2,"{""selections"":[4,3],""amount"":12.2}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Trifecta,10/4/3,1254.2,"{""selections"":[10,4,3],""amount"":1254.2}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,FirstFour,10/4/3/2,3841.5,"{""selections"":[10,4,3,2],""amount"":3841.5}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,RunningDouble,11/10,136.8,"{""selections"":[11,10],""amount"":136.8}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Big6,2/1/1/2/11/10,0,"{""selections"":[2,1,1,2,11,10],""amount"":0}"
+2026-11-11T07:01:08+00:00,2026-11-11,WARWICK FARM,7,VIC,Paying,Big6,2/1/1/2/11/AOS,135.3,"{""selections"":[2,1,1,2,11,""AOS""],""amount"":135.3}"
+2026-11-11T07:01:08+00:00,2026-11-11,EAGLE FARM,5,VIC,Abandoned,(abandoned),,,
+2026-11-11T07:01:08+00:00,2026-11-11,EAGLE FARM,6,VIC,Abandoned,(abandoned),,,
+2026-11-11T07:01:08+00:00,2026-11-11,EAGLE FARM,7,VIC,Abandoned,(abandoned),,,
