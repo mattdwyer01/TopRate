@@ -23290,3 +23290,15 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-11-11T07:01:08+00:00,2026-11-11,EAGLE FARM,5,VIC,Abandoned,(abandoned),,,
 2026-11-11T07:01:08+00:00,2026-11-11,EAGLE FARM,6,VIC,Abandoned,(abandoned),,,
 2026-11-11T07:01:08+00:00,2026-11-11,EAGLE FARM,7,VIC,Abandoned,(abandoned),,,
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Win,8,3.9,"{""selections"":[8],""amount"":3.9}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Place,8,1.4,"{""selections"":[8],""amount"":1.4}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Place,6,2.3,"{""selections"":[6],""amount"":2.3}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Place,3,2.2,"{""selections"":[3],""amount"":2.2}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Quinella,8/6,18.9,"{""selections"":[8,6],""amount"":18.9}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Exacta,8/6,35.8,"{""selections"":[8,6],""amount"":35.8}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Duet,8/6,5.7,"{""selections"":[8,6],""amount"":5.7}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Duet,8/3,4.7,"{""selections"":[8,3],""amount"":4.7}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Duet,6/3,10.2,"{""selections"":[6,3],""amount"":10.2}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,Trifecta,8/6/3,156.3,"{""selections"":[8,6,3],""amount"":156.3}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,FirstFour,8/6/3/9,529,"{""selections"":[8,6,3,9],""amount"":529}"
+2026-11-11T07:10:49+00:00,2026-11-11,BALLARAT,5,VIC,Paying,RunningDouble,4/8,13.4,"{""selections"":[4,8],""amount"":13.4}"
