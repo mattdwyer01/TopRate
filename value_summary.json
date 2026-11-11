@@ -2,26 +2,26 @@
  "first_day": "2026-10-09",
  "last_day": "2026-11-08",
  "days": 31,
- "races": 1405,
- "runners": 13507,
+ "races": 1466,
+ "runners": 14074,
  "total": {
-  "bets": 1497,
-  "wins": 217,
-  "win_pct": 14.5,
-  "model_pct": 15.48,
-  "betfair_pct": 13.94,
-  "avg_price": 12.23,
-  "profit_units": -57.7,
-  "roi_pct": -3.9,
-  "roi_ex10_pct": -17.4
+  "bets": 1407,
+  "wins": 211,
+  "win_pct": 15.0,
+  "model_pct": 15.69,
+  "betfair_pct": 14.12,
+  "avg_price": 12.2,
+  "profit_units": 1.3,
+  "roi_pct": 0.1,
+  "roi_ex10_pct": -14.5
  },
  "roi_90_range_pct": [
-  -17.5,
-  11.4
+  -10.1,
+  10.7
  ],
- "chance_above_zero_pct": 32,
- "gain_over_betfair": -0.0026,
- "gain_se": 0.0021,
+ "chance_above_zero_pct": 50,
+ "gain_over_betfair": -0.0007,
+ "gain_se": 0.002,
  "next_gate": 2000,
- "verdict": "no read yet: 1497 of 2000 bets"
+ "verdict": "no read yet: 1407 of 2000 bets"
 }
