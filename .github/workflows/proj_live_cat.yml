@@ -1,0 +1,47 @@
+name: "Proj second learner (CatBoost): live complete-fields test"
+
+# 11 Nov 2026: research/proj_live_ext_test.py --cat. Fits the live inputs (with trainer patterns) on runs before 9 Oct 2026 with LightGBM and with a CatBoost
+# twin, projects every race in data/tr_results since through the live path, and scores LightGBM, CatBoost and their average with the live post-model steps.
+# Commits research/proj_live_cat_test.json to the branch it ran on only.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/beautiful-ptolemy-lf2x7x]
+    paths: [research/proj_live_cat.trigger]
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      PYTHONPATH: .:projection:research
+      PROJECTION_RATINGS: toprate
+      PLX_OUT: research/proj_live_cat_test.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r projection/requirements.txt scipy catboost
+      - name: Fit before 9 Oct and project the live fields
+        run: python -W ignore research/proj_live_ext_test.py --variants "base,tfu" --cat --out plx/c1.pkl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: plx-cat
+          path: plx/
+          retention-days: 14
+      - name: Score
+        run: python -W ignore research/proj_live_ext_test.py --score plx
+      - name: Commit to this branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add research/proj_live_cat_test.json
+          git commit -m "Proj second learner, live complete-fields test: result" || echo nothing to commit
+          for i in 1 2 3 4 5 6; do git fetch origin ${{ github.ref_name }} && git rebase origin/${{ github.ref_name }} && git push origin HEAD:${{ github.ref_name }} && break; sleep $((i*5)); done

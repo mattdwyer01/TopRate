@@ -106,8 +106,10 @@ export function pureProj(runner: Runner, eff: EffectiveRunner | undefined): numb
   return eff?.effectiveProjectedWpr ?? runner.projectedWpr
 }
 
-// 9 Nov 2026 (owner): the Rating is the Proj only; the direct model is not blended in. Set back to 0.7 to restore the 5 Nov blend.
-export const DIRECT_SHARE = 0
+// 11 Nov 2026 (owner): 50% direct model. Basis (research/proj_joint_loss.py): on 1,332 live complete fields the 50% blend beat the Proj alone by +0.041 winner log-lik
+// (se 0.006), winner in top 3 63.6% to 65.4%, and predicted the rating as well (RMSE 9.17 vs 9.18 on 2025 fields); 80% was no better and predicts the rating worse.
+// It was 0 from 9 Nov (Proj only) and 0.7 from 5 Nov. Set to 0 for the Proj alone.
+export const DIRECT_SHARE = 0.5
 export const DIRECT_PTS_PER_LN = 5
 
 export function computeEffectiveRace(

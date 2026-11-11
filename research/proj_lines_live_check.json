@@ -1,0 +1,68 @@
+{
+ "races": 1827,
+ "runners": 17005,
+ "runners_per_race": 9.31,
+ "from": "2026-10-09",
+ "to": "2026-11-09",
+ "first_starters": 1156,
+ "old": {
+  "best_beta": 0.225,
+  "best_beta_halves": [
+   0.21,
+   0.235
+  ],
+  "ll_best": -1.90396,
+  "ll_at_020": -1.90632,
+  "ll_at_030": -1.92854,
+  "within_race_sd": 4.16,
+  "top_pick": 0.3049,
+  "inside_2": {
+   "runners": 2.2,
+   "winners": 0.5068,
+   "winners_halves": [
+    0.4837,
+    0.5288
+   ]
+  },
+  "inside_4": {
+   "runners": 3.77,
+   "winners": 0.676,
+   "winners_halves": [
+    0.6431,
+    0.7073
+   ]
+  },
+  "top_pick_rated_at_0.2": 0.278,
+  "top_pick_rated_at_0.3": 0.3639
+ },
+ "new": {
+  "best_beta": 0.23,
+  "best_beta_halves": [
+   0.22,
+   0.245
+  ],
+  "ll_best": -1.88397,
+  "ll_at_020": -1.88868,
+  "ll_at_030": -1.90241,
+  "within_race_sd": 4.16,
+  "top_pick": 0.3158,
+  "inside_2": {
+   "runners": 2.19,
+   "winners": 0.5068,
+   "winners_halves": [
+    0.4949,
+    0.5182
+   ]
+  },
+  "inside_4": {
+   "runners": 3.76,
+   "winners": 0.6864,
+   "winners_halves": [
+    0.6566,
+    0.7147
+   ]
+  },
+  "top_pick_rated_at_0.2": 0.2786,
+  "top_pick_rated_at_0.3": 0.3647
+ }
+}
