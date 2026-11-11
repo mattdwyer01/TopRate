@@ -10,6 +10,16 @@ Logged 2026-11-04 to 2026-11-10; races checked 301; bets still open 10.
 | Volume v2 | 94 | 167 | 16 | $2350 | $2192 | $-158 | -6.7% | -4.3% |
 | Volume v3 (P cut) | 74 | 112 | 13 | $1837 | $1613 | $-225 | -12.2% | -15.3% |
 
+## The same bets at the Betfair starting price, after commission (10% NSW, 8% elsewhere)
+
+Only bets whose Betfair price has arrived (Betfair publishes a day or more after the race).
+
+| Rule | Bets with a Betfair price | Staked | Returned | Profit | ROI at Betfair | ROI at logged price, same bets |
+|---|---|---|---|---|---|---|
+| Volume v1 | 208 | $2525 | $2795 | $270 | 10.7% | -6.6% |
+| Volume v2 | 146 | $2025 | $2597 | $572 | 28.3% | 6.3% |
+| Volume v3 (P cut) | 89 | $1475 | $1325 | $-150 | -10.2% | -9.0% |
+
 ## By day (at logged price)
 
 | Date | v1 bets | v1 profit | v2 bets | v2 profit | v3 bets | v3 profit |

@@ -18,6 +18,14 @@
    "profit": -414.48,
    "roi_pct": -14.0
   },
+  "at_betfair": {
+   "bets": 208,
+   "staked": 2524.78,
+   "returned": 2795.26,
+   "profit": 270.48,
+   "roi_pct": 10.7,
+   "roi_logged_same_bets_pct": -6.6
+  },
   "by_day": [
    {
     "date": "2026-11-04",
@@ -110,6 +118,14 @@
    "profit": -100.43,
    "roi_pct": -4.3
   },
+  "at_betfair": {
+   "bets": 146,
+   "staked": 2024.88,
+   "returned": 2597.35,
+   "profit": 572.47,
+   "roi_pct": 28.3,
+   "roi_logged_same_bets_pct": 6.3
+  },
   "by_day": [
    {
     "date": "2026-11-04",
@@ -201,6 +217,14 @@
    "returned": 1556.6,
    "profit": -280.83,
    "roi_pct": -15.3
+  },
+  "at_betfair": {
+   "bets": 89,
+   "staked": 1474.95,
+   "returned": 1324.95,
+   "profit": -150.0,
+   "roi_pct": -10.2,
+   "roi_logged_same_bets_pct": -9.0
   },
   "by_day": [
    {
