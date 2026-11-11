@@ -11,7 +11,12 @@ const BASE_SD = 5.0      // noise sd at beta 0.20. 6 Nov 2026 refit on 1,164 liv
 // per point. Costs a little accuracy: 1,042 live races since 16 Oct, winner log-lik -1.895 (1.1) / -1.901 (1.2) / -1.923 (1.4), top pick rated
 // 30.7% / 32.4% / 35.8% vs 29.8% actual, runners 5+ points off rated 3.5% / 3.1% / 2.4% vs 3.9% actual. Applied in raceModel.ts to prices
 // only, not to the rating. Set to 1 to undo.
-export const PRICE_SHARPEN = 1.2
+// 11 Nov 2026 (owner's yes): back to 1 (no sharpening). On 1,827 real complete fields 9 Oct to 9 Nov with the Proj merged that day
+// (research/proj_lines_live_check.py frame, this simulation, BASE_SD 5.0), sharpen 0.9 / 1.0 / 1.05 / 1.1 / 1.2: top pick rated
+// 30.1% / 32.2% / 33.3% / 34.3% / 36.3% against 31.4% actual, winner log-lik -1.8914 / -1.8970 / -1.9017 / -1.9076 / -1.9229,
+// runners rated over 40% won 46.9% at 1.0 (rated 49.6%) and 42.9% at 1.2 (rated 51.4%). Runners 5+ points off are still rated a
+// little low at 1.0 (3.9% against 4.4% actual).
+export const PRICE_SHARPEN = 1.0
 const RATIO_MIN = 0.8
 const RATIO_MAX = 1.8
 const QUAD_POINTS = 121
