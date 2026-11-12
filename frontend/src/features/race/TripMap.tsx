@@ -192,6 +192,9 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
   const t1N = Math.floor(1 + (nField - 1) / 3)
   const cutGx = (k: number) => (k >= 1 && k < nField ? (order[k - 1].gx + order[k].gx) / 2 : null)
   const t1Gx = nField >= 4 ? cutGx(t1N) : null
+  // First half (13 Nov 2026): the quaddie pool cut (runners within 4 points forecast in the top half, rank within 1 + (n - 1) / 2). Drawn only when it differs from the first third.
+  const hN = Math.floor(1 + (nField - 1) / 2)
+  const hGx = nField >= 4 && hN > t1N ? cutGx(hN) : null
   const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'width from rail in the final 200m (racing.com GPS), not at 800m'
 
   return (
@@ -202,10 +205,11 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
       </div>
       <div className="mt-1 text-xs text-ink-soft">Forecast error is about {trip.err.gap.toFixed(1)}L, so small gaps are not reliable.</div>
       <details className="group mt-1 text-[11px]">
-        <summary className="cursor-pointer list-none text-ink-mute hover:text-ink"><span className="inline-block transition-transform group-open:rotate-90">&#9656;</span> Key{t1Gx != null ? ` · first third ${t1N} of ${nField}` : ''}</summary>
+        <summary className="cursor-pointer list-none text-ink-mute hover:text-ink"><span className="inline-block transition-transform group-open:rotate-90">&#9656;</span> Key{t1Gx != null ? ` · first third ${t1N} of ${nField}` : ''}{hGx != null ? ` · first half ${hN}` : ''}</summary>
         {t1Gx != null && (
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
             <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First third of the field, forecast order ({t1N} of {nField})</span>
+            {hGx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dashed border-indigo" />First half, the quaddie pool cut ({hN} of {nField})</span>}
           </div>
         )}
         {items.some((r) => r.pft != null) && (
@@ -245,6 +249,14 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             {leaders.length} likely {leaders.length === 1 ? 'leader' : 'leaders'}
           </text>
           <line x1={m.l} x2={m.l + iw} y1={Y(0)} y2={Y(0)} stroke="var(--color-ink)" strokeWidth={3} />
+          {hGx != null && (
+            <g>
+              <line x1={X(hGx)} x2={X(hGx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-indigo)" strokeWidth={1.5} strokeDasharray="5 4" />
+              <text x={X(hGx)} y={m.t - 20} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--color-indigo)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
+                {narrow ? '1/2' : 'first half'}
+              </text>
+            </g>
+          )}
           {t1Gx != null && (
             <g>
               <line x1={X(t1Gx)} x2={X(t1Gx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-emerald-deep)" strokeWidth={2} strokeDasharray="1.5 4" strokeLinecap="round" />
@@ -353,7 +365,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             {hov.pft != null && <div>Chance of settling in the first third: {Math.round(hov.pft * 100)}%</div>}
             <div>
               Forecast order {orderOf.get(hov.rid)} of {nField}
-              {nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t1N ? ' (first third)' : ''}
+              {nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t1N ? ' (first third)' : nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= hN ? ' (first half)' : ''}
             </div>
             {contenders[hov.rid] && best && (
               <div>
