@@ -69,6 +69,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(900)
   const [hover, setHover] = useState<string | null>(null)
+  const [showSections, setShowSections] = useState(false)
 
   useEffect(() => {
     const el = wrapRef.current
@@ -195,6 +196,14 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
   // First half (13 Nov 2026): the quaddie pool cut (runners within 4 points forecast in the top half, rank within 1 + (n - 1) / 2). Drawn only when it differs from the first third.
   const hN = Math.floor(1 + (nField - 1) / 2)
   const hGx = nField >= 4 && hN > t1N ? cutGx(hN) : null
+  // Horses by section (owner's request 12 Nov 2026): on pace = first third, midfield = rest of the first half, back = the others, each in forecast order.
+  const sections = nField >= 4
+    ? [
+        { key: 'on pace', cls: 'text-emerald-deep', list: order.slice(0, t1N) },
+        { key: 'midfield', cls: 'text-indigo', list: order.slice(t1N, Math.max(t1N, hN)) },
+        { key: 'back', cls: 'text-ink-mute', list: order.slice(Math.max(t1N, hN)) },
+      ]
+    : []
   const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'width from rail in the final 200m (racing.com GPS), not at 800m'
 
   return (
@@ -205,11 +214,11 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
       </div>
       <div className="mt-1 text-xs text-ink-soft">Forecast error is about {trip.err.gap.toFixed(1)}L, so small gaps are not reliable.</div>
       <details className="group mt-1 text-[11px]">
-        <summary className="cursor-pointer list-none text-ink-mute hover:text-ink"><span className="inline-block transition-transform group-open:rotate-90">&#9656;</span> Key{t1Gx != null ? ` · first third ${t1N} of ${nField}` : ''}{hGx != null ? ` · first half ${hN}` : ''}</summary>
+        <summary className="cursor-pointer list-none text-ink-mute hover:text-ink"><span className="inline-block transition-transform group-open:rotate-90">&#9656;</span> Key{t1Gx != null ? ` · on pace ${t1N} of ${nField}` : ''}{hGx != null ? ` · midfield to ${hN}` : ''}</summary>
         {t1Gx != null && (
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
-            <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First third of the field, forecast order (top {t1N} of {nField})</span>
-            {hGx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dashed border-indigo" />First half, the quaddie pool cut (top {hN} of {nField})</span>}
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />On pace: forecast in the first third of the field, the Volume v2 cut (top {t1N} of {nField})</span>
+            {hGx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dashed border-indigo" />Midfield: forecast in the first half, the quaddie pool cut (top {hN} of {nField})</span>}
           </div>
         )}
         {items.some((r) => r.pft != null) && (
@@ -225,6 +234,39 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
         )}
         <div className="mt-1 text-[11px] text-ink-faint">Horses level with each other are nudged to keep barrier order. Others can cross in front or drop in behind.</div>
       </details>
+      {sections.length > 0 && (
+        <div className="mt-1 text-[11px]">
+          <button type="button" onClick={() => setShowSections((v) => !v)} className="text-ink-mute hover:text-ink">
+            <span className={`inline-block transition-transform ${showSections ? 'rotate-90' : ''}`}>&#9656;</span> Horses by section
+          </button>
+          {showSections && (
+            <div className="mt-1 space-y-1">
+              {sections.map((sec) => (
+                <div key={sec.key} className="flex gap-2">
+                  <span className={`w-16 shrink-0 font-semibold ${sec.cls}`}>{sec.key}</span>
+                  <span className="min-w-0 text-ink-soft">
+                    {sec.list.length === 0
+                      ? '-'
+                      : sec.list.map((r, i) => {
+                          const c = contenders[r.rid]
+                          return (
+                            <span key={r.rid}>
+                              {i > 0 && ', '}
+                              <span className={c ? 'font-semibold text-ink' : ''}>
+                                {r.num} {r.label}
+                                {c ? ` (R${c.rank})` : ''}
+                              </span>
+                            </span>
+                          )
+                        })}
+                  </span>
+                </div>
+              ))}
+              {hasCont && <div className="text-ink-faint">Bold: within the contender gap of the top Rating, with its Rating rank.</div>}
+            </div>
+          )}
+        </div>
+      )}
       <div ref={wrapRef} className="relative mt-2 overflow-x-auto">
         <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="img" aria-label="Projected trip map: distance behind the leader against width from the rail">
           <rect x={m.l} y={m.t} width={iw} height={ih} fill="var(--color-bg)" />
@@ -252,8 +294,8 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
           {hGx != null && (
             <g>
               <line x1={X(hGx)} x2={X(hGx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-indigo)" strokeWidth={1.5} strokeDasharray="5 4" />
-              <text x={X(hGx) - 3} y={m.t - 20} textAnchor="end" fontSize={10} fontWeight={700} fill="var(--color-indigo)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
-                {`top ${hN}`}
+              <text x={t1Gx != null && X(t1Gx) - X(hGx) >= 52 ? (X(hGx) + X(t1Gx)) / 2 : X(hGx) - 3} y={m.t - 20} textAnchor={t1Gx != null && X(t1Gx) - X(hGx) >= 52 ? 'middle' : 'end'} fontSize={10} fontWeight={700} fill="var(--color-indigo)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
+                midfield
               </text>
             </g>
           )}
@@ -261,7 +303,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             <g>
               <line x1={X(t1Gx)} x2={X(t1Gx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-emerald-deep)" strokeWidth={2} strokeDasharray="1.5 4" strokeLinecap="round" />
               <text x={X(t1Gx) + (hGx != null ? 3 : 0)} y={m.t - 20} textAnchor={hGx != null ? 'start' : 'middle'} fontSize={10} fontWeight={700} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
-                {`top ${t1N}`}
+                on pace
               </text>
             </g>
           )}
@@ -365,7 +407,7 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
             {hov.pft != null && <div>Chance of settling in the first third: {Math.round(hov.pft * 100)}%</div>}
             <div>
               Forecast order {orderOf.get(hov.rid)} of {nField}
-              {nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t1N ? ' (first third)' : nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= hN ? ' (first half)' : ''}
+              {nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= t1N ? ' (on pace, first third)' : nField >= 4 && (orderOf.get(hov.rid) ?? 99) <= hN ? ' (midfield, first half)' : ''}
             </div>
             {contenders[hov.rid] && best && (
               <div>
