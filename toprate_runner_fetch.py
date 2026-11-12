@@ -202,6 +202,13 @@ def main():
                 failed.append((r["run_id"], err))
                 continue
             rec = compact(rd, base_of(r))
+            prev = have.get(str(r["run_id"]))
+            if rec.get("empty") and prev and prev.get("form"):
+                # 12 Nov 2026: around acceptances TopRate serves no page for a while (558 Saturday runners on one run, Garnacho at Dunkeld among them),
+                # and the empty answer replaced the good page, so the projection lost the ratings at this race's weight. Keep the page we had
+                # (its fetch time unchanged, so it is read again next cycle) and note the empty answer.
+                new[str(r["run_id"])] = {**prev, "last_empty_at": now_utc.isoformat(timespec="seconds")}
+                continue
             rec["at"] = today_utc
             rec["fetched_at"] = now_utc.isoformat(timespec="seconds")
             rec["fetch_weight"] = r.get("weight")          # the declared weight when the page was read: the page rates every run at it
