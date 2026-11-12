@@ -4,7 +4,7 @@ Three research betting rules, logged side by side so they can be judged on bets 
 
   Volume v1 (the original rule)
       a runner qualifies when it is forecast to settle in the FIRST THIRD of its field (trip map, rank on forecast gap behind the leader:
-      (rank - 1) / (n - 1) <= 1/3) and its fixed price is over $3; v1 bets every qualifier within 4 Proj points of the top-rated runner.
+      (rank - 1) / (n - 1) <= 1/3) and its fixed price is $3 or more; v1 bets every qualifier within 4 Proj points of the top-rated runner.
   Volume v2 (v1 with the "top pick" condition)
       A: when the top-rated runner is itself a qualifier, bet the qualifiers within 2 points of the top;
       B: when NO qualifier is within 1 point of the top, bet the qualifiers within 4 points;
@@ -50,7 +50,7 @@ SUMMARY_JSON = "volume_summary.json"
 
 BUSH_MAX_PRIZE = 20000       # same as frontend lib/meetings.ts BUSH_TRACK_THRESHOLD
 MIN_FIELD = 5
-MIN_PRICE = 3.0              # strictly over (raised from 2.0 on 4 Nov 2026)
+MIN_PRICE = 3.0              # $3 and over (raised from 2.0 on 4 Nov 2026; "over" changed to "and over" on 13 Nov 2026, owner)
 FIRST_THIRD = 1 / 3
 PFT_MIN = 0.6                # v3: trip map P(first third) at or above this
 V1_MAX_OFF = 4.0
@@ -172,9 +172,9 @@ def evaluate(df, gaps, price_mode="fixed", overrides=None, pft=None):
     rc["reason"] = rc.apply(reason, axis=1)
     ok = set(rc.loc[rc["reason"] == "ok", "race_id"])
     d["race_ok"] = d["race_id"].isin(ok)
-    d["qual"] = d["race_ok"] & (d["sp"] <= FIRST_THIRD + 1e-9) & (d["price"] > MIN_PRICE)
+    d["qual"] = d["race_ok"] & (d["sp"] <= FIRST_THIRD + 1e-9) & (d["price"] >= MIN_PRICE - 1e-9)
     d["v1"] = d["qual"] & (d["off"] <= V1_MAX_OFF + 1e-9)
-    d["v3"] = d["race_ok"] & (d["pft"] >= PFT_MIN) & (d["price"] > MIN_PRICE) & (d["off"] <= V1_MAX_OFF + 1e-9)
+    d["v3"] = d["race_ok"] & (d["pft"] >= PFT_MIN) & (d["price"] >= MIN_PRICE - 1e-9) & (d["off"] <= V1_MAX_OFF + 1e-9)
     d["is_top_bet"] = d["qual"] & (d["off"] <= 1e-9)
     g = d.groupby("race_id")
     d["top_is_bet"] = g["is_top_bet"].transform("any")
