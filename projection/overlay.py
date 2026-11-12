@@ -40,6 +40,33 @@ def _describe(r):
     return f"New model ({int(r.nruns)} prior runs): base {r.base:.1f} WPR.{adj} Typical error about {r.sd:.1f}."
 
 
+CORR_GLOB = os.path.join(ROOT, 'data', 'proj_corrections', 'weight_scale_*.csv.gz')
+
+
+def apply_corrections(lg):
+    """Replaces logged projections with corrected ones (data/proj_corrections, 13 Nov 2026). The races of 29 Oct to 11 Nov were projected while a horse
+    entered in two races at different weights could be projected on the other race's weight scale (fixed 12 Nov 2026); the correction files hold each
+    runner's projection re-made on its own race's scale (model fitted before 29 Oct, see CLAUDE.md). Applied here, at read time, so the projection
+    jobs that rewrite the log cannot undo it. proj and sd are replaced and base moves with proj (Adj unchanged). Delete the file to go back."""
+    import glob
+    for f in sorted(glob.glob(CORR_GLOB)):
+        try:
+            c = pd.read_csv(f).drop_duplicates('run_id', keep='last').set_index('run_id')
+        except Exception as e:
+            print(f'projection corrections {os.path.basename(f)} not read: {e!r}')
+            continue
+        ix = lg.index.intersection(c.index)
+        if not len(ix):
+            continue
+        lg = lg.copy()
+        d = c.loc[ix, 'proj'].astype(float) - pd.to_numeric(lg.loc[ix, 'proj'], errors='coerce')
+        lg.loc[ix, 'base'] = pd.to_numeric(lg.loc[ix, 'base'], errors='coerce') + d
+        lg.loc[ix, 'proj'] = c.loc[ix, 'proj'].astype(float)
+        if 'sd' in c.columns:
+            lg.loc[ix, 'sd'] = c.loc[ix, 'sd'].astype(float).where(c.loc[ix, 'sd'].notna(), lg.loc[ix, 'sd'])
+    return lg
+
+
 def apply(runners_df, path=None):
     """Returns runners_df with the projection columns replaced by the new model's. Rows without a projection are cleared."""
     df = runners_df
@@ -52,6 +79,7 @@ def apply(runners_df, path=None):
     if lg.empty or 'run_id' not in df.columns:
         return df
     lg = lg.drop_duplicates('run_id', keep='last').set_index('run_id')
+    lg = apply_corrections(lg)
     rid = pd.to_numeric(df['run_id'], errors='coerce')
     hit = rid.isin(lg.index)
     if not hit.any():
