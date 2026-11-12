@@ -208,8 +208,8 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
         <summary className="cursor-pointer list-none text-ink-mute hover:text-ink"><span className="inline-block transition-transform group-open:rotate-90">&#9656;</span> Key{t1Gx != null ? ` · first third ${t1N} of ${nField}` : ''}{hGx != null ? ` · first half ${hN}` : ''}</summary>
         {t1Gx != null && (
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-mute">
-            <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First third of the field, forecast order ({t1N} of {nField})</span>
-            {hGx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dashed border-indigo" />First half, the quaddie pool cut ({hN} of {nField})</span>}
+            <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dotted border-emerald-deep" />First third of the field, forecast order (top {t1N} of {nField})</span>
+            {hGx != null && <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-5 border-t-2 border-dashed border-indigo" />First half, the quaddie pool cut (top {hN} of {nField})</span>}
           </div>
         )}
         {items.some((r) => r.pft != null) && (
@@ -252,16 +252,16 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
           {hGx != null && (
             <g>
               <line x1={X(hGx)} x2={X(hGx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-indigo)" strokeWidth={1.5} strokeDasharray="5 4" />
-              <text x={X(hGx)} y={m.t - 20} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--color-indigo)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
-                {narrow ? '1/2' : 'first half'}
+              <text x={X(hGx) - 3} y={m.t - 20} textAnchor="end" fontSize={10} fontWeight={700} fill="var(--color-indigo)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
+                {`top ${hN}`}
               </text>
             </g>
           )}
           {t1Gx != null && (
             <g>
               <line x1={X(t1Gx)} x2={X(t1Gx)} y1={m.t - 14} y2={m.t + ih} stroke="var(--color-emerald-deep)" strokeWidth={2} strokeDasharray="1.5 4" strokeLinecap="round" />
-              <text x={X(t1Gx)} y={m.t - 20} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
-                {narrow ? '1/3' : 'first third'}
+              <text x={X(t1Gx) + (hGx != null ? 3 : 0)} y={m.t - 20} textAnchor={hGx != null ? 'start' : 'middle'} fontSize={10} fontWeight={700} fill="var(--color-emerald-deep)" stroke="var(--color-panel)" strokeWidth={3} paintOrder="stroke">
+                {`top ${t1N}`}
               </text>
             </g>
           )}
