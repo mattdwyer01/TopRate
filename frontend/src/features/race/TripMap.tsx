@@ -16,12 +16,15 @@ interface TripMapProps {
   runners: Runner[] // for TAB number and silks (matched on runId)
   smByRunId?: Record<string, number | null> // speed-map suitability vs the field (SM), shown as a dot on each chip
   compact?: boolean // silks and numbers only and always fit the box (a narrow column), whatever its width
+  ratingGap?: Record<string, number> // gap to the top combined Rating by runId (for the quaddie pool line)
   contenders?: Record<string, { rank: number; tier: 'core' | 'inner' | 'outer' }> // runners within the contender gap of the top Rating, by runId; rank = Rating rank
   innerGap?: number // the gap line the contenders sit inside, for the wording
 }
 
 // Contenders for the green Rating-rank circle: every runner within this many Rating points of the top rated runner.
 export const TRIP_CONTENDER_GAP = 4
+export const QUADDIE_ANY = 2 // quaddie pool: any runner this close to the top Rating
+export const QUADDIE_HALF = 6 // ... plus runners this close that are forecast in the first half
 
 const LEADER_ZONE_L = 1.5 // runners this close to the front are the likely leaders
 const FT_LIKELY = 0.6 // chance of the first third at or above this is drawn green (the same cut as Volume v3 in volume_rules.py)
@@ -65,7 +68,7 @@ interface Placed extends TripRunner {
   py: number
 }
 
-export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compact = false, contenders = {}, innerGap = TRIP_CONTENDER_GAP }: TripMapProps) {
+export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compact = false, contenders = {}, ratingGap = {}, innerGap = TRIP_CONTENDER_GAP }: TripMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(900)
   const [hover, setHover] = useState<string | null>(null)
@@ -204,6 +207,8 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
         { key: 'back', cls: 'text-ink-mute', list: order.slice(Math.max(t1N, hN)) },
       ]
     : []
+  // Quaddie pool (owner's rule, 13 Nov 2026): within QUADDIE_ANY of the top Rating anywhere, or within QUADDIE_HALF and forecast in the first half
+  const qPool = nField >= 4 ? order.filter((r, i) => { const g = ratingGap[r.rid]; return g != null && (g <= QUADDIE_ANY || (g <= QUADDIE_HALF && i + 1 <= hN)) }) : []
   const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'width from rail in the final 200m (racing.com GPS), not at 800m'
 
   return (
@@ -262,6 +267,12 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
                   </span>
                 </div>
               ))}
+              {qPool.length > 0 && (
+                <div className="flex gap-2">
+                  <span className="w-16 shrink-0 font-semibold text-amber">quaddie</span>
+                  <span className="min-w-0 text-ink-soft">{qPool.map((r) => r.num).join(', ')} ({qPool.length}): within {QUADDIE_ANY} of the top Rating, or within {QUADDIE_HALF} and in the first half</span>
+                </div>
+              )}
               {hasCont && <div className="text-ink-faint">Bold: within the contender gap of the top Rating, with its Rating rank.</div>}
             </div>
           )}

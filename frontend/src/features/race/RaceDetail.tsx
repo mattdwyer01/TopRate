@@ -131,6 +131,15 @@ export function RaceDetail({
     }
     return out
   }, [comboByRunId, effectiveScratched])
+  // every runner's gap to the top combined Rating, for the Trip map's quaddie pool line (owner's rule, 13 Nov 2026)
+  const tripRatingGap = useMemo(() => {
+    const out: Record<string, number> = {}
+    let top: number | null = null
+    for (const [id, c] of comboByRunId) if (!c.estimated && c.rating != null && !effectiveScratched.has(id) && (top == null || c.rating > top)) top = c.rating
+    if (top == null) return out
+    for (const [id, c] of comboByRunId) if (!c.estimated && c.rating != null && !effectiveScratched.has(id)) out[id] = top - c.rating
+    return out
+  }, [comboByRunId, effectiveScratched])
   const comboFieldTop = useMemo(() => {
     let top: number | null = null
     for (const c of comboByRunId.values()) if (!c.estimated && c.rating != null && (top == null || c.rating > top)) top = c.rating
@@ -302,7 +311,7 @@ export function RaceDetail({
             </div>
           )}
           {shapeView === 'trip' && tripRace && tripMap ? (
-            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} compact={wide} contenders={tripContenders} innerGap={TRIP_CONTENDER_GAP} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
+            <TripMap trip={tripRace} excluded={effectiveScratched} runners={race.runners} compact={wide} contenders={tripContenders} ratingGap={tripRatingGap} innerGap={TRIP_CONTENDER_GAP} smByRunId={Object.fromEntries(Object.entries(effectiveByRunId).map(([k, v]) => [k, v.speedMapAdj]))} />
           ) : (
             <SpeedMapGrid race={race} runners={activeRunners} narrow={wide} />
           )}
