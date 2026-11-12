@@ -792,6 +792,10 @@ def direct_chance(race_id, tab, race_date):
         if d not in _DIRECT_CACHE:
             f = Path("data/direct_scores") / f"{d}.json"
             _DIRECT_CACHE[d] = json.load(open(f, encoding="utf-8")).get("races", {}) if f.exists() else {}
+            # corrected scores for 29 Oct to 11 Nov 2026 (weight-scale fix, data/proj_corrections): they replace the logged ones for those dates
+            for cf in sorted(Path("data/proj_corrections").glob("direct_*.json")):
+                for rid, tabs in json.load(open(cf, encoding="utf-8")).get(d, {}).items():
+                    _DIRECT_CACHE[d].setdefault(rid, {}).update(tabs)
         v = _DIRECT_CACHE[d].get(str(int(float(race_id))), {}).get(str(int(float(tab))))
         return None if v is None else round(float(v), 4)
     except Exception:
