@@ -279,6 +279,25 @@
    }
   ]
  },
+ "v2_new": {
+  "at_betfair": {
+   "bets": 0,
+   "staked": 0.0,
+   "returned": 0.0,
+   "profit": 0.0,
+   "roi_pct": null,
+   "roi_logged_same_bets_pct": null
+  },
+  "at_logged_price": {
+   "races": 0,
+   "bets": 0,
+   "wins": 0,
+   "staked": 0.0,
+   "returned": 0.0,
+   "profit": 0.0,
+   "roi_pct": null
+  }
+ },
  "segments": [
   {
    "segment": "All bets",
@@ -761,14 +780,14 @@
    }
   }
  ],
- "races_checked": 301,
+ "races_checked": 302,
  "races_with_reason": {
-  "ok": 163,
+  "ok": 164,
   "first starter, light-history or no-Proj runner": 97,
   "bush meeting": 40,
   "field under 5": 1
  },
- "open_bets": 10,
+ "open_bets": 12,
  "first_date": "2026-11-04",
- "last_date": "2026-11-10"
+ "last_date": "2026-11-12"
 }

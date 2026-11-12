@@ -2,13 +2,17 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-10; races checked 301; bets still open 10.
+Logged 2026-11-04 to 2026-11-12; races checked 302; bets still open 12.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
 | Volume v1 | 119 | 247 | 23 | $2962 | $2497 | $-466 | -15.7% | -14.0% |
 | Volume v2 | 94 | 167 | 16 | $2350 | $2192 | $-158 | -6.7% | -4.3% |
 | Volume v3 (P cut) | 74 | 112 | 13 | $1837 | $1613 | $-225 | -12.2% | -15.3% |
+
+## Volume v2 from 2026-11-13: fields of 8+ only, judged at the Betfair starting price after commission
+
+Bets settled 0 (profit at the logged fixed price $0, ROI None%). With a Betfair price 0: staked $0, returned $0, profit $0, ROI None%.
 
 ## The same bets at the Betfair starting price, after commission (10% NSW, 8% elsewhere)
 
@@ -55,7 +59,7 @@ Only bets whose Betfair price has arrived (Betfair publishes a day or more after
 
 ## Races checked without a bet, by reason
 
-- ok: 163
+- ok: 164
 - first starter, light-history or no-Proj runner: 97
 - bush meeting: 40
 - field under 5: 1
