@@ -221,6 +221,42 @@ def cmd_list(a):
         x = b[b[r]]
         print(f"{r}: {x['race_id'].nunique()} races, {len(x)} runners, ${x['stake_' + r].sum():.2f} staked")
     print("races skipped:", rc["reason"].value_counts().to_dict())
+    w = v2_watch(read_runners(date), d, gaps, read_overrides(), read_pft(a.trip_map))
+    print("\nv2 watch list (a price crossing $%.2f would change the race's v2 bets; check near the jump):" % MIN_PRICE)
+    print("\n".join(w) if w else "  none")
+
+
+WATCH_BELOW = 0.5    # watch runners up to this far under the floor ($2.50 to $2.99) ...
+WATCH_ABOVE = 0.4    # ... and current bets up to this far over it ($3.00 to $3.40)
+
+
+def v2_watch(rn, d0, gaps, overrides, pft):
+    """Owner's watch list (13 Nov 2026): for every first-third runner within V1_MAX_OFF of the top in a v2-eligible race whose fixed price sits just under
+    the floor (may drift past it) or just over it (may firm under it), re-run the rules with the price on the other side of MIN_PRICE and report which v2
+    bets that adds or removes. Lines are sorted by start time."""
+    base = set(zip(d0.loc[d0["v2"], "race_id"], d0.loc[d0["v2"], "tab_number"]))
+    names = dict(zip(zip(d0["race_id"], d0["tab_number"]), d0["horse"]))
+    c = d0[d0["race_ok"] & (d0["sp"] <= FIRST_THIRD + 1e-9) & (d0["off"] <= V1_MAX_OFF + 1e-9) & (d0["n"] >= V2_MIN_FIELD)
+           & (d0["price"] >= MIN_PRICE - WATCH_BELOW) & (d0["price"] <= MIN_PRICE + WATCH_ABOVE)].copy()
+    c["st"] = pd.to_datetime(c["start_time"], utc=True, errors="coerce")
+    out = []
+    for r in c.sort_values("st").itertuples():
+        under = r.price < MIN_PRICE - 1e-9
+        r2 = rn.copy()
+        m = (r2["race_id"] == r.race_id) & (num(r2["tab_number"]) == r.tab_number)
+        r2.loc[m, "fixed_win_price"] = MIN_PRICE if under else MIN_PRICE - 0.1
+        d1, _ = evaluate(r2, gaps, "fixed", overrides, pft)
+        b1 = set(zip(d1.loc[d1["v2"], "race_id"], d1.loc[d1["v2"], "tab_number"]))
+        add = [k for k in b1 - base if k[0] == r.race_id]
+        rem = [k for k in base - b1 if k[0] == r.race_id]
+        if not add and not rem:
+            continue
+        nm = lambda ks: ", ".join(f"#{int(k[1])} {names.get(k, '?')}" for k in sorted(ks, key=lambda k: k[1])) or "-"
+        t = r.st.tz_convert("Australia/Melbourne").strftime("%-I:%M%p") if pd.notna(r.st) else "?"
+        move = f"drifts to ${MIN_PRICE:.2f}+" if under else f"firms under ${MIN_PRICE:.2f}"
+        tail = " (race then has no v2 bet)" if rem and not add and not (set(base) - set(rem)) & {k for k in base if k[0] == r.race_id} else ""
+        out.append(f"  {t} {r.venue} R{int(r.race)}: #{int(r.tab_number)} {r.horse} ${r.price:.2f}, {r.off:.1f} off the top: if it {move}, add [{nm(add)}], drop [{nm(rem)}]{tail}")
+    return out
 
 
 TEXT_COLS = ["logged_at", "checked_at", "date", "venue", "start_time", "horse", "going", "rs_label", "settled_at", "reason", "run_id", "race_id"]
