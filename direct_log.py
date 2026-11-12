@@ -22,6 +22,7 @@ from pathlib import Path
 import pandas as pd
 
 import runners_io
+import tr_form_store
 
 ROOT = Path(__file__).parent
 DIR = ROOT / "data" / "direct_log"
@@ -53,12 +54,29 @@ def _num(x):
         return None
 
 
+def _on_page_scale(past, page):
+    """The history at the weight of THIS race (12 Nov 2026): the store keeps one copy of a past run, rated for whichever race the horse's page was last
+    fetched for, so a horse entered in two races at different weights carried the other race's scale. page: the ratings on the page served for this run
+    (tr_form_store.run_pages); a run it lists takes that rating, the others move by the median gap. No page = the store as it is."""
+    if not page or not past:
+        return past
+    try:
+        shift = tr_form_store.page_shift(page, {str(x["date"])[:10]: float(x["wpr"]) for x in past})
+        if shift is None:
+            return past
+        return [{**x, "wpr": round(page.get(str(x["date"])[:10], float(x["wpr"]) + shift), 2)} for x in past]
+    except (TypeError, ValueError):
+        return past
+
+
 def build_rows(rn, date, hist, src):
     """rn: runners.csv rows of one date (non-scratched). Returns {run_id: row}."""
     out = {}
+    pages = tr_form_store.run_pages(date)
     for r in rn.itertuples(index=False):
         hid = str(int(r.horse_id)) if _num(r.horse_id) is not None else None
         past = [x for x in hist.get(hid, []) if x["date"] < date][-NHIST:] if hid else []
+        past = _on_page_scale(past, pages.get(str(int(r.run_id))))
         out[str(int(r.run_id))] = dict(
             horse_id=hid, race_id=int(r.race_id), venue=r.venue, state=r.state, race=int(r.race), date=date, distance=_num(r.distance),
             going=r.going, race_class=r.race_class, grading=r.track_grading, prize=_num(r.prize_money), start_time=r.start_time,

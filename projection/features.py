@@ -82,12 +82,46 @@ def tr_lookup():
     return _TR_CACHE['v']
 
 
+_PAGE_SCALE = {}
+
+
+def set_page_scale(ov=None):
+    """Put the listed horses' page history on the scale of the race being projected (12 Nov 2026). ov: DataFrame horse_id, date, pw = the rating each past run
+    carries on the page TopRate served for the run being projected (tr_form_store.run_pages). runner_page_runs() then returns those ratings for the runs the
+    page lists and shifts the horse's other stored runs by the median gap. None = the store as it is. The store keeps one copy of a past run, written by the
+    last page fetched, so without this a horse entered in two races at different weights is projected in one of them on the other race's scale."""
+    _PAGE_SCALE.clear()
+    if ov is not None and len(ov):
+        o = pd.DataFrame(dict(horse_id=pd.to_numeric(ov.horse_id, errors='coerce'), date=pd.to_datetime(ov.date), pw=pd.to_numeric(ov.pw, errors='coerce')))
+        _PAGE_SCALE['v'] = o.dropna().drop_duplicates(['horse_id', 'date'], keep='last')
+    _TR_CACHE.pop('rows', None)
+    _TR_CACHE.pop('rp', None)
+
+
 def runner_page_runs():
     """Every rated, non-trial run on TopRate's runner pages (data/tr_form) as history rows, with the rating AS TopRate gives it (weight adjusted to the
     horse's upcoming race). Includes overseas runs (Ka Ying Rising's Hong Kong career is on his page and not in the Australian results files).
-    DataFrame with the HIST_COLS the feature builder reads (race_id is a synthetic negative id, one per run: the pages carry no race id)."""
+    DataFrame with the HIST_COLS the feature builder reads (race_id is a synthetic negative id, one per run: the pages carry no race id).
+    With set_page_scale() in force the listed horses' ratings are those of the page served for the run being projected."""
     if 'rows' in _TR_CACHE:
         return _TR_CACHE['rows']
+    t = _runner_page_runs_store()
+    ov = _PAGE_SCALE.get('v')
+    if ov is not None:
+        m = t[['horse_id', 'date']].merge(ov, on=['horse_id', 'date'], how='left')
+        pw = m.pw.values
+        gap = pd.Series(pw - t.wpr.values, index=t.index)
+        shift = gap.groupby(t.horse_id.values).transform('median').fillna(0.0).values     # 0 for a horse with no page in force
+        t = t.copy()
+        t['wpr'] = np.where(np.isnan(pw), t.wpr.values + shift, pw)
+    _TR_CACHE['rows'] = t
+    return t
+
+
+def _runner_page_runs_store():
+    """The store as it is (see runner_page_runs)."""
+    if 'rows_store' in _TR_CACHE:
+        return _TR_CACHE['rows_store']
     import gzip
     rows = []
     for f in sorted(glob.glob(os.path.join(ROOT, 'data', 'tr_form', '*.json.gz'))):
@@ -110,7 +144,7 @@ def runner_page_runs():
     t['race_id'] = -(1_000_000 + np.arange(len(t)))
     t['isBarrierTrial'] = 0
     t['is_jumpout'] = False
-    _TR_CACHE['rows'] = t
+    _TR_CACHE['rows_store'] = t
     return t
 
 

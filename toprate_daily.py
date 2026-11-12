@@ -819,15 +819,27 @@ def patch_direct_scores(path="toprate_data.json"):
     return n
 
 
-def peak_last_year(horse_id, race_date):
-    """Highest runner-page rating in the 365 days before race_date (the race day itself excluded), or None."""
+def peak_last_year(horse_id, race_date, run_id=None):
+    """Highest runner-page rating in the 365 days before race_date (the race day itself excluded), or None. With run_id the ratings are those of the page
+    TopRate served for that run (the weight of this race, 12 Nov 2026): the store holds one copy of a past run, rated for the horse's last-fetched race."""
     try:
         d, w = _peak12_table().get(int(float(horse_id)), (None, None))
         if d is None:
             return None
         day = np.datetime64(str(race_date)[:10], "D").astype("int64")
         m = (d >= day - 365) & (d < day)
-        return round(float(w[m].max()), 1) if m.any() else None
+        if not m.any():
+            return None
+        try:
+            page = tr_form_store.run_pages(race_date).get(str(int(float(run_id)))) if run_id is not None else None
+        except Exception:
+            page = None
+        if page:
+            pg = {int(np.datetime64(k, "D").astype("int64")): v for k, v in page.items()}
+            shift = tr_form_store.page_shift(pg, dict(zip(d.tolist(), w.tolist())))
+            if shift is not None:
+                return round(max(pg.get(int(x), float(y) + shift) for x, y in zip(d[m], w[m])), 1)
+        return round(float(w[m].max()), 1)
     except Exception:
         return None
 
@@ -2077,7 +2089,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpjc":  si(row.get("wprp_conf")),    # confidence 0-100
                 "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
                 "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
-                "wpjpk": peak_last_year(row.get("horse_id"), row.get("date")),    # peak runner-page rating in the 365 days before the race (23 Oct 2026; was the career peak)
+                "wpjpk": peak_last_year(row.get("horse_id"), row.get("date"), row.get("run_id")),    # peak runner-page rating in the 365 days before the race (23 Oct 2026; was the career peak)
                 "dm":   direct_chance(row.get("race_id"), row.get("tab_number"), row.get("date")),    # direct finishing-position model win chance (direct_score.py), None until scored
                 # Blend score (Step 2c2): the PRIMARY ranking as of Aug
                 # 2026 (promoted from wpr_rank/wprp_rank - a held-out
