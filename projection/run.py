@@ -48,6 +48,7 @@ CTX_STRETCH = os.environ.get('PROJECTION_CTX_STRETCH')
 CTX_CAP_FEW = float(os.environ.get('PROJECTION_CTX_CAP_FEW', '8.0'))
 os.environ.setdefault('PROJECTION_EXT_SOFT', '1')   # a failure building the extra inputs (ctx_ext.py) must not stop the live projection: they go blank and it says so
 ASSUME_RIDER = os.environ.get('PROJECTION_ASSUME_RIDER', '1') == '1'   # 10 Nov 2026: a runner with no declared jockey is projected with its last rider, an unknown barrier as a middle gate (see fill_undeclared)
+PAGE_SCALE = os.environ.get('PROJECTION_PAGE_SCALE', '1') == '1'       # 12 Nov 2026: each runner's history is read at the weight of the race being projected (see page_passes); 0 = the store as it is
 CTX_PROJ = os.environ.get('PROJECTION_CTX', '1') == '1'    # 21 Oct 2026: context correction on the formula Proj (projection/ctx.py, runner-page ATW ratings only); 0 = plain formula
 RUNNER_PAGE_INPUTS = os.environ.get('PROJECTION_RUNNER_PAGE_INPUTS', '1') == '1'   # 0 = back to results-file ratings (plain scale)
 WT_K = 0.4   # WPR per kg above the field average; out-of-sample fit on 4,551 races: 0.41 (90% interval 0.35 to 0.47). Set 0 to switch the term off (then rerun projection/add_weight_adj.py)
@@ -279,6 +280,59 @@ def load_upcoming(today, hist, backfill_days=0):
     return X, done, u
 
 
+def page_passes(R):
+    """Which runners are projected together, and on which page ratings (12 Nov 2026). TopRate rates every past run of a horse at the weight it carries in the race
+    the runner page was opened for, and data/tr_form keeps one copy of a past run (the last page fetched). A horse entered in two races at different weights was
+    therefore projected in one of them on the other race's scale: Garnacho, 60.5kg at Seymour on 12 Nov and 54kg at Dunkeld on 14 Nov, read 5.2 points high at
+    Seymour (0.8 a kilo), which took Sarapo from 3.6 clear to second. Here every runner reads the page served for ITS run (data/tr_runners, kept 7 days), and two
+    races that share a horse are projected in separate passes, because the history table holds one scale per horse at a time. A run with no stored page keeps the
+    store's ratings. Returns [(row mask, page ratings or None)]."""
+    every = np.ones(len(R), dtype=bool)
+    if not PAGE_SCALE or 'run_id' not in R.columns:
+        return [(every, None)]
+    try:
+        import tr_form_store
+        hid = pd.to_numeric(R.horse_id, errors='coerce').values
+        rid = pd.to_numeric(R.run_id, errors='coerce').values
+        race = R.race_id.values
+        day = pd.to_datetime(R.date).dt.strftime('%Y-%m-%d').values
+        pages = [tr_form_store.run_pages(d).get(str(int(r))) if r == r else None for d, r in zip(day, rid)]
+        if not any(pages):
+            return [(every, None)]
+        # races that share a horse must not be projected together
+        by_horse = {}
+        for i, h in enumerate(hid):
+            if h == h:
+                by_horse.setdefault(int(h), set()).add(race[i])
+        clash = {}
+        for races in by_horse.values():
+            if len(races) > 1:
+                for r in races:
+                    clash.setdefault(r, set()).update(races - {r})
+        first = {}
+        for i, r in enumerate(race):
+            first.setdefault(r, (day[i], i))
+        pass_of = {}
+        for r in sorted(first, key=lambda r: first[r]):
+            used = {pass_of[o] for o in clash.get(r, ()) if o in pass_of}
+            k = 0
+            while k in used:
+                k += 1
+            pass_of[r] = k
+        pk = np.array([pass_of[r] for r in race])
+        out = []
+        for k in range(pk.max() + 1):
+            m = pk == k
+            rows = [(hid[i], d, w) for i in np.flatnonzero(m) if pages[i] and hid[i] == hid[i] for d, w in pages[i].items()]
+            out.append((m, pd.DataFrame(rows, columns=['horse_id', 'date', 'pw']) if rows else None))
+        n_pg = sum(1 for x in pages if x)
+        print(f'  page scale: {n_pg} of {len(R)} runners read their own page, {len(out)} pass(es), {int((pk > 0).sum())} runners in later passes', flush=True)
+        return out
+    except Exception as e:
+        print('  PAGE SCALE FAILED, projected on the stored ratings:', repr(e), flush=True)
+        return [(every, None)]
+
+
 def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, lean_by_race=None):
     """Projects every runner in T. standin: {run_id: projection} used as the rating of an earlier, not yet run entry of the same horse."""
     Hu = H[H.horse_id.isin(T.horse_id)] if a.fast else H     # fast: only the runners' own history (everything else comes from the cache)
@@ -393,37 +447,59 @@ def score(a, H, T, done, levels, main_info, light_info, tables, standin=None, le
     R['proj'] = R.proj + R.cal
     if FORMULA_PROJ:
         # Proj is a formula on the runner pages' ratings, not a model (16 Oct 2026, owner's call): the model columns above stay for the suitability (SM) display only
-        fp, fn, fs, _ = F.formula_projection(R.horse_id, R.date)
-        has = ~np.isnan(fp)
+        def formula_part(R):
+            """Formula figure, context step and anchor for the rows given (whole races), on the page ratings in force."""
+            rsk_out = np.full(len(R), np.nan)
+            fp, fn, fs, _ = F.formula_projection(R.horse_id, R.date)
+            has = ~np.isnan(fp)
+            if CTX_PROJ and os.path.exists(os.path.join(M, 'ctx_model.txt')):
+                # context correction (distance, going, class, weight, days since run, last-run margin, jockey effect, spread of recent ratings...), learned on the runner pages' ATW
+                # ratings only: held-out rating error 8.70 to 8.35 on 15.9k runs (train_ctx.py). The sd by earlier-run count is the held-out error with it.
+                import ctx as CTX
+                cmeta = json.load(open(os.path.join(M, 'ctx.json')))
+                Tc = R[['horse_id', 'date', 'jockey', 'trainer', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading'] + (['prize'] if 'prize' in R.columns else [])].assign(venue=R.track).reset_index(drop=True)
+                if ASSUME_RIDER:
+                    Tc = fill_undeclared(Tc)
+                f2, corr, rsk = CTX.predict(Tc, meta=cmeta, want_risk=True)
+                rsk_out = rsk     # chance of a bad run (display only, projection/train_risk.py)
+                use = has & ~np.isnan(corr)
+                stretch = float(CTX_STRETCH) if CTX_STRETCH else float(cmeta.get('stretch', 1.2))
+                corr = np.where(np.nan_to_num(fn) >= CTX.REL_MIN_RUNS, corr * stretch, corr)
+                if CTX_CAP_FEW > 0:
+                    # 23 Oct 2026: the context step for a horse with under REL_MIN_RUNS earlier runs is capped (same insurance as speed_model.CAP_FEW)
+                    corr = np.where(np.nan_to_num(fn) < CTX.REL_MIN_RUNS, np.clip(corr, -CTX_CAP_FEW, CTX_CAP_FEW), corr)
+                if use.any():
+                    assert np.nanmax(np.abs(f2[use] - fp[use])) < 1e-6, 'ctx formula differs from features.formula_projection'
+                fp = np.where(use, fp + np.nan_to_num(corr), fp)
+                if TF_ANCHOR:
+                    # 6 Nov 2026 (owner's request): the Proj is anchored on the hand-checkable formula (projection/breakdown.py: weighted last 6 clean ATW ratings, regression, days,
+                    # distance and going, class, last run; capped terms) and the model may move it at most TF_CAP points. Held-out 2026 (64,610 runs): formula 8.695 RMSE, with a +-3 model step
+                    # 8.412, uncapped model 8.375. Runners with under 3 earlier runs keep the model figure.
+                    import breakdown as BK
+                    tfa = BK.tf_array(pd.DataFrame({'horse_id': R.horse_id.values, 'date': R.date.values, 'distance': R.distance.values, 'going': R.going.values,
+                                                    'weight_carried': np.nan, 'prize_money': (R.prize.values if 'prize' in R.columns else np.nan)}))
+                    okt = use & ~np.isnan(tfa)
+                    fp = np.where(okt, tfa + np.clip(fp - tfa, -TF_CAP, TF_CAP), fp)
+                fs = np.where(use, [cmeta['sd'].get(str(int(min(max(n, 1), CTX.K))), s0) for n, s0 in zip(np.nan_to_num(fn), fs)], fs)
+            return fp, fn, fs, has, rsk_out
+
+        n_all = len(R)
+        fp, fn, fs, rsk_all = (np.full(n_all, np.nan) for _ in range(4))
+        has = np.zeros(n_all, dtype=bool)
+        passes = page_passes(R)
+        try:
+            for pmask, pov in passes:
+                if len(passes) > 1 or pov is not None:
+                    F.set_page_scale(pov)
+                    sys.modules['breakdown']._CACHE.pop('arr', None) if 'breakdown' in sys.modules else None
+                a_fp, a_fn, a_fs, a_has, a_rsk = formula_part(R[pmask])
+                fp[pmask], fn[pmask], fs[pmask], has[pmask], rsk_all[pmask] = a_fp, a_fn, a_fs, a_has, a_rsk
+        finally:
+            if len(passes) > 1 or passes[0][1] is not None:
+                F.set_page_scale(None)
+                sys.modules['breakdown']._CACHE.pop('arr', None) if 'breakdown' in sys.modules else None
         if CTX_PROJ and os.path.exists(os.path.join(M, 'ctx_model.txt')):
-            # context correction (distance, going, class, weight, days since run, last-run margin, jockey effect, spread of recent ratings...), learned on the runner pages' ATW
-            # ratings only: held-out rating error 8.70 to 8.35 on 15.9k runs (train_ctx.py). The sd by earlier-run count is the held-out error with it.
-            import ctx as CTX
-            cmeta = json.load(open(os.path.join(M, 'ctx.json')))
-            Tc = R[['horse_id', 'date', 'jockey', 'trainer', 'distance', 'going', 'weightCarried', 'barrier', 'field_size', 'race_class', 'trackGrading'] + (['prize'] if 'prize' in R.columns else [])].assign(venue=R.track).reset_index(drop=True)
-            if ASSUME_RIDER:
-                Tc = fill_undeclared(Tc)
-            f2, corr, rsk = CTX.predict(Tc, meta=cmeta, want_risk=True)
-            R['risk'] = rsk     # chance of a bad run (display only, projection/train_risk.py)
-            use = has & ~np.isnan(corr)
-            stretch = float(CTX_STRETCH) if CTX_STRETCH else float(cmeta.get('stretch', 1.2))
-            corr = np.where(np.nan_to_num(fn) >= CTX.REL_MIN_RUNS, corr * stretch, corr)
-            if CTX_CAP_FEW > 0:
-                # 23 Oct 2026: the context step for a horse with under REL_MIN_RUNS earlier runs is capped (same insurance as speed_model.CAP_FEW)
-                corr = np.where(np.nan_to_num(fn) < CTX.REL_MIN_RUNS, np.clip(corr, -CTX_CAP_FEW, CTX_CAP_FEW), corr)
-            if use.any():
-                assert np.nanmax(np.abs(f2[use] - fp[use])) < 1e-6, 'ctx formula differs from features.formula_projection'
-            fp = np.where(use, fp + np.nan_to_num(corr), fp)
-            if TF_ANCHOR:
-                # 6 Nov 2026 (owner's request): the Proj is anchored on the hand-checkable formula (projection/breakdown.py: weighted last 6 clean ATW ratings, regression, days,
-                # distance and going, class, last run; capped terms) and the model may move it at most TF_CAP points. Held-out 2026 (64,610 runs): formula 8.695 RMSE, with a +-3 model step
-                # 8.412, uncapped model 8.375. Runners with under 3 earlier runs keep the model figure.
-                import breakdown as BK
-                tfa = BK.tf_array(pd.DataFrame({'horse_id': R.horse_id.values, 'date': R.date.values, 'distance': R.distance.values, 'going': R.going.values,
-                                                'weight_carried': np.nan, 'prize_money': (R.prize.values if 'prize' in R.columns else np.nan)}))
-                okt = use & ~np.isnan(tfa)
-                fp = np.where(okt, tfa + np.clip(fp - tfa, -TF_CAP, TF_CAP), fp)
-            fs = np.where(use, [cmeta['sd'].get(str(int(min(max(n, 1), CTX.K))), s0) for n, s0 in zip(np.nan_to_num(fn), fs)], fs)
+            R['risk'] = rsk_all
         R['p0'] = np.where(has, fp, np.nan)
         R['proj'] = R.p0
         R['wtadj'] = 0.0

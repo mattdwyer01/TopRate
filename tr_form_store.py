@@ -108,6 +108,51 @@ def merge_dir(src_dir, store_dir=DIR):
     return changed, written
 
 
+_PAGE_CACHE = {}
+
+
+def run_pages(date, runners_dir=RUNNERS):
+    """{run_id (text): {run date 'YYYY-MM-DD': rating}} for the races of one date: the ratings on the page TopRate served for THAT run, so rated at the weight
+    the horse carries in that race (rated, non-trial runs only). The store itself keeps one copy of each past run, written by whichever page was fetched
+    last, so a horse entered in two races at different weights has its whole stored history on the scale of the other race (12 Nov 2026: Garnacho, 60.5kg at
+    Seymour and 54kg at Dunkeld two days later, read 5.2 points high at Seymour). Empty when the day's file is missing (kept 7 days) or unreadable."""
+    date = str(date)[:10]
+    key = (str(runners_dir), date)
+    if key not in _PAGE_CACHE:
+        out = {}
+        try:
+            with gzip.open(Path(runners_dir) / f"{date}.json.gz", "rt") as fh:
+                rows = json.load(fh).get("rows", {})
+            for rid, rec in rows.items():
+                page = {}
+                for run in (rec.get("form") or []) if isinstance(rec, dict) else []:
+                    if not isinstance(run, dict) or not run.get("date") or run.get("isBarrierTrial") or run.get("isJumpout"):
+                        continue
+                    try:
+                        w = float(run.get("wpr"))
+                    except (TypeError, ValueError):
+                        continue
+                    if w == w:
+                        page[str(run["date"])[:10]] = w
+                if page:
+                    out[str(rid)] = page
+        except Exception:
+            out = {}
+        _PAGE_CACHE[key] = out
+    return _PAGE_CACHE[key]
+
+
+def page_shift(page, stored):
+    """Points to add to a horse's stored ratings to put them on a page's scale: the median of (page rating - stored rating) over the runs both have
+    (a page's scale is one constant per horse; the median ignores a run whose rating was revised between fetches). stored: {run date: rating}. None when
+    they share no run."""
+    d = sorted(page[k] - stored[k] for k in page if k in stored and stored[k] is not None)
+    if not d:
+        return None
+    n = len(d)
+    return d[n // 2] if n % 2 else (d[n // 2 - 1] + d[n // 2]) / 2
+
+
 def frame(horses=None, store_dir=DIR):
     """All stored runs as a DataFrame in the column names toprate_daily's form-history code reads (horse, date, wpr, track, distance, going, positionFinish,
     barrier, marginFinish, positionSettled, position800m, position400m, race_class, jockey, field_size, weightCarried, priceStarting, raceNumber, raceShape*,

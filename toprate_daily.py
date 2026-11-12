@@ -819,15 +819,27 @@ def patch_direct_scores(path="toprate_data.json"):
     return n
 
 
-def peak_last_year(horse_id, race_date):
-    """Highest runner-page rating in the 365 days before race_date (the race day itself excluded), or None."""
+def peak_last_year(horse_id, race_date, run_id=None):
+    """Highest runner-page rating in the 365 days before race_date (the race day itself excluded), or None. With run_id the ratings are those of the page
+    TopRate served for that run (the weight of this race, 12 Nov 2026): the store holds one copy of a past run, rated for the horse's last-fetched race."""
     try:
         d, w = _peak12_table().get(int(float(horse_id)), (None, None))
         if d is None:
             return None
         day = np.datetime64(str(race_date)[:10], "D").astype("int64")
         m = (d >= day - 365) & (d < day)
-        return round(float(w[m].max()), 1) if m.any() else None
+        if not m.any():
+            return None
+        try:
+            page = tr_form_store.run_pages(race_date).get(str(int(float(run_id)))) if run_id is not None else None
+        except Exception:
+            page = None
+        if page:
+            pg = {int(np.datetime64(k, "D").astype("int64")): v for k, v in page.items()}
+            shift = tr_form_store.page_shift(pg, dict(zip(d.tolist(), w.tolist())))
+            if shift is not None:
+                return round(max(pg.get(int(x), float(y) + shift) for x, y in zip(d[m], w[m])), 1)
+        return round(float(w[m].max()), 1)
     except Exception:
         return None
 
@@ -844,6 +856,40 @@ _DEAD_RUNNER_KEYS = frozenset((
 
 def _drop_nulls(rec):
     return {k: v for k, v in rec.items() if v is not None}
+
+
+def _run_page(race_date, run_id):
+    """The ratings on the runner page TopRate served for this run ({run date: rating}), or None (no page kept: older than 7 days, or never fetched)."""
+    try:
+        return tr_form_store.run_pages(race_date).get(str(int(float(run_id)))) or None
+    except Exception:
+        return None
+
+
+def _page_shift_for(page, all_runs, wk="w"):
+    """Points between a run's own page and the stored ratings of the horse (None = no page, or nothing in common). all_runs: the horse's form records."""
+    if not page or not all_runs:
+        return None
+    try:
+        return tr_form_store.page_shift(page, {str(r.get("d"))[:10]: float(r[wk]) for r in all_runs if r.get(wk) is not None})
+    except Exception:
+        return None
+
+
+def _on_page_scale(recs, page, shift, wk="wpr"):
+    """Form records with their rating at the weight of THIS race (12 Nov 2026). The store keeps one copy of a past run, rated for whichever race the horse's
+    page was last fetched for, so a horse entered in two races showed the other race's scale here. A run the page lists takes the page rating, the rest move
+    by `shift` (the median gap). Returns recs unchanged when there is no page."""
+    if not recs or not page or shift is None:
+        return recs
+    out = []
+    for r in recs:
+        w = r.get(wk)
+        if w is None:
+            out.append(r)
+            continue
+        out.append({**r, wk: round(float(page.get(str(r.get("d"))[:10], float(w) + shift)), 1)})
+    return out
 
 
 def _slim_payload(data):
@@ -1230,10 +1276,18 @@ def build_horse_history_files(runners_df, full_runs_lookup):
             fname = f"{str(d)[:10]}_{_slugify_venue(venue)}.json"
             needed.add(fname)
             blob = {}
+            # the run each horse has at this meeting, so its past ratings read at the weight of that race (see _on_page_scale)
+            rid_of = {}
+            if "run_id" in grp.columns:
+                g2 = grp.sort_values("scratched") if "scratched" in grp.columns else grp
+                for h_, r_ in zip(g2["horse"].astype(str).str.strip().str.lower(), g2["run_id"]):
+                    rid_of.setdefault(h_, r_)
             for horse_lc in grp["horse"].astype(str).str.strip().str.lower().unique():
                 runs = full_runs_lookup.get(horse_lc)
                 if not runs:
                     continue
+                page = _run_page(d, rid_of.get(horse_lc))
+                runs = _on_page_scale(runs, page, _page_shift_for(page, runs, "wpr"))
                 blob[horse_lc] = [_drop_nulls(r) for r in runs]
             if not blob:
                 continue
@@ -1956,6 +2010,9 @@ def rebuild_html(runners_df, model_pick_rows=None):
 
             # Cumulative predictive score + rank within race (for quaddie/exotic aid)
             _cs = cum_lookup.get(str(row.get("run_id", "")), {})
+            # this run's own runner page, so the form records below read at the weight of THIS race (see _on_page_scale)
+            _pg = _run_page(row.get("date"), row.get("run_id"))
+            _pg_shift = _page_shift_for(_pg, form_all_lookup.get(str(row.get("horse", "")).strip().lower(), []), "w")
 
             runners.append({
                 "rid":  str(row.get("run_id", "")),
@@ -2077,7 +2134,7 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 "wpjc":  si(row.get("wprp_conf")),    # confidence 0-100
                 "wpjpr": sf(row.get("wprp_price")),   # fair-value WPR price
                 "wpjr":  si(row.get("wprp_rank")),    # WPR rank within race
-                "wpjpk": peak_last_year(row.get("horse_id"), row.get("date")),    # peak runner-page rating in the 365 days before the race (23 Oct 2026; was the career peak)
+                "wpjpk": peak_last_year(row.get("horse_id"), row.get("date"), row.get("run_id")),    # peak runner-page rating in the 365 days before the race (23 Oct 2026; was the career peak)
                 "dm":   direct_chance(row.get("race_id"), row.get("tab_number"), row.get("date")),    # direct finishing-position model win chance (direct_score.py), None until scored
                 # Blend score (Step 2c2): the PRIMARY ranking as of Aug
                 # 2026 (promoted from wpr_rank/wprp_rank - a held-out
@@ -2144,25 +2201,25 @@ def rebuild_html(runners_df, model_pick_rows=None):
                 # same-date run is always the current race, never a legitimate
                 # earlier one. The full run stays in form history for
                 # modelling; this filter is display-only.
-                "formRuns": [
+                "formRuns": _on_page_scale([
                     _fr for _fr in form_lookup.get(
                         str(row.get("horse", "")).strip().lower(), [])
                     if str(_fr.get("d", ""))[:10] != str(row.get("date", ""))[:10]
-                ],
+                ], _pg, _pg_shift),
                 # peakRun: a single rich record for the most recent
                 # career-peak run when it falls OUTSIDE the visible runs.
                 # None when the peak is already visible in formRuns.
-                "peakRun": _peak_run_lookup.get(
-                    str(row.get("horse", "")).strip().lower()),
+                "peakRun": (_on_page_scale([_peak_run_lookup.get(str(row.get("horse", "")).strip().lower())], _pg, _pg_shift)[0]
+                            if _peak_run_lookup.get(str(row.get("horse", "")).strip().lower()) else None),
                 # formAll: compact full-history records for the detail-panel
                 # comparison tables (WPR by tempo/settling/going/distance).
                 # Exclude the current race (same date) so today's run does not
                 # skew the "all races" averages - consistent with formRuns.
-                "formAll": [
+                "formAll": _on_page_scale([
                     _fa_r for _fa_r in form_all_lookup.get(
                         str(row.get("horse", "")).strip().lower(), [])
                     if str(_fa_r.get("d", ""))[:10] != str(row.get("date", ""))[:10]
-                ],
+                ], _pg, _pg_shift, "w"),
                 # predicted settling band for THIS race (Leader/On-pace/
                 # Midfield/Back) - lets the settling comparison table
                 # highlight today's bucket. None if not estimable.
