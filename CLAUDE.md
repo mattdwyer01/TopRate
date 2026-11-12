@@ -2917,7 +2917,9 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   lost in both (-11% / -40%), and these runners' Betfair price averaged 1.27x the last fixed price (ROI +25% / +33% at Betfair against +4% / +13% fixed); skipping the top-rated runner also
   helped in both samples (+5% / +21%) but was not adopted. `volume_log.yml` had failed on every run since the Betfair columns were added on 10 Nov (`cmd_log` built the bet rows without
   `bsp` / `bf_comm`), so nothing was logged for 11 and 12 Nov; fixed. Owner's manual rules, not coded anywhere: quaddies are only played when no leg has a first starter and the four legs
-  average more than 8 runners; bush meetings (biggest race $20k or less) are left out of win, quinella and quaddie picks. Win bets (top rated 2+ clear, over $2, no first starters or
+  average more than 8 runners; each leg's pool is every runner within 2 Rating points of the top plus those within 4 forecast in the TOP HALF of the field on the trip map
+  (`(rank - 1) / (n - 1) <= 0.5`; changed from the first third on 13 Nov 2026, owner's call: on the same 71 quaddies 29 Oct to 12 Nov, corrected ratings, collects 17 to 24, -4.6% to +13.7%,
+  without the 11 Nov Happy Valley dividend -$817 to -$493, average combinations 170 to 250; Volume v2 keeps the first third, the extra runners there lost 9.7% at $1); bush meetings (biggest race $20k or less) are left out of win, quinella and quaddie picks. Win bets (top rated 2+ clear, over $2, no first starters or
   lightly raced horses): Betfair was not better (corrected 44 bets +21.5% fixed vs +17.3% at Betfair; logged 85 bets +19.5% vs +23.7%), so they stay at the fixed price.
 - **An empty runner page no longer replaces a good one (13 Nov 2026)**: around acceptances TopRate answers some runner pages with nothing for a while (12 Nov 00:01Z: 558 of 2,303 live
   14 Nov runners, 300 of them Dunkeld), and `toprate_runner_fetch.py` stored the empty answer over the page it had, so those horses lost their ratings at their own race's weight (Garnacho at Dunkeld)
