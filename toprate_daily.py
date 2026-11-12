@@ -2650,6 +2650,8 @@ def main():
             print(f"  past races: {len(id_map)} runners re-keyed to TopRate ids, {tr_field_rows.remap_projection_log(id_map)} projection-log rows")
         runners_df, n_past = tr_field_rows.merge_tr_past(runners_df)
         print(f"  past races: {n_past} TopRate cells filled from data/tr_past")
+        runners_df, n_hk = tr_field_rows.merge_tr_results_overseas(runners_df)
+        print(f"  overseas results: {n_hk} cells filled from data/tr_results")
     except Exception as e:
         print(f"  past-race TopRate merge failed ({type(e).__name__}: {e}), skipped")
     _main_step("Step 1: racing.com fields")

@@ -341,6 +341,61 @@ def merge_tr_past(runners_df):
     return runners_df, filled
 
 
+def merge_tr_results_overseas(runners_df):
+    """Fill blank results of OVERSEAS (Hong Kong) runs from TopRate's stored race pages, data/tr_results/<date>.json.gz (toprate_result_fetch.py), matched
+    on run_id. TAB carries no fixed or starting price for Hong Kong and its results feed missed whole meetings (Happy Valley 4 Nov 2026), so these pages are
+    the fallback: finish_position, won, placed (top 3), starting_price_sp, and interim_resulted / resulted once a finish is known. Only blanks are filled,
+    scratched rows are skipped. Returns (frame, cells filled)."""
+    import gzip
+    import pandas as pd
+    res_dir = Path(__file__).resolve().parent / "data" / "tr_results"
+    if not res_dir.exists() or "run_id" not in runners_df.columns:
+        return runners_df, 0
+    ven = runners_df["venue"].astype(str).str.strip().str.lower()
+    mask = ven.isin(set(OVERSEAS_STATES))
+    if "scratched" in runners_df.columns:
+        mask &= pd.to_numeric(runners_df["scratched"], errors="coerce").fillna(0) != 1
+    if not mask.any():
+        return runners_df, 0
+    rid = pd.to_numeric(runners_df["run_id"], errors="coerce")
+    filled = 0
+    for d in sorted(set(runners_df.loc[mask, "date"].astype(str).str[:10])):
+        f = res_dir / f"{d}.json.gz"
+        if not f.exists():
+            continue
+        try:
+            races = json.loads(gzip.open(f).read()).get("races", {})
+        except Exception:
+            continue
+        runs = {}
+        for rc in races.values():
+            if str(rc.get("venue", "")).strip().lower() not in OVERSEAS_STATES:
+                continue
+            for r in rc.get("runners", []):
+                if r.get("runId") is not None and r.get("positionFinish") is not None:
+                    runs[int(r["runId"])] = r
+        if not runs:
+            continue
+        for i in runners_df.index[mask & (runners_df["date"].astype(str).str[:10] == d)]:
+            r = runs.get(int(rid[i])) if pd.notna(rid[i]) else None
+            if r is None:
+                continue
+            try:
+                pos = int(r["positionFinish"])
+            except (TypeError, ValueError):
+                continue
+            vals = {"finish_position": pos, "won": 1 if pos == 1 else 0, "placed": 1 if pos <= 3 else 0,
+                    "interim_resulted": 1, "resulted": 1}
+            sp = r.get("priceStarting")
+            if sp is not None and float(sp) > 1:
+                vals["starting_price_sp"] = float(sp)
+            for c, v in vals.items():
+                if c in runners_df.columns and _blank(runners_df.at[i, c]):
+                    _set(runners_df, i, c, v)
+                    filled += 1
+    return runners_df, filled
+
+
 def remap_ids(runners_df):
     """Replace racing.com / placeholder run_id and race_id with TopRate's own for rows of days scanned by `toprate_past_fetch.py --scan-from` (the
     "_id" identity in data/tr_past/<date>.json), matched on date, normalised venue and horse name. A row already carrying the TopRate run_id is left

@@ -2934,6 +2934,13 @@ Live dashboard: https://mattdwyer01.github.io/TopRate/toprate_live.html
   sd 1.47; the rest are scratched runners or horses with no page history). On 843 races rated by all versions, winner log-lik of the Rating -1.859 corrected vs -1.869 as logged (se 0.004).
   Review and the race pages now show the corrected figures for those days, not what was shown before the jump. To go back, delete the two files and rebuild.
 
+- **Hong Kong results backfilled from TopRate's result pages (13 Nov 2026, owner's request)**: TAB's feed missed Happy Valley on 4 Nov 2026 entirely (no winner, positions, prices
+  or dividends for 9 races) and TAB carries no Hong Kong starting price, so every Hong Kong race had a blank starting price and only the placegetters had positions.
+  `tr_field_rows.merge_tr_results_overseas()` (called in `toprate_daily.main` after `merge_tr_past`) fills BLANK finish_position, won, placed (top 3), starting_price_sp,
+  interim_resulted and resulted on Happy Valley and Sha Tin rows from `data/tr_results/<date>.json.gz` (positionFinish, priceStarting; matched on run_id, scratched rows
+  skipped, nothing overwritten). Local run on 21 Oct to 11 Nov: 1,638 cells, every meeting now has a winner, a position and a starting price for every runner that ran;
+  the 59 winners TAB had already given agree with the pages. TAB dividends for 4 Nov cannot be recovered (TAB never recorded them).
+
 ## What to be careful about
 
 - The dashboard is live; a broken build takes it down. Validate and rebuild
