@@ -57,6 +57,11 @@ V1_MAX_OFF = 4.0
 V2A_MAX_OFF = 2.0            # top pick is a bet: qualifiers under 2 points off the top
 V2B_NEAR = 1.0               # nobody within this many points of the top qualifies ...
 V2B_MAX_OFF = 4.0            # ... then qualifiers up to this many points off
+# 13 Nov 2026 (owner's call): v2 bets only in fields of 8+ and is judged at the Betfair starting price after commission. Basis: 29 Oct to 11 Nov on corrected
+# ratings and 18 Oct to 12 Nov as logged, fields of 5 to 7 lost in both (-11% and -40%), and the Betfair price paid 1.27x the last fixed price on these
+# runners (ROI +25% / +33% at Betfair against +4% / +13% at fixed). Bets logged before V2_FROM keep the old rule.
+V2_MIN_FIELD = 8
+V2_FROM = "2026-11-13"
 STAKE_PER_RACE = 25.0
 LOG_MIN_MINS = 1             # a race is (re)logged while it is 1 to 40 minutes from the jump
 LOG_MAX_MINS = 40
@@ -177,7 +182,7 @@ def evaluate(df, gaps, price_mode="fixed", overrides=None, pft=None):
     d["n_qual_within1"] = near
     a = d["top_is_bet"] & d["qual"] & (d["off"] < V2A_MAX_OFF)
     b = (d["n_qual_within1"] == 0) & d["qual"] & (d["off"] <= V2B_MAX_OFF + 1e-9)
-    d["v2"] = a | b
+    d["v2"] = (a | b) & (d["n"] >= V2_MIN_FIELD)
     for r in ("v1", "v2", "v3"):
         cnt = d.groupby("race_id")[r].transform("sum")
         d[f"stake_{r}"] = np.where(d[r], STAKE_PER_RACE / cnt.replace(0, np.nan), 0.0)
@@ -291,7 +296,7 @@ def cmd_log(a):
         "meeting_min_prize": x["meet_min"], "race_prize": x["prize_money"],
         "prev_races": x["race_id"].map(lambda r: mb[r][0]), "prev_win_first_third": x["race_id"].map(lambda r: round(mb[r][1], 3) if mb[r][0] else np.nan),
         "prev_win_sp": x["race_id"].map(lambda r: round(mb[r][2], 3) if mb[r][0] else np.nan), "prev_top3_sp": x["race_id"].map(lambda r: round(mb[r][3], 3) if mb[r][0] else np.nan),
-        "won": np.nan, "finish_position": np.nan, "sp_final": np.nan, "void": 0, "settled_at": np.nan})[BET_COLS]
+        "won": np.nan, "finish_position": np.nan, "sp_final": np.nan, "void": 0, "settled_at": np.nan, "bsp": np.nan, "bf_comm": np.nan})[BET_COLS]
     bets = pd.concat([bets, nb], ignore_index=True) if len(bets) else nb
     races = pd.concat([races, new_races], ignore_index=True) if len(races) else new_races
     bets.to_csv(BETS_LOG, index=False)
@@ -463,6 +468,8 @@ def build_report(b, races):
             if s["bets"]:
                 by_day.append({"date": dte, **s})
         rep[rule]["by_day"] = by_day
+    nv = b[b["date"].astype(str) >= V2_FROM]
+    rep["v2_new"] = {"at_betfair": _summ_bf(nv, "v2"), "at_logged_price": _summ(nv, "v2", "price_logged")}
     rep["segments"] = _segments(b)
     rep["races_checked"] = int(len(races))
     rep["races_with_reason"] = races["reason"].value_counts().to_dict() if len(races) else {}
@@ -481,6 +488,11 @@ def write_report(rep, path_md=REPORT_MD, path_json=SUMMARY_JSON):
     for rule, name in (("v1", "Volume v1"), ("v2", "Volume v2"), ("v3", "Volume v3 (P cut)")):
         a, s = rep[rule]["at_logged_price"], rep[rule]["at_starting_price"]
         L.append(f"| {name} | {a['races']} | {a['bets']} | {a['wins']} | ${a['staked']:.0f} | ${a['returned']:.0f} | ${a['profit']:.0f} | {a['roi_pct']}% | {s['roi_pct']}% |")
+    nv = rep.get("v2_new") or {}
+    f, a2 = nv.get("at_betfair") or {}, nv.get("at_logged_price") or {}
+    L += ["", f"## Volume v2 from {V2_FROM}: fields of {V2_MIN_FIELD}+ only, judged at the Betfair starting price after commission", ""]
+    L.append(f"Bets settled {a2.get('bets', 0)} (profit at the logged fixed price ${a2.get('profit', 0):.0f}, ROI {a2.get('roi_pct')}%). "
+             f"With a Betfair price {f.get('bets', 0)}: staked ${f.get('staked', 0):.0f}, returned ${f.get('returned', 0):.0f}, profit ${f.get('profit', 0):.0f}, ROI {f.get('roi_pct')}%.")
     L += ["", "## The same bets at the Betfair starting price, after commission (10% NSW, 8% elsewhere)", "",
           "Only bets whose Betfair price has arrived (Betfair publishes a day or more after the race).", "",
           "| Rule | Bets with a Betfair price | Staked | Returned | Profit | ROI at Betfair | ROI at logged price, same bets |", "|---|---|---|---|---|---|---|"]
