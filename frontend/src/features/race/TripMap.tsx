@@ -25,6 +25,8 @@ interface TripMapProps {
 export const TRIP_CONTENDER_GAP = 4
 export const QUADDIE_ANY = 2 // quaddie pool: any runner this close to the top Rating
 export const QUADDIE_HALF = 6 // ... plus runners this close that are forecast in the first half
+export const QUADDIE_HALF_FALLBACK = 4 // used instead of QUADDIE_HALF when the full ticket would exceed QUADDIE_MAX_COMBOS
+export const QUADDIE_MAX_COMBOS = 600
 
 const LEADER_ZONE_L = 1.5 // runners this close to the front are the likely leaders
 const FT_LIKELY = 0.6 // chance of the first third at or above this is drawn green (the same cut as Volume v3 in volume_rules.py)
@@ -208,7 +210,9 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
       ]
     : []
   // Quaddie pool (owner's rule, 13 Nov 2026): within QUADDIE_ANY of the top Rating anywhere, or within QUADDIE_HALF and forecast in the first half
-  const qPool = nField >= 4 ? order.filter((r, i) => { const g = ratingGap[r.rid]; return g != null && (g <= QUADDIE_ANY || (g <= QUADDIE_HALF && i + 1 <= hN)) }) : []
+  const qPoolAt = (half: number) => (nField >= 4 ? order.filter((r, i) => { const g = ratingGap[r.rid]; return g != null && (g <= QUADDIE_ANY || (g <= half && i + 1 <= hN)) }) : [])
+  const qPool = qPoolAt(QUADDIE_HALF)
+  const qPool4 = qPoolAt(QUADDIE_HALF_FALLBACK)
   const laneLabel = noGps ? 'estimated width from rail at 800m from home (not measured)' : trip.laneKind === '800m' ? 'width from rail at 800m from home' : 'width from rail in the final 200m (racing.com GPS), not at 800m'
 
   return (
@@ -271,6 +275,12 @@ export function TripMap({ trip, excluded, runners: field, smByRunId = {}, compac
                 <div className="flex gap-2">
                   <span className="w-16 shrink-0 font-semibold text-amber">quaddie</span>
                   <span className="min-w-0 text-ink-soft">{qPool.map((r) => r.num).join(', ')} ({qPool.length}): within {QUADDIE_ANY} of the top Rating, or within {QUADDIE_HALF} and in the first half</span>
+                </div>
+              )}
+              {qPool.length > 0 && qPool4.length !== qPool.length && (
+                <div className="flex gap-2">
+                  <span className="w-16 shrink-0 font-semibold text-amber">fallback</span>
+                  <span className="min-w-0 text-ink-soft">{qPool4.map((r) => r.num).join(', ')} ({qPool4.length}): within {QUADDIE_HALF_FALLBACK} instead of {QUADDIE_HALF}, used when the full ticket is over {QUADDIE_MAX_COMBOS} combinations</span>
                 </div>
               )}
               {hasCont && <div className="text-ink-faint">Bold: within the contender gap of the top Rating, with its Rating rank.</div>}
