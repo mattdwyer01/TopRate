@@ -110,6 +110,7 @@ import time
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import pandas as pd
@@ -120,6 +121,12 @@ import toprate_daily as td  # reuse load_runners/save_runners/RUNNERS_CSV, keeps
 import tab_dividends  # TAB dividends per race, all pools incl. quaddies (racing-model exotics tests)
 import tab_price_log  # permanent append-only log of every fixed-odds read (racing-model backtests)
 import tab_fields  # twice-daily TAB race cards -> weight_carried (toprate.au no longer supplies weights)
+
+
+def melbourne_today():
+    """Today's racing date in Melbourne. The runner's clock is UTC, so date.today() gave the previous day until 11am AEDT
+    (14 Nov 2026: Sandown and Doomben went Heavy 8 on TAB at 9:33am but the poll read 13 Nov's card and saw no change)."""
+    return datetime.now(ZoneInfo("Australia/Melbourne")).date()
 
 ROOT = "https://api.beta.tab.com.au"
 MEETINGS = ROOT + "/v1/tab-info-service/racing/dates/{date}/meetings"
@@ -218,7 +225,7 @@ def diagnose():
     print("TAB API connectivity check")
     print("-" * 52)
     print(f"  curl_cffi installed : {'yes' if _cr else 'NO  <-- pip install curl_cffi'}")
-    today = date.today().isoformat()
+    today = melbourne_today().isoformat()
     url = MEETINGS.format(date=today)
     ok = False
     try:
@@ -253,7 +260,7 @@ def probe_odds():
     drill-down (1 + N-meetings + N*M-races requests/cycle) the results/
     conditions path deliberately avoided.
     """
-    today = date.today().isoformat()
+    today = melbourne_today().isoformat()
     for jurisdiction in TAB_JURISDICTIONS:
         payload = get(MEETINGS.format(date=today), {"jurisdiction": jurisdiction})
         for m in payload.get("meetings", []):
@@ -1143,7 +1150,7 @@ def dispatch_volume_log_if_needed(day):
 
 
 def run_once(push=True):
-    target_date = date.today().isoformat()
+    target_date = melbourne_today().isoformat()
     _prune_raw_archive(target_date)
     terminal_cache = load_terminal_cache()
     terminal_cache = _uncommitted_races_dropped(terminal_cache, target_date)
