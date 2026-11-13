@@ -27,6 +27,16 @@ MEL = ZoneInfo('Australia/Melbourne')
 WIN_LEAD, WIN_MIN_PRICE = 2.0, 2.0
 Q_ANY, Q_HALF, Q_HALF_FALLBACK, Q_MAX_COMBOS = 2.0, 6.0, 4.0, 600
 Q_MIN_TOP_PRIZE, Q_MIN_AVG_FIELD, BUSH_MAX_PRIZE = 40000, 8.0, 20000
+# Heavy tracks (14 Nov 2026, owner's call): every bet at a meeting rated Heavy 8 or worse is staked at half. Basis (stand-ins, 2024 to 8 Oct 2026):
+# Volume v2 lost 15.7% on 1,033 heavy races against about 7% on good and soft; the rating misses by 11.8 points on heavy against 8.4 on good.
+HEAVY_FROM, HEAVY_FACTOR = 8, 0.5
+
+
+def heavy_venues(day):
+    """venues whose going (runners.csv, TAB's reading) is Heavy 8 or worse on the day"""
+    R = V.read_runners(day)
+    n = pd.to_numeric(R.going.astype(str).str.extract(r'(\d+)')[0], errors='coerce')
+    return set(R.venue[n >= HEAVY_FROM])
 
 
 def mel(s):
@@ -94,6 +104,7 @@ def main():
     day = sys.argv[1]
     since = sys.argv[sys.argv.index('--from') + 1] if '--from' in sys.argv else None
     p, races, proj, nruns, model = load(day)
+    heavy = heavy_venues(day)
     gaps = gaps_table()
     rt = ratings(races, p['PRICE_BETA'])
     top_prize = {}
@@ -129,7 +140,7 @@ def main():
             if lead >= WIN_LEAD and not first and not light and (tp.get('fx') or 0) > WIN_MIN_PRICE and not bush:
                 winsel.add((x['venue'], x['race'], tp.get('tab')))
                 rows.append((mel(x['start_time']), 'WIN', f"{x['venue']} R{x['race']}",
-                             f"#{tp.get('tab')} {tp['h']} ${tp.get('fx'):.2f} (lead {lead:.1f}, $50)"))
+                             f"#{tp.get('tab')} {tp['h']} ${tp.get('fx'):.2f} (lead {lead:.1f}, ${50 * (HEAVY_FACTOR if x['venue'] in heavy else 1):g}{', heavy, half stake' if x['venue'] in heavy else ''})"))
         info[(x['venue'], x['race'])] = dict(x=x, n=n, first=first, pools=pools, undeclared=any((u.get('tab') or 0) <= 0 for u in L))
 
     for v in sorted({k[0] for k in info}):
@@ -162,7 +173,8 @@ def main():
                 use, tag = Q_HALF_FALLBACK, f'within 4 fallback ({c6} combos at 6)'
             c = int(np.prod([len(i['pools'][use]) for i in I]))
             sel = ' / '.join(','.join(str(t) for t in i['pools'][use]) for i in I)
-            rows.append((mel(I[0]['x']['start_time']), 'QUADDIE', label, f"{sel}  [{c} combos, {tag}, $25 flexi {100 * 25 / c:.1f}%]"))
+            qf = HEAVY_FACTOR if v in heavy else 1
+            rows.append((mel(I[0]['x']['start_time']), 'QUADDIE', label, f"{sel}  [{c} combos, {tag}, ${25 * qf:g} flexi {100 * 25 * qf / c:.1f}%{', heavy, half stake' if qf < 1 else ''}]"))
 
     R = V.read_runners(day)
     rid = pd.to_numeric(R.run_id, errors='coerce').astype('Int64').astype(str)
@@ -175,7 +187,7 @@ def main():
         if g.empty:
             continue
         rows.append((mel(st), 'VOLUME v2', f"{g.venue.iloc[0]} R{int(g.race.iloc[0])}",
-                     ', '.join(f"#{int(x.tab_number)} {x.horse} ${x.price:g}" for x in g.itertuples()) + f"  (${25 / len(g):.2f} each, Betfair SP)"))
+                     ', '.join(f"#{int(x.tab_number)} {x.horse} ${x.price:g}" for x in g.itertuples()) + f"  (${25 * (HEAVY_FACTOR if g.venue.iloc[0] in heavy else 1) / len(g):.2f} each, Betfair SP{', heavy, half stake' if g.venue.iloc[0] in heavy else ''})"))
     for line in V.v2_watch(R, b, gaps, V.read_overrides(), None):
         t = line.strip().split(' ')[0]
         head = line.strip().split(' ', 1)[1].split(':')[0]          # "Venue R6"
