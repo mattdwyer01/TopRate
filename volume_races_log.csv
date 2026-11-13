@@ -347,9 +347,10 @@ checked_at,mins_to_jump,date,venue,race,race_id,start_time,field_n,reason,v1_bet
 2026-11-13T07:12:51Z,2.1,2026-11-13,Pakenham,1,1830211,2026-11-13T07:15:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
 2026-11-13T07:24:38Z,5.4,2026-11-13,Canterbury,2,1830109,2026-11-13T07:30:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
 2026-11-13T07:30:06Z,7.9,2026-11-13,Sunshine Coast,1,1830222,2026-11-13T07:38:00+00:00,7,ok,1,0
-2026-11-13T07:37:00Z,23.0,2026-11-13,Canterbury,3,1830107,2026-11-13T08:00:00+00:00,7,"first starter, light-history or no-Proj runner",0,0
-2026-11-13T07:37:00Z,12.0,2026-11-13,Rockhampton,7,1830187,2026-11-13T07:49:00+00:00,10,ok,2,0
-2026-11-13T07:37:00Z,38.0,2026-11-13,Pakenham,3,1830209,2026-11-13T08:15:00+00:00,12,"first starter, light-history or no-Proj runner",0,0
-2026-11-13T07:37:00Z,8.0,2026-11-13,Pakenham,2,1830210,2026-11-13T07:45:00+00:00,12,"first starter, light-history or no-Proj runner",0,0
-2026-11-13T07:37:00Z,31.0,2026-11-13,Sunshine Coast,2,1830223,2026-11-13T08:08:00+00:00,12,"first starter, light-history or no-Proj runner",0,0
 2026-11-13T07:37:00Z,4.0,2026-11-13,Albany,4,1830280,2026-11-13T07:41:00+00:00,8,ok,3,3
+2026-11-13T07:41:04Z,18.9,2026-11-13,Canterbury,3,1830107,2026-11-13T08:00:00+00:00,7,"first starter, light-history or no-Proj runner",0,0
+2026-11-13T07:41:04Z,7.9,2026-11-13,Rockhampton,7,1830187,2026-11-13T07:49:00+00:00,10,ok,2,0
+2026-11-13T07:41:04Z,33.9,2026-11-13,Pakenham,3,1830209,2026-11-13T08:15:00+00:00,12,"first starter, light-history or no-Proj runner",0,0
+2026-11-13T07:41:04Z,3.9,2026-11-13,Pakenham,2,1830210,2026-11-13T07:45:00+00:00,12,"first starter, light-history or no-Proj runner",0,0
+2026-11-13T07:41:04Z,26.9,2026-11-13,Sunshine Coast,2,1830223,2026-11-13T08:08:00+00:00,12,"first starter, light-history or no-Proj runner",0,0
+2026-11-13T07:41:04Z,38.9,2026-11-13,Albany,5,1830277,2026-11-13T08:20:00+00:00,8,ok,1,1
