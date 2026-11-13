@@ -340,8 +340,9 @@ checked_at,mins_to_jump,date,venue,race,race_id,start_time,field_n,reason,v1_bet
 2026-11-13T06:28:38Z,5.4,2026-11-13,Ballina,8,1830120,2026-11-13T06:34:00+00:00,10,ok,2,2
 2026-11-13T06:28:38Z,14.4,2026-11-13,Rockhampton,5,1830182,2026-11-13T06:43:00+00:00,10,"first starter, light-history or no-Proj runner",0,0
 2026-11-13T06:28:38Z,1.4,2026-11-13,Geelong,9,1830229,2026-11-13T06:30:00+00:00,10,ok,3,0
-2026-11-13T06:46:34Z,13.4,2026-11-13,Canterbury,1,1830108,2026-11-13T07:00:00+00:00,6,"first starter, light-history or no-Proj runner",0,0
-2026-11-13T06:46:34Z,32.4,2026-11-13,Rockhampton,6,1830186,2026-11-13T07:19:00+00:00,11,ok,1,1
-2026-11-13T06:46:34Z,28.4,2026-11-13,Pakenham,1,1830211,2026-11-13T07:15:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
 2026-11-13T06:46:34Z,3.4,2026-11-13,Bordertown,7,1830249,2026-11-13T06:50:00+00:00,11,bush meeting,0,0
-2026-11-13T06:46:34Z,18.4,2026-11-13,Albany,3,1830278,2026-11-13T07:05:00+00:00,10,"first starter, light-history or no-Proj runner",0,0
+2026-11-13T06:51:16Z,8.7,2026-11-13,Canterbury,1,1830108,2026-11-13T07:00:00+00:00,6,"first starter, light-history or no-Proj runner",0,0
+2026-11-13T06:51:16Z,38.7,2026-11-13,Canterbury,2,1830109,2026-11-13T07:30:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
+2026-11-13T06:51:16Z,27.7,2026-11-13,Rockhampton,6,1830186,2026-11-13T07:19:00+00:00,11,ok,1,1
+2026-11-13T06:51:16Z,23.7,2026-11-13,Pakenham,1,1830211,2026-11-13T07:15:00+00:00,8,"first starter, light-history or no-Proj runner",0,0
+2026-11-13T06:51:16Z,13.7,2026-11-13,Albany,3,1830278,2026-11-13T07:05:00+00:00,10,"first starter, light-history or no-Proj runner",0,0
