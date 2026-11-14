@@ -106,6 +106,13 @@ def main():
     p, races, proj, nruns, model = load(day)
     heavy = heavy_venues(day)
     gaps = gaps_table()
+    starts = {}   # (venue, horse) -> TopRate career starts, from data/tr_fields/<day>.json
+    try:
+        for r in json.load(open(f'data/tr_fields/{day}.json')).get('rows', []):
+            if r.get('career_starts') is not None:
+                starts[(str(r.get('venue', '')).lower(), str(r.get('horse', '')).lower())] = int(r['career_starts'])
+    except Exception:
+        pass
     rt = ratings(races, p['PRICE_BETA'])
     top_prize = {}
     for x in races:
@@ -116,7 +123,10 @@ def main():
     for x in races:
         L = [u for u in x['runners'] if not u.get('scr')]
         n = len(L)
-        first = any(nruns.get(str(u['rid'])) == 0 or u.get('wpjm') == 'debut' or u.get('wpjp') is None for u in L)
+        # a runner counts as a first starter (no rating, nruns 0 or a debut estimate) only if TopRate's field file does not show earlier starts (14 Nov 2026: Sha Tin R5
+        # #7 Highland Cross had 1 start and no rating, which wrongly ruled out the early quaddie)
+        first = any((nruns.get(str(u['rid'])) == 0 or u.get('wpjm') == 'debut' or u.get('wpjp') is None)
+                    and not starts.get((x['venue'].lower(), str(u.get('h') or '').lower())) for u in L)
         light = any(model.get(str(u['rid'])) != 'main' or nruns.get(str(u['rid'])) == 0 for u in L)
         rated = sorted([u for u in L if rt.get(str(u['rid'])) is not None and nruns.get(str(u['rid'])) != 0],
                        key=lambda u: -rt[str(u['rid'])])
