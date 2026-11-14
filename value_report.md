@@ -4,21 +4,21 @@ The model was locked on races to 2026-10-08. Every race below is later than that
 
 Pass rule, fixed before the first day was scored: first read at 2000 bets, final read at 6000. Pass = return above zero without the 10 best winners, and the bets win more often than the Betfair price implied.
 
-**no read yet: 1477 of 2000 bets**
+**no read yet: 1521 of 2000 bets**
 
-2026-10-09 to 2026-11-11: 34 days, 1545 races scored, 14792 runners.
+2026-10-09 to 2026-11-12: 35 days, 1586 races scored, 15196 runners.
 
 | | Bets | Wins | Won | Model said | Betfair said | Avg price | Profit (units) | Return | Return without 10 best |
 |---|---|---|---|---|---|---|---|---|---|
-| All bets | 1477 | 227 | 15.4% | 15.8% | 14.2% | $12.15 | +6.9 | +0.5% | -13.4% |
-| Under $6 | 390 | 134 | 34.4% | 34.8% | 31.8% | $3.62 | +17.0 | +4.4% | -6.3% |
-| $6 to $12 | 416 | 47 | 11.3% | 13.2% | 11.7% | $8.95 | -51.8 | -12.4% | -33.7% |
-| $12 to $30 | 671 | 46 | 6.9% | 6.4% | 5.6% | $19.08 | +41.6 | +6.2% | -24.4% |
-| NSW | 303 | 49 | 16.2% | 17.0% | 15.0% | $11.40 | +6.1 | +2.0% | -38.6% |
-| Other states | 1174 | 178 | 15.2% | 15.5% | 14.0% | $12.34 | +0.8 | +0.1% | -17.4% |
+| All bets | 1521 | 231 | 15.2% | 15.8% | 14.2% | $12.17 | -7.3 | -0.5% | -14.0% |
+| Under $6 | 397 | 135 | 34.0% | 34.8% | 31.7% | $3.63 | +14.4 | +3.6% | -6.9% |
+| $6 to $12 | 434 | 50 | 11.5% | 13.2% | 11.7% | $8.93 | -44.3 | -10.2% | -30.8% |
+| $12 to $30 | 690 | 46 | 6.7% | 6.4% | 5.6% | $19.12 | +22.6 | +3.3% | -26.5% |
+| NSW | 315 | 49 | 15.6% | 16.8% | 14.9% | $11.43 | -5.9 | -1.9% | -41.0% |
+| Other states | 1206 | 182 | 15.1% | 15.5% | 14.0% | $12.36 | -1.4 | -0.1% | -17.1% |
 
-Return range from resampling days (90%): -9.3% to +11.0%; chance the return is above zero: 54%.
-Winner log-likelihood gain over the Betfair price: +0.0002 a race (standard error 0.0020).
+Return range from resampling days (90%): -9.9% to +10.0%; chance the return is above zero: 47%.
+Winner log-likelihood gain over the Betfair price: -0.0003 a race (standard error 0.0019).
 
 ## By week
 
@@ -29,4 +29,4 @@ Winner log-likelihood gain over the Betfair price: +0.0002 a race (standard erro
 | 2026-10-19 | 300 | 45 | -9.2 | -3.1% |
 | 2026-10-26 | 314 | 42 | -39.0 | -12.4% |
 | 2026-11-02 | 314 | 49 | -15.6 | -5.0% |
-| 2026-11-09 | 70 | 16 | +5.6 | +8.0% |
+| 2026-11-09 | 114 | 20 | -8.6 | -7.5% |
