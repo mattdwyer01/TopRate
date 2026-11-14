@@ -2,17 +2,17 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-14; races checked 522; bets still open 22.
+Logged 2026-11-04 to 2026-11-14; races checked 523; bets still open 23.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
-| Volume v1 | 202 | 423 | 51 | $5037 | $4600 | $-437 | -8.7% | -5.4% |
-| Volume v2 | 146 | 251 | 32 | $3650 | $3403 | $-247 | -6.8% | -2.4% |
-| Volume v3 (P cut) | 134 | 196 | 29 | $3337 | $3414 | $77 | 2.3% | 4.6% |
+| Volume v1 | 203 | 424 | 51 | $5062 | $4600 | $-462 | -9.1% | -5.9% |
+| Volume v2 | 147 | 252 | 32 | $3675 | $3403 | $-272 | -7.4% | -3.1% |
+| Volume v3 (P cut) | 135 | 197 | 29 | $3362 | $3414 | $52 | 1.5% | 3.8% |
 
 ## Volume v2 from 2026-11-13: fields of 8+ only, judged at the Betfair starting price after commission
 
-Bets settled 82 (profit at the logged fixed price $-64, ROI -5.0%). With a Betfair price 0: staked $0, returned $0, profit $0, ROI None%.
+Bets settled 83 (profit at the logged fixed price $-89, ROI -6.8%). With a Betfair price 0: staked $0, returned $0, profit $0, ROI None%.
 
 ## The same bets at the Betfair starting price, after commission (10% NSW, 8% elsewhere)
 
@@ -37,23 +37,23 @@ Only bets whose Betfair price has arrived (Betfair publishes a day or more after
 | 2026-11-10 | 11 | $-99 | 5 | $-36 | 8 | $-47 |
 | 2026-11-12 | 2 | $-25 | 2 | $-25 | 0 | $0 |
 | 2026-11-13 | 64 | $-20 | 32 | $131 | 34 | $118 |
-| 2026-11-14 | 110 | $73 | 50 | $-195 | 50 | $184 |
+| 2026-11-14 | 111 | $48 | 51 | $-220 | 51 | $159 |
 
 ## Segments (at logged price; stake is the full $25 a race rule stake, so segments are cuts of the same bets)
 
 | Segment | v1 bets | v1 profit | v1 ROI | v2 bets | v2 profit | v2 ROI | v3 bets | v3 profit | v3 ROI |
 |---|---|---|---|---|---|---|---|---|---|
-| All bets | 423 | $-437 | -8.7% | 251 | $-247 | -6.8% | 196 | $77 | 2.3% |
+| All bets | 424 | $-462 | -9.1% | 252 | $-272 | -7.4% | 197 | $52 | 1.5% |
 | Meeting minimum prize $30k+ | 256 | $-16 | -0.5% | 148 | $142 | 6.8% | 129 | $-205 | -9.6% |
 | Meeting minimum prize $40k+ | 206 | $467 | 19.5% | 123 | $442 | 25.6% | 99 | $132 | 7.8% |
 | Meeting minimum prize $50k+ | 142 | $480 | 29.1% | 83 | $412 | 36.6% | 69 | $72 | 6.1% |
 | Good or firm going (1 to 4) | 291 | $-450 | -13.2% | 172 | $-179 | -7.2% | 140 | $-95 | -4.2% |
 | $30k+ and good/firm | 175 | $276 | 13.5% | 101 | $386 | 27.1% | 91 | $164 | 11.1% |
 | $40k+ and good/firm | 134 | $634 | 39.6% | 81 | $586 | 51.0% | 66 | $401 | 35.7% |
-| Field of 8 or more | 367 | $-108 | -2.5% | 229 | $-5 | -0.2% | 169 | $260 | 9.2% |
+| Field of 8 or more | 368 | $-133 | -3.1% | 230 | $-30 | -0.9% | 170 | $235 | 8.3% |
 | Field of 5 to 7 | 56 | $-329 | -42.4% | 22 | $-242 | -74.4% | 27 | $-183 | -34.8% |
 | $40k+ and field of 8+ | 185 | $503 | 23.7% | 120 | $467 | 27.5% | 90 | $226 | 14.8% |
-| P(first third) 0.7+ | 124 | $-121 | -8.8% | 73 | $-211 | -20.0% | 124 | $-147 | -7.0% |
+| P(first third) 0.7+ | 125 | $-146 | -10.4% | 74 | $-236 | -21.9% | 125 | $-172 | -8.1% |
 | P(first third) 0.5 to 0.7 | 153 | $629 | 31.9% | 86 | $536 | 38.9% | 72 | $224 | 18.1% |
 | P(first third) under 0.5 | 100 | $-642 | -56.8% | 54 | $-344 | -46.4% | 0 | $0 | None% |
 | 3+ earlier races, 40%+ won from first third | 142 | $-201 | -11.3% | 91 | $-75 | -5.6% | 63 | $394 | 33.9% |
@@ -62,7 +62,7 @@ Only bets whose Betfair price has arrived (Betfair publishes a day or more after
 
 ## Races checked without a bet, by reason
 
-- ok: 275
+- ok: 276
 - first starter, light-history or no-Proj runner: 153
 - bush meeting: 92
 - field under 5: 2
