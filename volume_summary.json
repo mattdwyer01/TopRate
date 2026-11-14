@@ -860,14 +860,14 @@
    }
   }
  ],
- "races_checked": 443,
+ "races_checked": 446,
  "races_with_reason": {
-  "ok": 222,
-  "first starter, light-history or no-Proj runner": 143,
+  "ok": 224,
+  "first starter, light-history or no-Proj runner": 144,
   "bush meeting": 76,
   "field under 5": 2
  },
- "open_bets": 26,
+ "open_bets": 32,
  "first_date": "2026-11-04",
  "last_date": "2026-11-14"
 }
