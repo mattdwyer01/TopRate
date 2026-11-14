@@ -2,7 +2,7 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-14; races checked 398; bets still open 14.
+Logged 2026-11-04 to 2026-11-14; races checked 400; bets still open 15.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
@@ -62,7 +62,7 @@ Only bets whose Betfair price has arrived (Betfair publishes a day or more after
 
 ## Races checked without a bet, by reason
 
-- ok: 207
+- ok: 208
 - first starter, light-history or no-Proj runner: 131
-- bush meeting: 58
+- bush meeting: 59
 - field under 5: 2
