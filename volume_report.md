@@ -2,13 +2,13 @@
 
 Bets are frozen up to 40 minutes before the jump at the fixed price then; results are filled in after the race. $25 a race per rule, split equally. See `volume_rules.py` for the rule definitions.
 
-Logged 2026-11-04 to 2026-11-14; races checked 383; bets still open 12.
+Logged 2026-11-04 to 2026-11-14; races checked 384; bets still open 12.
 
 | Rule | Races | Bets | Wins | Staked | Returned | Profit | ROI at logged price | ROI at starting price |
 |---|---|---|---|---|---|---|---|---|
-| Volume v1 | 151 | 313 | 33 | $3762 | $3252 | $-510 | -13.6% | -12.3% |
-| Volume v2 | 115 | 201 | 23 | $2875 | $2823 | $-52 | -1.8% | -0.0% |
-| Volume v3 (P cut) | 96 | 146 | 19 | $2387 | $2280 | $-107 | -4.5% | -7.3% |
+| Volume v1 | 151 | 313 | 33 | $3762 | $3252 | $-510 | -13.6% | -9.2% |
+| Volume v2 | 115 | 201 | 23 | $2875 | $2823 | $-52 | -1.8% | 3.7% |
+| Volume v3 (P cut) | 96 | 146 | 19 | $2387 | $2280 | $-107 | -4.5% | -1.3% |
 
 ## Volume v2 from 2026-11-13: fields of 8+ only, judged at the Betfair starting price after commission
 
@@ -20,8 +20,8 @@ Only bets whose Betfair price has arrived (Betfair publishes a day or more after
 
 | Rule | Bets with a Betfair price | Staked | Returned | Profit | ROI at Betfair | ROI at logged price, same bets |
 |---|---|---|---|---|---|---|
-| Volume v1 | 235 | $2837 | $2927 | $90 | 3.2% | -13.1% |
-| Volume v2 | 161 | $2250 | $2638 | $388 | 17.2% | -2.6% |
+| Volume v1 | 237 | $2862 | $2927 | $65 | 2.3% | -13.9% |
+| Volume v2 | 163 | $2275 | $2638 | $363 | 15.9% | -3.6% |
 | Volume v3 (P cut) | 104 | $1737 | $1616 | $-122 | -7.0% | -8.9% |
 
 ## By day (at logged price)
@@ -61,7 +61,7 @@ Only bets whose Betfair price has arrived (Betfair publishes a day or more after
 
 ## Races checked without a bet, by reason
 
-- ok: 203
+- ok: 204
 - first starter, light-history or no-Proj runner: 125
 - bush meeting: 53
 - field under 5: 2

@@ -14,17 +14,17 @@
    "bets": 313,
    "wins": 33,
    "staked": 3762.13,
-   "returned": 3300.59,
-   "profit": -461.54,
-   "roi_pct": -12.3
+   "returned": 3416.43,
+   "profit": -345.7,
+   "roi_pct": -9.2
   },
   "at_betfair": {
-   "bets": 235,
-   "staked": 2837.25,
+   "bets": 237,
+   "staked": 2862.25,
    "returned": 2927.23,
-   "profit": 89.98,
-   "roi_pct": 3.2,
-   "roi_logged_same_bets_pct": -13.1
+   "profit": 64.98,
+   "roi_pct": 2.3,
+   "roi_logged_same_bets_pct": -13.9
   },
   "by_day": [
    {
@@ -134,17 +134,17 @@
    "bets": 201,
    "wins": 23,
    "staked": 2874.82,
-   "returned": 2873.99,
-   "profit": -0.83,
-   "roi_pct": -0.0
+   "returned": 2981.49,
+   "profit": 106.67,
+   "roi_pct": 3.7
   },
   "at_betfair": {
-   "bets": 161,
-   "staked": 2249.87,
+   "bets": 163,
+   "staked": 2274.87,
    "returned": 2637.52,
-   "profit": 387.65,
-   "roi_pct": 17.2,
-   "roi_logged_same_bets_pct": -2.6
+   "profit": 362.65,
+   "roi_pct": 15.9,
+   "roi_logged_same_bets_pct": -3.6
   },
   "by_day": [
    {
@@ -254,9 +254,9 @@
    "bets": 146,
    "wins": 19,
    "staked": 2387.42,
-   "returned": 2213.27,
-   "profit": -174.15,
-   "roi_pct": -7.3
+   "returned": 2357.02,
+   "profit": -30.4,
+   "roi_pct": -1.3
   },
   "at_betfair": {
    "bets": 104,
@@ -830,9 +830,9 @@
    }
   }
  ],
- "races_checked": 383,
+ "races_checked": 384,
  "races_with_reason": {
-  "ok": 203,
+  "ok": 204,
   "first starter, light-history or no-Proj runner": 125,
   "bush meeting": 53,
   "field under 5": 2
