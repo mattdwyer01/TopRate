@@ -26321,3 +26321,11 @@ captured_utc,date,venue,race_no,jurisdiction,status,product,selections,amount,ra
 2026-11-14T11:15:41+00:00,2026-11-14,TOOWOOMBA,7,VIC,Paying,Trifecta,10/5/12,48.3,"{""selections"":[10,5,12],""amount"":48.3}"
 2026-11-14T11:15:41+00:00,2026-11-14,TOOWOOMBA,7,VIC,Paying,FirstFour,10/5/12/3,192.2,"{""selections"":[10,5,12,3],""amount"":192.2}"
 2026-11-14T11:15:41+00:00,2026-11-14,TOOWOOMBA,7,VIC,Paying,RunningDouble,13/10,62.9,"{""selections"":[13,10],""amount"":62.9}"
+2026-11-15T00:01:30+00:00,2026-11-15,WARWICK,1,VIC,Abandoned,(abandoned),,,
+2026-11-15T00:01:30+00:00,2026-11-15,WARWICK,2,VIC,Abandoned,(abandoned),,,
+2026-11-15T00:01:30+00:00,2026-11-15,WARWICK,3,VIC,Abandoned,(abandoned),,,
+2026-11-15T00:01:30+00:00,2026-11-15,WARWICK,4,VIC,Abandoned,(abandoned),,,
+2026-11-15T00:01:30+00:00,2026-11-15,WARWICK,5,VIC,Abandoned,(abandoned),,,
+2026-11-15T00:01:30+00:00,2026-11-15,WARWICK,6,VIC,Abandoned,(abandoned),,,
+2026-11-15T00:01:30+00:00,2026-11-15,WARWICK,7,VIC,Abandoned,(abandoned),,,
+2026-11-15T00:01:30+00:00,2026-11-15,WARWICK,8,VIC,Abandoned,(abandoned),,,
